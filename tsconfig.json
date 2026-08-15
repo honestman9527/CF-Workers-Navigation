@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/web/*"]
+    }
+  },
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.shared.json" },
+    { "path": "./tsconfig.worker.json" },
+    { "path": "./tsconfig.web.json" },
+    { "path": "./tsconfig.extension.json" }
+  ]
+}

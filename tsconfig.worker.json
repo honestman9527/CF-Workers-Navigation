@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types", "node"],
+    "noEmit": true
+  },
+  "include": [
+    "src/worker/**/*.ts",
+    "src/shared/**/*.ts",
+    "drizzle.config.ts",
+    "vitest.worker.config.ts",
+    "worker-configuration.d.ts"
+  ]
+}

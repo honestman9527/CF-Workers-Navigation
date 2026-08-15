@@ -1,0 +1,38 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build and tooling
+dist
+coverage
+.wrangler
+*.tsbuildinfo
+
+# local configuration
+.dev.vars
+wrangler.ci.jsonc
+wrangler.secrets.json
+.env
+.env.*
+!.env.example
+
+# logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors and OS
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# local files
+*.local
+.cache
+tmp
+temp
+.pi
+.migration

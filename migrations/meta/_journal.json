@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785504235724,
+      "tag": "0000_empty_deathbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785504235725,
+      "tag": "0001_drop_is_public",
+      "breakpoints": true
+    }
+  ]
+}

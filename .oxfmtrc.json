@@ -1,0 +1,48 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "singleQuote": true,
+  "semi": true,
+  "trailingComma": "all",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "worker-configuration.d.ts",
+    "migrations/meta/**",
+    "src/extension/**",
+    "pnpm-lock.yaml"
+  ],
+  "sortImports": {
+    "ignoreCase": true,
+    "newlinesBetween": true,
+    "order": "asc",
+    "partitionByComment": false,
+    "partitionByNewline": false,
+    "sortSideEffects": false,
+    "internalPattern": ["@/", "@nav/", "@ext/", "@shared/", "~/", "#"],
+    "groups": [
+      "type-builtin",
+      "type-external",
+      "type-internal",
+      "type-parent",
+      "type-sibling",
+      "type-index",
+      "value-builtin",
+      "value-external",
+      "value-internal",
+      ["value-parent", "value-sibling", "value-index"],
+      "style",
+      "unknown"
+    ]
+  },
+  "sortTailwindcss": {
+    "stylesheet": "./src/web/styles.css",
+    "functions": ["clsx", "cn", "cva", "tw"],
+    "preserveDuplicates": false,
+    "preserveWhitespace": false
+  },
+  "sortPackageJson": {
+    "sortScripts": true
+  }
+}

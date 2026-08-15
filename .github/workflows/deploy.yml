@@ -1,0 +1,146 @@
+name: Deploy Nav Web and Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/shared/**'
+      - 'src/web/**'
+      - 'src/worker/**'
+      - 'public/**'
+      - 'migrations/**'
+      - '.github/scripts/gen-wrangler-ci.mjs'
+      - '.github/workflows/deploy.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'wrangler.jsonc'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nav-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NAME: ${{ vars.NAME || 'nav' }}
+  D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+jobs:
+  deploy:
+    name: Deploy Web and Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Cloudflare credentials
+        shell: bash
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            printf 'Missing required secret: CLOUDFLARE_ACCOUNT_ID\n' >&2
+            exit 1
+          fi
+
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            printf 'Missing required secret: CLOUDFLARE_API_TOKEN\n' >&2
+            exit 1
+          fi
+
+          if [ -z "$ADMIN_PASSWORD" ]; then
+            printf 'Missing required secret: ADMIN_PASSWORD\n' >&2
+            exit 1
+          fi
+
+          if [ -z "$SESSION_SECRET" ]; then
+            printf 'Missing required secret: SESSION_SECRET\n' >&2
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Resolve D1 database
+        id: d1
+        shell: bash
+        run: |
+          if [ -n "$D1_DATABASE_ID" ]; then
+            {
+              printf 'database_name=%s\n' "$NAME"
+              printf 'database_id=%s\n' "$D1_DATABASE_ID"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          find_database_id() {
+            pnpm exec wrangler d1 list --json | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const databases = JSON.parse(input); const match = databases.find(database => (database.name ?? database.database_name) === process.env.NAME); if (match) process.stdout.write(match.uuid ?? match.id ?? match.database_id ?? ""); });'
+          }
+
+          database_id=$(find_database_id)
+
+          if [ -z "$database_id" ]; then
+            pnpm exec wrangler d1 create "$NAME"
+            database_id=$(find_database_id)
+          fi
+
+          if [ -z "$database_id" ]; then
+            printf 'Unable to resolve D1 database ID for %s\n' "$NAME" >&2
+            exit 1
+          fi
+
+          {
+            printf 'database_name=%s\n' "$NAME"
+            printf 'database_id=%s\n' "$database_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create CI Wrangler config
+        env:
+          DB_NAME: ${{ steps.d1.outputs.database_name }}
+          DB_ID: ${{ steps.d1.outputs.database_id }}
+        run: node .github/scripts/gen-wrangler-ci.mjs --db-name "$DB_NAME" --db-id "$DB_ID"
+
+      - name: Create CI Worker secrets file
+        shell: bash
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+        run: |
+          node -e 'const fs = require("node:fs"); fs.writeFileSync("wrangler.secrets.json", `${JSON.stringify({ ADMIN_PASSWORD: process.env.ADMIN_PASSWORD, SESSION_SECRET: process.env.SESSION_SECRET }, null, 2)}\n`, { mode: 0o600 });'
+
+      - name: Apply remote D1 migrations
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.ci.jsonc
+
+      - name: Build Web
+        run: pnpm build:web
+
+      - name: Deploy Worker
+        run: pnpm exec wrangler deploy --config wrangler.ci.jsonc --secrets-file wrangler.secrets.json
+
+      - name: Remove temporary CI files
+        if: always()
+        run: rm -f wrangler.ci.jsonc wrangler.secrets.json

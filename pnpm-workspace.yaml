@@ -1,0 +1,5 @@
+# pnpm 11 stores install-script policy here, including for a single-package repository.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true

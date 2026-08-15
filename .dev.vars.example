@@ -1,0 +1,2 @@
+ADMIN_PASSWORD=change-me-in-dev-vars
+SESSION_SECRET=change-me-session-secret
