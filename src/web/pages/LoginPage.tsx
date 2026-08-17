@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/primitives';
 import { ApiError } from '@nav/api/client';
-import { Button } from '@nav/components/Button';
 
 export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promise<void> }) {
   const [password, setPassword] = useState('');

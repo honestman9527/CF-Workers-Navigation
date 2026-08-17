@@ -3,8 +3,7 @@ import type { AppEnv } from '../types';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { jsonError } from '../errors';
-import { parseJson } from '../http';
+import { handleServiceError, idParamSchema, parseJson, reorderItemsSchema } from '../http';
 import {
   createCategory,
   deleteCategory,
@@ -13,7 +12,6 @@ import {
   toCategoryDto,
   updateCategory,
 } from '../services/categories';
-import { ServiceError } from '../services/errors';
 
 const categoryInputSchema = z.object({
   name: z.string().trim().min(1),
@@ -28,24 +26,9 @@ const categoryUpdateSchema = categoryInputSchema
     message: 'At least one field is required',
   });
 
-const reorderSchema = z.object({
-  items: z
-    .array(z.object({ id: z.number().int().positive(), sortOrder: z.number().int() }))
-    .min(1)
-    .refine((items) => new Set(items.map((item) => item.id)).size === items.length, {
-      message: 'Category ids must be unique',
-    }),
-});
+const reorderSchema = reorderItemsSchema('Category');
 
-const idParamSchema = z.coerce.number().int().positive();
 const categoriesRoutes = new Hono<AppEnv>();
-
-function handleServiceError(c: Parameters<typeof jsonError>[0], error: unknown) {
-  if (error instanceof ServiceError) {
-    return jsonError(c, error.status, error.code, error.message);
-  }
-  throw error;
-}
 
 categoriesRoutes.get('/', async (c) => {
   return c.json(await listCategoryTree(c.env));

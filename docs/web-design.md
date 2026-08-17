@@ -25,7 +25,27 @@
 └────────────────────────────┘     └────────┴────────────────────────────┘
 ```
 
-签名：左侧文件夹索引的一条火漆细轨，当前夹旁亮起。卡片是纸片，不是玻璃拟态。
+签名：左侧文件夹索引上的火漆细轨——当前文件夹旁亮起一截 2px 的火漆竖条。卡片是纸片，不是玻璃拟态。
+
+### 侧边栏（响应式）
+
+同一份文件夹索引，两种归宿：
+
+- `lg`（≥1024px）及以上：索引栏常驻左侧，与顶栏品牌区同宽对齐，独立滚动；选中文件夹时火漆轨亮起。
+- `lg` 以下：索引栏收进抽屉——从左侧滑入、覆盖内容，点遮罩或向左拖拽关闭；由顶栏「打开分类」按钮唤起，选完文件夹自动收起。
+
+## 组件组合
+
+界面不手写临时 markup，一律从项目内本地化的 shadcn/base-nova 组件（`src/web/components/ui`）组合：
+
+- 骨架与导航：Sidebar 系（侧边栏索引、导航结构），配合 AppShell 工作台壳。
+- 覆盖层：Dialog、AlertDialog；覆盖层必须带标题，视觉隐藏用 `sr-only`。
+- 内容块：Card 系，按 CardHeader / CardTitle / CardContent / CardFooter 完整组合。
+- 表单：Field 组合（Field + FieldLabel + Input / Select / Textarea / Checkbox），校验用 `data-invalid` + `aria-invalid`。
+- 反馈与点缀：toast、Skeleton、Empty、Badge、Separator、Tooltip、DropdownMenu 等，不复刻样式。
+- 图标只用 lucide-react，按钮内图标走 `data-icon`，不写尺寸类。
+
+以上是组合惯例：具体以 `src/web/components/ui` 中已安装的组件为准，缺的组件按需补装进同一目录，而不是手写自定义结构替代。配色只走语义 token（paper/ink/rule 落到 background/foreground/border，seal/rust 落到 primary 等），组件不写死 hex，也不做手写 `dark:` 覆盖。
 
 ## 不做什么
 

@@ -4,8 +4,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { getDb } from '../db';
-import { jsonError } from '../errors';
-import { getSettings, updateSettings, type SettingsConfig } from '../settings';
+import { parseJson } from '../http';
+import { getSettings, updateSettings } from '../settings';
 
 const settingsUpdateSchema = z
   .object({
@@ -30,16 +30,14 @@ settingsRoutes.get('/', async (c) => {
 });
 
 settingsRoutes.put('/', async (c) => {
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return jsonError(c, 400, 'validation_error', 'Invalid JSON');
+  const body = await parseJson(c);
+  if (!body.ok) {
+    return body.response;
   }
 
-  const input = settingsUpdateSchema.parse(body);
+  const input = settingsUpdateSchema.parse(body.body);
   const db = getDb(c.env);
-  const updated = await updateSettings(db, input as Partial<SettingsConfig>);
+  const updated = await updateSettings(db, input);
 
   return c.json(updated);
 });

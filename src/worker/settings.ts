@@ -64,16 +64,20 @@ export async function updateSettings(
 ): Promise<SettingsConfig> {
   const entries = Object.entries(partial) as [keyof SettingsConfig, string | boolean][];
 
-  for (const [configKey, value] of entries) {
+  const [first, ...rest] = entries.map(([configKey, value]) => {
     const dbKey = KEY_MAP[configKey];
     const dbValue = toDbValue(dbKey, value);
-    await db
+    return db
       .insert(settings)
       .values({ key: dbKey, value: dbValue })
       .onConflictDoUpdate({
         target: settings.key,
         set: { value: dbValue, updatedAt: sql`CURRENT_TIMESTAMP` },
       });
+  });
+
+  if (first !== undefined) {
+    await db.batch([first, ...rest]);
   }
 
   return getSettings(db);

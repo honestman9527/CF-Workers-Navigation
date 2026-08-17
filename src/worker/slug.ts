@@ -7,7 +7,7 @@ export function slugifyName(name: string): string {
 }
 
 export function uniqueSlug(name: string, taken: Set<string>): string {
-  const base = slugifyName(name) || `cat-${Math.random().toString(36).slice(2, 8)}`;
+  const base = slugifyName(name) || `cat-${Math.random().toString(36).slice(2, 10)}`;
   if (!taken.has(base)) {
     return base;
   }

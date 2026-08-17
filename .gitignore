@@ -34,5 +34,7 @@ pnpm-debug.log*
 .cache
 tmp
 temp
-.pi
-.migration
+
+# local tooling
+/.agents/
+/skills-lock.json

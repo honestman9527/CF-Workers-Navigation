@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
-import { Button } from '@nav/components/Button';
-import { Modal } from '@nav/components/Modal';
+import { DialogPanel } from '@nav/components/DialogPanel';
 
 type Stage = 'idle' | 'reading' | 'uploading' | 'processing' | 'done';
 
@@ -177,7 +177,7 @@ export function ImportExportPanel({
   };
 
   return (
-    <Modal
+    <DialogPanel
       open={open}
       onClose={busy ? () => undefined : onClose}
       dismissible={!busy}
@@ -415,7 +415,12 @@ export function ImportExportPanel({
               <Button variant="ghost" onClick={onClose} disabled={busy} type="button">
                 关闭
               </Button>
-              <Button onClick={() => void runImport()} disabled={busy} type="button">
+              <Button
+                onClick={() => void runImport()}
+                disabled={busy}
+                type="button"
+                variant="default"
+              >
                 <Upload data-icon="inline-start" />
                 开始导入
               </Button>
@@ -423,7 +428,7 @@ export function ImportExportPanel({
           )}
         </div>
       ) : null}
-    </Modal>
+    </DialogPanel>
   );
 }
 

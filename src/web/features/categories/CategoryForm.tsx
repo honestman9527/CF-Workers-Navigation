@@ -2,9 +2,9 @@ import type { CategoryInput, CategoryNode } from '@nav/api/types';
 
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/primitives';
-import { Button } from '@nav/components/Button';
-import { Modal } from '@nav/components/Modal';
+import { DialogPanel } from '@nav/components/DialogPanel';
 import { CategoryPicker } from '@nav/features/categories/CategoryPicker';
 
 export function CategoryForm({
@@ -50,7 +50,7 @@ export function CategoryForm({
   }, [category, open]);
 
   return (
-    <Modal
+    <DialogPanel
       open={open}
       onClose={onClose}
       labelledBy="category-form-title"
@@ -147,11 +147,11 @@ export function CategoryForm({
           <Button onClick={onClose} type="button" variant="ghost">
             取消
           </Button>
-          <Button disabled={loading} type="submit">
+          <Button disabled={loading} type="submit" variant="default">
             {loading ? '保存中…' : category ? '保存' : '创建'}
           </Button>
         </div>
       </form>
-    </Modal>
+    </DialogPanel>
   );
 }

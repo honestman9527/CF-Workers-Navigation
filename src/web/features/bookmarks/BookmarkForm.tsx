@@ -3,11 +3,11 @@ import type { Bookmark, BookmarkInput, CategoryNode, MetadataPreview } from '@na
 import { Image, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input, Label, Textarea } from '@/components/ui/primitives';
 import { ApiError, api } from '@nav/api/client';
-import { Button } from '@nav/components/Button';
-import { Modal } from '@nav/components/Modal';
+import { DialogPanel } from '@nav/components/DialogPanel';
 import { MetadataPreview as Preview } from '@nav/features/bookmarks/MetadataPreview';
 import { CategoryPicker } from '@nav/features/categories/CategoryPicker';
 import { findCategoryById } from '@nav/utils/bookmarks';
@@ -99,7 +99,7 @@ export function BookmarkForm({
   }, [bookmark, open, selectedCategoryId, categories]);
 
   return (
-    <Modal
+    <DialogPanel
       open={open}
       onClose={onClose}
       size="xl"
@@ -324,11 +324,16 @@ export function BookmarkForm({
           <Button className="min-w-16" onClick={onClose} type="button" variant="ghost">
             取消
           </Button>
-          <Button className="min-w-16" disabled={loading || !hasCategories} type="submit">
+          <Button
+            className="min-w-16"
+            disabled={loading || !hasCategories}
+            type="submit"
+            variant="default"
+          >
             {loading ? '保存中…' : bookmark ? '保存' : '创建'}
           </Button>
         </div>
       </form>
-    </Modal>
+    </DialogPanel>
   );
 }

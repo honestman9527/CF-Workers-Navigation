@@ -1,11 +1,11 @@
 import { Check, Settings, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge, Input, Label } from '@/components/ui/primitives';
 import { ApiError, api } from '@nav/api/client';
-import { Button } from '@nav/components/Button';
-import { Modal } from '@nav/components/Modal';
+import { DialogPanel } from '@nav/components/DialogPanel';
 
 const PRESETS: { label: string; url: string }[] = [
   { label: 'Google', url: 'https://www.google.com/s2/favicons?domain={domain}&sz=64' },
@@ -63,7 +63,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
-    <Modal open={open} onClose={onClose} size="lg" labelledBy="settings-title" title="设置">
+    <DialogPanel open={open} onClose={onClose} size="lg" labelledBy="settings-title" title="设置">
       <div className="flex flex-col gap-1.5 pr-6">
         <h2 id="settings-title" className="text-lg font-semibold tracking-tight">
           设置
@@ -137,12 +137,17 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             <Button type="button" onClick={onClose} variant="ghost">
               取消
             </Button>
-            <Button type="button" disabled={saving} onClick={() => void handleSave()}>
+            <Button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleSave()}
+              variant="default"
+            >
               {saving ? '保存中…' : '保存'}
             </Button>
           </div>
         </div>
       )}
-    </Modal>
+    </DialogPanel>
   );
 }

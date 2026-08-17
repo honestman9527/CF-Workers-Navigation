@@ -5,7 +5,13 @@ import { z } from 'zod';
 
 import { getDb } from '../db';
 import { jsonError } from '../errors';
-import { includeChildrenRequested, parseJson } from '../http';
+import {
+  handleServiceError,
+  idParamSchema,
+  includeChildrenRequested,
+  parseJson,
+  reorderItemsSchema,
+} from '../http';
 import { fetchBookmarkMetadata } from '../metadata';
 import {
   createBookmark,
@@ -17,7 +23,6 @@ import {
   searchBookmarks,
   updateBookmark,
 } from '../services/bookmarks';
-import { ServiceError } from '../services/errors';
 import { getSettings } from '../settings';
 
 const bookmarkInputSchema = z.object({
@@ -36,16 +41,8 @@ const bookmarkUpdateSchema = bookmarkInputSchema
     message: 'At least one field is required',
   });
 
-const reorderSchema = z.object({
-  items: z
-    .array(z.object({ id: z.number().int().positive(), sortOrder: z.number().int() }))
-    .min(1)
-    .refine((items) => new Set(items.map((item) => item.id)).size === items.length, {
-      message: 'Bookmark ids must be unique',
-    }),
-});
+const reorderSchema = reorderItemsSchema('Bookmark');
 
-const idParamSchema = z.coerce.number().int().positive();
 const categoryQuerySchema = z.coerce.number().int().positive().optional();
 const metadataQuerySchema = z
   .string()
@@ -57,13 +54,6 @@ const metadataQuerySchema = z
   }, 'URL must use http or https');
 
 const bookmarksRoutes = new Hono<AppEnv>();
-
-function handleServiceError(c: Parameters<typeof jsonError>[0], error: unknown) {
-  if (error instanceof ServiceError) {
-    return jsonError(c, error.status, error.code, error.message);
-  }
-  throw error;
-}
 
 bookmarksRoutes.get('/search', async (c) => {
   const query = z.string().trim().min(1).max(100).parse(c.req.query('q'));

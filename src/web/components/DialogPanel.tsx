@@ -3,7 +3,11 @@ import type { ReactNode } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-export function Modal({
+/**
+ * 通用对话框外壳：受控 open/onClose，直接组合 shadcn dialog。
+ * 语义对齐原 @nav/components/Modal。
+ */
+export function DialogPanel({
   open,
   onClose,
   children,
@@ -49,7 +53,6 @@ export function Modal({
         {description ? (
           <DialogDescription className="sr-only">{description}</DialogDescription>
         ) : null}
-        {/* Provide an accessible name when callers only pass labelledBy on inner headings */}
         {!title && !labelledBy ? <DialogTitle className="sr-only">对话框</DialogTitle> : null}
         {children}
       </DialogContent>
