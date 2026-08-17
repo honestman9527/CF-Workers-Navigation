@@ -1,20 +1,13 @@
 name: Deploy Nav Web and Worker
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
     branches:
       - main
-    paths:
-      - 'src/shared/**'
-      - 'src/web/**'
-      - 'src/worker/**'
-      - 'public/**'
-      - 'migrations/**'
-      - '.github/scripts/gen-wrangler-ci.mjs'
-      - '.github/workflows/deploy.yml'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'wrangler.jsonc'
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -34,6 +27,7 @@ jobs:
   deploy:
     name: Deploy Web and Worker
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout

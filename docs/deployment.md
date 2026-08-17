@@ -2,7 +2,7 @@
 
 ## GitHub Actions
 
-`.github/workflows/deploy.yml` 在 `main` 分支的服务、共享契约、主题、资源、迁移或部署配置变化时触发，也支持手动运行。扩展源码变化不会触发 Worker 部署。
+`.github/workflows/deploy.yml` 通过 `workflow_run` 监听 `CI`，只会在 `main` 分支的 CI 成功完成后继续执行，也支持手动运行。扩展源码变化不会触发 Worker 部署。
 
 仓库需要配置 Secrets：
 
