@@ -1,6 +1,6 @@
 import type { Bookmark, BookmarkInput, MetadataPreview } from '@nav/api/types';
 
-import { Image, Sparkles } from 'lucide-react';
+import { Image, RefreshCw, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export function BookmarkForm({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [faviconFetching, setFaviconFetching] = useState(false);
   const [metadata, setMetadata] = useState<MetadataPreview | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -40,6 +41,30 @@ export function BookmarkForm({
     setError(null);
     setMetadata(null);
   }, [open, bookmark]);
+
+  async function fetchFavicon(showError = true): Promise<string> {
+    const url = form.url.trim();
+    if (!url) return '';
+    setFaviconFetching(true);
+    if (showError) setError(null);
+    try {
+      const result = await api.getFavicon('', url);
+      if (result.iconUrl) {
+        setForm((current) => ({ ...current, iconUrl: result.iconUrl }));
+      } else if (showError) {
+        setError('自动获取 favicon 已在设置中关闭');
+      }
+      return result.iconUrl;
+    } catch (caught) {
+      if (showError) {
+        setError(caught instanceof ApiError ? caught.message : '获取图标失败');
+      }
+      return '';
+    } finally {
+      setFaviconFetching(false);
+    }
+  }
+
   return (
     <DialogPanel
       open={open}
@@ -69,11 +94,12 @@ export function BookmarkForm({
           setLoading(true);
           setError(null);
           try {
+            const iconUrl = form.iconUrl.trim() || (await fetchFavicon(false));
             await onSubmit({
               title: form.title.trim(),
               url: form.url.trim(),
               description: form.description.trim() || null,
-              iconUrl: form.iconUrl.trim() || null,
+              iconUrl: iconUrl || null,
               tags: form.tags
                 .split(',')
                 .map((item) => item.trim())
@@ -129,7 +155,11 @@ export function BookmarkForm({
         </div>
         {metadata ? (
           <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
-            <img src={metadata.iconUrl} alt="" className="size-6" />
+            {metadata.iconUrl ? (
+              <img src={metadata.iconUrl} alt="" className="size-6 rounded" />
+            ) : (
+              <Image className="size-5 text-muted-foreground" />
+            )}
             <span className="truncate">{metadata.title}</span>
           </div>
         ) : null}
@@ -172,7 +202,16 @@ export function BookmarkForm({
               onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
               placeholder="https://example.com/favicon.ico"
             />
-            <Image className="mt-2 size-4 text-muted-foreground" />
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              disabled={faviconFetching || !form.url.trim()}
+              onClick={() => void fetchFavicon()}
+            >
+              <RefreshCw className={faviconFetching ? 'animate-spin' : ''} />
+              {faviconFetching ? '获取中' : '获取图标'}
+            </Button>
           </div>
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}

@@ -17,6 +17,7 @@ export const ENDPOINTS = {
   bookmarksSearch: `${API_V1_PREFIX}/bookmarks/search`,
   bookmarksPinned: `${API_V1_PREFIX}/bookmarks/pinned`,
   bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
+  bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,
   bookmarksTags: `${API_V1_PREFIX}/bookmarks/tags`,
   settings: `${API_V1_PREFIX}/settings`,
   transferExport: `${API_V1_PREFIX}/transfer/export`,

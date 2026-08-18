@@ -3,13 +3,22 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge, Input, Label } from '@/components/ui/primitives';
+import { Input, Label } from '@/components/ui/primitives';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 
-const PRESETS: { label: string; url: string }[] = [
-  { label: 'Google', url: 'https://www.google.com/s2/favicons?domain={domain}&sz=64' },
-  { label: 'DuckDuckGo', url: 'https://icons.duckduckgo.com/ip3/{domain}.ico' },
+const PRESETS: { id: string; label: string; url: string }[] = [
+  {
+    id: 'google',
+    label: 'Google',
+    url: 'https://www.google.com/s2/favicons?domain={domain}&sz=64',
+  },
+  {
+    id: 'duckduckgo',
+    label: 'DuckDuckGo',
+    url: 'https://icons.duckduckgo.com/ip3/{domain}.ico',
+  },
+  { id: 'icon-horse', label: 'Icon Horse', url: 'https://icon.horse/icon/{domain}' },
 ];
 
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -19,6 +28,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const selectedProvider = PRESETS.find((preset) => preset.url === faviconProxyUrl)?.id ?? 'custom';
 
   useEffect(() => {
     if (!open) {
@@ -68,7 +78,9 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         <h2 id="settings-title" className="text-lg font-semibold tracking-tight">
           设置
         </h2>
-        <p className="text-sm leading-6 text-muted-foreground">配置书签抓取的 favicon 代理。</p>
+        <p className="text-sm leading-6 text-muted-foreground">
+          选择自动获取 favicon 的工具；元数据抓取仍会独立工作。
+        </p>
       </div>
 
       {loading ? (
@@ -80,7 +92,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           <section className="rounded-lg border border-border bg-muted/40 p-3.5">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
               <Settings className="size-4" />
-              Favicon 代理
+              Favicon 自动获取
             </div>
 
             <label className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
@@ -88,11 +100,44 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 checked={faviconProxyEnabled}
                 onCheckedChange={(checked) => setFaviconProxyEnabled(checked === true)}
               />
-              启用代理（抓取失败时自动获取图标）
+              保存书签时自动补全图标
             </label>
 
             <div className="mt-3 flex flex-col gap-2">
-              <Label htmlFor="favicon-url">代理 URL 模板</Label>
+              <Label>获取工具</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup">
+                {PRESETS.map((preset) => (
+                  <Button
+                    key={preset.id}
+                    type="button"
+                    size="sm"
+                    variant={selectedProvider === preset.id ? 'default' : 'outline'}
+                    role="radio"
+                    aria-checked={selectedProvider === preset.id}
+                    onClick={() => setFaviconProxyUrl(preset.url)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedProvider === 'custom' ? 'default' : 'outline'}
+                  role="radio"
+                  aria-checked={selectedProvider === 'custom'}
+                  onClick={() => {
+                    if (selectedProvider !== 'custom') {
+                      setFaviconProxyUrl('https://{domain}/favicon.ico');
+                    }
+                  }}
+                >
+                  自定义
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-2">
+              <Label htmlFor="favicon-url">URL 模板</Label>
               <Input
                 id="favicon-url"
                 value={faviconProxyUrl}
@@ -102,20 +147,6 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
               <p className="text-[11px] text-muted-foreground">
                 使用 <code className="rounded bg-card px-1">{'{domain}'}</code> 作为域名占位符。
               </p>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => setFaviconProxyUrl(preset.url)}
-                >
-                  <Badge variant="outline" className="cursor-pointer hover:bg-accent">
-                    {preset.label}
-                  </Badge>
-                </button>
-              ))}
             </div>
           </section>
 

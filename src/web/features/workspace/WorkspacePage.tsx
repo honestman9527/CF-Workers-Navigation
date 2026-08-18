@@ -4,6 +4,8 @@ import {
   Archive,
   ArrowDownUp,
   Bookmark as BookmarkIcon,
+  ChevronLeft,
+  ChevronRight,
   Inbox,
   Menu,
   Plus,
@@ -25,9 +27,11 @@ import { BookmarkForm } from '@nav/features/bookmarks/BookmarkForm';
 import { ImportExportPanel } from '@nav/features/import-export/ImportExportPanel';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
+import { SettingsPanel } from '@nav/features/settings/SettingsPanel';
 import { useTheme } from '@nav/hooks/useTheme';
 
 type View = 'active' | 'archive' | 'trash';
+const PAGE_SIZE = 24;
 
 export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promise<void> }) {
   const { theme, setTheme } = useTheme();
@@ -42,8 +46,10 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<Bookmark | null | 'new'>(null);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [page, setPage] = useState(1);
 
   const load = async () => {
     setLoading(true);
@@ -69,6 +75,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   useEffect(() => {
     void load();
   }, [view, tag, query]);
+  useEffect(() => setPage(1), [view, homeOnly, tag, query]);
   useEffect(() => {
     document.title =
       view === 'active' ? '书签柜' : view === 'archive' ? '归档 · 书签柜' : '回收站 · 书签柜';
@@ -85,6 +92,9 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   }, []);
 
   const visible = view === 'active' && homeOnly && !query && !tag ? pinned : bookmarks;
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const pageItems = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
   const title =
     view === 'active'
       ? query
@@ -97,7 +107,11 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       : view === 'archive'
         ? '归档'
         : '回收站';
-  const subtitle = loading ? '同步中…' : `${visible.length} 个书签`;
+  const subtitle = loading
+    ? '同步中…'
+    : pageCount > 1
+      ? `${visible.length} 个书签 · 第 ${page} / ${pageCount} 页`
+      : `${visible.length} 个书签`;
 
   async function mutate(action: () => Promise<unknown>, message: string) {
     try {
@@ -158,6 +172,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           viewMode={viewMode}
           onThemeChange={setTheme}
           onViewModeChange={setViewMode}
+          onOpenSettings={() => setSettingsOpen(true)}
           onLogout={() => void logout()}
         />
       </div>
@@ -307,34 +322,66 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
               <p className="mt-1 text-sm text-muted-foreground">粘贴一个网址，给它一个标签。</p>
             </div>
           ) : (
-            <div
-              className={cn(
-                viewMode === 'grid'
-                  ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
-                  : 'grid gap-2',
-              )}
-            >
-              {visible.map((bookmark) => (
-                <BookmarkCard
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  viewMode={viewMode}
-                  onEdit={(item) => setEditor(item)}
-                  onDelete={(id) => mutate(() => api.deleteBookmark('', id), '已移入回收站')}
-                  onTogglePin={(item) =>
-                    mutate(
-                      () => api.updateBookmark('', item.id, { isPinned: !item.isPinned }),
-                      item.isPinned ? '已取消常用' : '已加入常用',
-                    )
-                  }
-                  onArchive={(id) => mutate(() => api.archiveBookmark('', id), '已归档')}
-                  onRestore={(id) => mutate(() => api.restoreBookmark('', id), '已恢复')}
-                  onPermanentDelete={(id) =>
-                    mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
-                  }
-                />
-              ))}
-            </div>
+            <>
+              <div
+                className={cn(
+                  viewMode === 'grid'
+                    ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
+                    : 'grid gap-2',
+                )}
+              >
+                {pageItems.map((bookmark) => (
+                  <BookmarkCard
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    viewMode={viewMode}
+                    onEdit={(item) => setEditor(item)}
+                    onDelete={(id) => mutate(() => api.deleteBookmark('', id), '已移入回收站')}
+                    onTogglePin={(item) =>
+                      mutate(
+                        () => api.updateBookmark('', item.id, { isPinned: !item.isPinned }),
+                        item.isPinned ? '已取消常用' : '已加入常用',
+                      )
+                    }
+                    onArchive={(id) => mutate(() => api.archiveBookmark('', id), '已归档')}
+                    onRestore={(id) => mutate(() => api.restoreBookmark('', id), '已恢复')}
+                    onPermanentDelete={(id) =>
+                      mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
+                    }
+                  />
+                ))}
+              </div>
+              {pageCount > 1 ? (
+                <nav
+                  className="flex items-center justify-center gap-3 border-t border-border pt-5"
+                  aria-label="书签分页"
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={page === 1}
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  >
+                    <ChevronLeft />
+                    上一页
+                  </Button>
+                  <span className="min-w-20 text-center font-mono text-xs text-muted-foreground">
+                    {page} / {pageCount}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={page === pageCount}
+                    onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                  >
+                    下一页
+                    <ChevronRight />
+                  </Button>
+                </nav>
+              ) : null}
+            </>
           )}
         </div>
       </AppShell>
@@ -360,6 +407,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         onClose={() => setTransferOpen(false)}
         onImported={load}
       />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }

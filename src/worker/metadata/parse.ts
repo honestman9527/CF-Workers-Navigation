@@ -123,10 +123,7 @@ function fallbackMetadata(url: string, opts: FaviconOpts): MetadataShape {
     hostname = url;
   }
 
-  let iconUrl = '';
-  if (opts.faviconProxyEnabled) {
-    iconUrl = opts.faviconProxyUrl.replace('{domain}', hostname);
-  }
+  const iconUrl = faviconUrlFor(url, opts);
 
   return {
     url,
@@ -146,6 +143,17 @@ function fallbackMetadata(url: string, opts: FaviconOpts): MetadataShape {
   };
 }
 
+export function faviconUrlFor(url: string, opts: FaviconOpts): string {
+  if (!opts.faviconProxyEnabled) return '';
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    hostname = url;
+  }
+  return opts.faviconProxyUrl.replaceAll('{domain}', hostname);
+}
+
 export async function fetchBookmarkMetadata(
   url: string,
   opts: FaviconOpts,
@@ -153,6 +161,7 @@ export async function fetchBookmarkMetadata(
   const parsed = await parseHtmlMetadata(url);
 
   if (parsed) {
+    if (!parsed.iconUrl) parsed.iconUrl = faviconUrlFor(url, opts);
     return { ok: true, metadata: parsed };
   }
 

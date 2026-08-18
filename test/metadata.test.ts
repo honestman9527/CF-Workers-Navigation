@@ -59,6 +59,7 @@ describe('bookmark metadata', () => {
       'Shared Netflix premium subscription',
     ]);
     expect(result.metadata.language).toBe('en');
+    expect(result.metadata.iconUrl).toBe('https://icons.example.com/familypro.io.ico');
   });
 
   it('prefers clean social metadata and resolves favicon URLs', async () => {

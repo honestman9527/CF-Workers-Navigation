@@ -19,6 +19,7 @@ import type {
   BookmarkInput,
   CategoryInput,
   CategoryNode,
+  FaviconPreview,
   MetadataPreview,
   Settings,
   Tag,
@@ -107,6 +108,7 @@ export interface ApiClient {
     signal?: AbortSignal,
   ): Promise<Bookmark[]>;
   getMetadata(token: string, url: string): Promise<MetadataPreview>;
+  getFavicon(token: string | undefined, url: string): Promise<FaviconPreview>;
   getSettings(token?: string): Promise<Settings>;
   updateSettings(token: string, input: Partial<Settings>): Promise<Settings>;
   createBookmark(token: string, input: BookmarkInput): Promise<Bookmark>;
@@ -163,6 +165,10 @@ export function createApiClient(options: ClientOptions): ApiClient {
     getMetadata(token, url) {
       const path = `${ENDPOINTS.bookmarksMetadata}${buildQuery({ url })}`;
       return request<MetadataPreview>(options, path, undefined, token);
+    },
+    getFavicon(token, url) {
+      const path = `${ENDPOINTS.bookmarksFavicon}${buildQuery({ url })}`;
+      return request<FaviconPreview>(options, path, undefined, token);
     },
     getSettings(token?: string) {
       return request<Settings>(options, ENDPOINTS.settings, undefined, token);

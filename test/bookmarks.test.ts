@@ -60,6 +60,22 @@ describe('bookmarks api', () => {
     expect(await listResponse.json()).toMatchObject([{ title: 'Cloudflare' }]);
   });
 
+  it('automatically fills favicon when clients omit iconUrl', async () => {
+    const bookmark = await createBookmark({
+      title: 'Automatic icon',
+      url: 'https://automatic-icon.example.com/path',
+    });
+
+    const response = await exports.default.fetch(
+      `https://example.com/api/bookmarks/${bookmark.id}`,
+      { headers: adminHeaders },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      iconUrl: 'https://www.google.com/s2/favicons?domain=automatic-icon.example.com&sz=64',
+    });
+  });
+
   it('lists bookmarks from a folder subtree when requested', async () => {
     const parent = await createCategory('bookmark-subtree-parent');
     const child = await createCategory('bookmark-subtree-child');

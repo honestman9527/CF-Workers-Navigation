@@ -85,6 +85,13 @@ export type MetadataPreview = {
   };
 };
 
+/** 单独获取 favicon 的结果，不触发元数据抓取。 */
+export type FaviconPreview = {
+  url: string;
+  iconUrl: string;
+  source: 'proxy' | 'none';
+};
+
 /** 设置 DTO。对齐 worker `settings.ts` 的 `SettingsConfig`。 */
 export type Settings = {
   faviconProxyUrl: string;

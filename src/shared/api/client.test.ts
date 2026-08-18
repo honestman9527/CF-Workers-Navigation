@@ -39,6 +39,26 @@ describe('nav shared api client', () => {
     expect(fetch.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 
+  it('builds a standalone favicon request', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          url: 'https://example.com/path',
+          iconUrl: 'https://icons.example.com/example.com.ico',
+          source: 'proxy',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    const client = createApiClient({ baseUrl: 'https://nav.example.com', fetch });
+
+    await client.getFavicon(undefined, 'https://example.com/path');
+
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      'https://nav.example.com/api/v1/bookmarks/favicon?url=https%3A%2F%2Fexample.com%2Fpath',
+    );
+  });
+
   it('normalizes error responses at the shared seam', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ error: { code: 'forbidden', message: 'No access' } }), {

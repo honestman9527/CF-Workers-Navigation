@@ -42,6 +42,9 @@ export const api = {
   getMetadata(baseUrl: string, token: string, url: string) {
     return withBaseUrl(baseUrl, token).getMetadata(token, url);
   },
+  getFavicon(baseUrl: string, token: string, url: string) {
+    return withBaseUrl(baseUrl, token).getFavicon(token, url);
+  },
   getSettings(baseUrl: string, token?: string) {
     return withBaseUrl(baseUrl, token).getSettings(token);
   },

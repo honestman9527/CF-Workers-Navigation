@@ -51,6 +51,29 @@ describe('settings api', () => {
     expect(json.faviconProxyEnabled).toBe(false);
   });
 
+  it('uses the configured tool for standalone favicon requests', async () => {
+    await exports.default.fetch('https://example.com/api/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        faviconProxyUrl: 'https://icons.duckduckgo.com/ip3/{domain}.ico',
+        faviconProxyEnabled: true,
+      }),
+    });
+
+    const response = await exports.default.fetch(
+      'https://example.com/api/bookmarks/favicon?url=https%3A%2F%2Fdevelopers.cloudflare.com%2Fworkers',
+      { headers: adminHeaders },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      url: 'https://developers.cloudflare.com/workers',
+      iconUrl: 'https://icons.duckduckgo.com/ip3/developers.cloudflare.com.ico',
+      source: 'proxy',
+    });
+  });
+
   it('requires admin token for updates', async () => {
     const response = await exports.default.fetch('https://example.com/api/settings', {
       method: 'PUT',

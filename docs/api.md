@@ -34,6 +34,7 @@ Authorization: Bearer <ADMIN_PASSWORD>
 - 书签：`GET/POST /api/v1/bookmarks`、`GET /api/v1/bookmarks/:id`、`PUT/DELETE /api/v1/bookmarks/:id`、`PATCH /api/v1/bookmarks/reorder`、`GET /api/v1/bookmarks/tags`
 - 搜索 / 收藏：`GET /api/v1/bookmarks/search?q=`、`GET /api/v1/bookmarks/pinned`
 - 元数据：`GET /api/v1/bookmarks/metadata?url=`
+- Favicon：`GET /api/v1/bookmarks/favicon?url=`，不抓取页面元数据，按设置中的工具生成图标地址
 - 设置：`GET/PUT /api/v1/settings`
 - 迁移：`GET /api/v1/transfer/export`、`POST /api/v1/transfer/import`
 
@@ -78,3 +79,5 @@ Worker 错误响应遵循共享 `ApiErrorShape`，错误码定义在 `src/shared
 - `DELETE /api/v1/bookmarks/:id/permanent`：永久删除回收站内容。
 
 网址会规范化后做重复判断（协议、主机名小写，去掉 hash 和末尾斜杠）。重复网址返回 `409 conflict`。
+
+创建书签未传 `iconUrl` 时，Worker 会按设置中的 favicon 工具自动补全；显式传入图标或 `null` 时尊重客户端选择。元数据抓取与 favicon 自动获取相互独立：页面声明了图标时优先使用页面图标，否则才使用配置的工具。Web 列表每页渲染 24 条，筛选、搜索或切换视图时回到第一页。

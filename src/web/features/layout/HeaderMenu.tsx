@@ -1,4 +1,13 @@
-import { ChevronDown, LayoutGrid, List, LogOut, Moon, Sun, UserRound } from 'lucide-react';
+import {
+  ChevronDown,
+  LayoutGrid,
+  List,
+  LogOut,
+  Moon,
+  Settings,
+  Sun,
+  UserRound,
+} from 'lucide-react';
 
 import {
   DropdownMenu,
@@ -18,12 +27,14 @@ export function HeaderMenu({
   viewMode,
   onThemeChange,
   onViewModeChange,
+  onOpenSettings,
   onLogout,
 }: {
   theme: 'dark' | 'light';
   viewMode: 'grid' | 'list';
   onThemeChange: (theme: 'dark' | 'light') => void;
   onViewModeChange: (mode: 'grid' | 'list') => void;
+  onOpenSettings: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -75,6 +86,10 @@ export function HeaderMenu({
         <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {theme === 'dark' ? '切换为亮色' : '切换为暗色'}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenSettings}>
+          <Settings className="size-4" />
+          Favicon 设置
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={onLogout}>

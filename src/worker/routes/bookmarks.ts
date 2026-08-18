@@ -12,7 +12,7 @@ import {
   parseJson,
   reorderItemsSchema,
 } from '../http';
-import { fetchBookmarkMetadata } from '../metadata';
+import { faviconUrlFor, fetchBookmarkMetadata } from '../metadata';
 import {
   createBookmark,
   deleteBookmark,
@@ -86,6 +86,13 @@ bookmarksRoutes.get('/metadata', async (c) => {
   return c.json(result.metadata);
 });
 
+bookmarksRoutes.get('/favicon', async (c) => {
+  const url = metadataQuerySchema.parse(c.req.query('url'));
+  const config = await getSettings(getDb(c.env));
+  const iconUrl = faviconUrlFor(url, config);
+  return c.json({ url, iconUrl, source: iconUrl ? ('proxy' as const) : ('none' as const) });
+});
+
 bookmarksRoutes.get('/', async (c) => {
   const categoryId = categoryQuerySchema.parse(c.req.query('category'));
   const includeChildren = includeChildrenRequested(c.req.query('includeChildren'));
@@ -106,7 +113,12 @@ bookmarksRoutes.post('/', async (c) => {
   }
 
   try {
-    const bookmark = await createBookmark(c.env, bookmarkInputSchema.parse(body.body));
+    const input = bookmarkInputSchema.parse(body.body);
+    if (input.iconUrl === undefined) {
+      const config = await getSettings(getDb(c.env));
+      input.iconUrl = faviconUrlFor(input.url, config) || null;
+    }
+    const bookmark = await createBookmark(c.env, input);
     return c.json(bookmark, 201);
   } catch (error) {
     return handleServiceError(c, error);
