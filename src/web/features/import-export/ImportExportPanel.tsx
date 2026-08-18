@@ -3,7 +3,6 @@ import type { ImportSummary, TransferFormat } from '@nav/api/types';
 import {
   Braces,
   CheckCircle,
-  ChevronDown,
   Download,
   FileCode,
   FileUp,
@@ -16,6 +15,23 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
@@ -80,7 +96,6 @@ export function ImportExportPanel({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
-  const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -102,7 +117,6 @@ export function ImportExportPanel({
   async function handleExport(format: TransferFormat) {
     setExporting(true);
     setExportError(null);
-    setExportOpen(false);
     try {
       const result = await api.exportData(format);
       downloadBlob(result.blob, result.filename);
@@ -199,56 +213,46 @@ export function ImportExportPanel({
             <Download size={16} />
             导出
           </div>
-          <div className="relative">
-            <Button
-              className="w-full"
+          <DropdownMenu>
+            <DropdownMenuTrigger
               disabled={busy}
-              onClick={() => setExportOpen((value) => !value)}
-              type="button"
-              variant="secondary"
-            >
-              {exporting ? (
-                <>
-                  <LoaderCircle className="animate-spin" data-icon="inline-start" />
-                  导出中…
-                </>
-              ) : (
-                <>
-                  <Download data-icon="inline-start" />
-                  选择格式
-                  <ChevronDown data-icon="inline-end" size={14} />
-                </>
-              )}
-            </Button>
-            {exportOpen ? (
-              <div className="absolute top-full right-0 left-0 z-10 mt-1.5 overflow-hidden rounded-lg border border-border bg-card p-1 shadow-lg">
-                <button
-                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-foreground transition hover:bg-muted"
-                  onClick={() => void handleExport('html')}
-                  type="button"
-                >
-                  <FileCode size={16} className="text-primary" />
-                  <span>
-                    <span className="block font-medium">HTML 浏览器书签</span>
-                    <span className="block text-[11px] text-muted-foreground">
-                      Chrome / Firefox / Safari
-                    </span>
-                  </span>
-                </button>
-                <button
-                  className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-foreground transition hover:bg-muted"
-                  onClick={() => void handleExport('json')}
-                  type="button"
-                >
-                  <Braces size={16} className="text-primary" />
-                  <span>
-                    <span className="block font-medium">JSON 完整备份</span>
-                    <span className="block text-[11px] text-muted-foreground">保留全部字段</span>
-                  </span>
-                </button>
-              </div>
-            ) : null}
-          </div>
+              render={
+                <Button className="w-full" type="button" variant="secondary">
+                  {exporting ? (
+                    <>
+                      <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                      导出中…
+                    </>
+                  ) : (
+                    <>
+                      <Download data-icon="inline-start" />
+                      选择格式
+                    </>
+                  )}
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>导出备份</DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void handleExport('html')}>
+                <FileCode className="text-primary" />
+                <span className="flex flex-col">
+                  <span>HTML 浏览器书签</span>
+                  <span className="text-xs text-muted-foreground">Chrome / Firefox / Safari</span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleExport('json')}>
+                <Braces className="text-primary" />
+                <span className="flex flex-col">
+                  <span>JSON 完整备份</span>
+                  <span className="text-xs text-muted-foreground">保留全部字段</span>
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {exportError ? (
             <div className="mt-2 flex items-start gap-2 text-xs text-destructive">
               <TriangleAlert size={14} className="mt-0.5 shrink-0" />
@@ -262,10 +266,10 @@ export function ImportExportPanel({
             <Upload size={16} />
             导入
           </div>
-          <div
+          <Empty
             className={cn(
-              'flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-5 text-center transition',
-              dragging ? 'border-primary/50 bg-primary/10' : 'border-border bg-background',
+              'min-h-40 gap-3 border-dashed bg-background px-4 py-5 transition-colors',
+              dragging ? 'border-primary bg-primary/10' : 'border-border',
             )}
             onDragOver={(event) => {
               event.preventDefault();
@@ -274,19 +278,24 @@ export function ImportExportPanel({
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
           >
-            <FileUp size={22} className="text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">
-              拖拽文件，或
-              <button
-                className="mx-1 font-medium text-primary hover:underline"
-                onClick={() => fileInputRef.current?.click()}
+            <EmptyHeader>
+              <EmptyMedia variant="icon" className="bg-primary/10 text-primary">
+                <FileUp />
+              </EmptyMedia>
+              <EmptyTitle className="text-sm">拖入书签文件</EmptyTitle>
+              <EmptyDescription>支持 .html 与 .json，最大 10MB</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                size="sm"
                 type="button"
+                onClick={() => fileInputRef.current?.click()}
               >
                 选择文件
-              </button>
-            </p>
-            <p className="text-[11px] text-muted-foreground">.html / .json</p>
-          </div>
+              </Button>
+            </EmptyContent>
+          </Empty>
           <input
             ref={fileInputRef}
             className="hidden"

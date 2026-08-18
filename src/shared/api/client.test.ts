@@ -20,7 +20,7 @@ describe('nav shared api client', () => {
 
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = fetch.mock.calls[0];
-    expect(url).toBe('https://nav.example.com/api/bookmarks/search?q=cloud+flare');
+    expect(url).toBe('https://nav.example.com/api/v1/bookmarks/search?q=cloud+flare');
     expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer secret');
   });
 

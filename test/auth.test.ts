@@ -70,6 +70,17 @@ describe('auth middleware', () => {
 });
 
 describe('auth api', () => {
+  it('supports the versioned v1 path', async () => {
+    const response = await exports.default.fetch('https://example.com/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'dev-password' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Set-Cookie')).toContain('nav_session=');
+  });
+
   it('logs in with the password and exposes /me', async () => {
     const login = await exports.default.fetch('https://example.com/api/auth/login', {
       method: 'POST',

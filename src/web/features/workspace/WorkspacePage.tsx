@@ -2,6 +2,7 @@ import type { Bookmark, Tag } from '@nav/api/types';
 
 import {
   Archive,
+  ArrowDownUp,
   Bookmark as BookmarkIcon,
   Inbox,
   LayoutGrid,
@@ -23,6 +24,7 @@ import { api, ApiError } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { BookmarkForm } from '@nav/features/bookmarks/BookmarkForm';
+import { ImportExportPanel } from '@nav/features/import-export/ImportExportPanel';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
 import { useTheme } from '@nav/hooks/useTheme';
@@ -41,6 +43,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [editor, setEditor] = useState<Bookmark | null | 'new'>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -139,6 +142,15 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         </button>
       </div>
       <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setTransferOpen(true)}
+          aria-label="打开导入导出"
+        >
+          <ArrowDownUp className="size-4" />
+          <span className="hidden md:inline">导入 / 导出</span>
+        </Button>
         <Button size="sm" onClick={() => setEditor('new')}>
           <Plus className="size-4" />
           <span className="hidden sm:inline">添加书签</span>
@@ -361,6 +373,11 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           pushToast(editingBookmark ? '书签已更新' : '书签已创建', 'success');
           setEditor(null);
         }}
+      />
+      <ImportExportPanel
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        onImported={load}
       />
     </>
   );

@@ -8,7 +8,7 @@ src/
 │   ├── routes/     # 薄路由：解析参数与 body、zod 校验、把结果与错误映射为 HTTP 响应
 │   ├── services/   # 业务逻辑与数据访问：书签、标签、导入导出
 │   └── transfer/   # 导入导出格式的探测、解析与序列化
-├── web/        # 必须登录的 React 书签柜，通过同源 /api/* 访问 Worker
+├── web/        # 必须登录的 React 书签柜，通过同源 /api/v1/* 访问 Worker
 │   ├── features/   # 业务模块按功能聚合：auth、bookmarks、categories、layout 等
 │   ├── components/ # 功能无关的通用组件；ui/ 是项目本地 shadcn/base-nova 组件
 │   ├── pages/      # 整页入口（登录页）
@@ -57,7 +57,7 @@ Worker 不能混入 DOM，扩展不能混入 Worker 类型，Web 与扩展还需
 ## 构建与运行
 
 - `vite.web.config.ts` 以 `src/web` 为入口，构建到 `dist/web`。
-- `wrangler.jsonc` 将 `dist/web` 作为 ASSETS，由 Worker 同源提供 Web 和 `/api/*`。
+- `wrangler.jsonc` 将 `dist/web` 作为 ASSETS，由 Worker 同源提供 Web 和 `/api/v1/*`；`/api/*` 保留为旧客户端兼容别名。
 - `vite.extension.config.ts` 以 `src/extension` 为入口，构建到 `dist/extension`。
 - Web 用 HttpOnly session cookie 登录；扩展配置与管理员密码保存在 Chrome storage，请求带 Bearer。
 - Web 通过同源请求访问 API；扩展通过配置的 Worker origin 跨源访问相同 API。

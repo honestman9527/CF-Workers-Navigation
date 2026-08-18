@@ -3,7 +3,7 @@ import type { AppEnv } from './types';
 import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
-import { ENDPOINTS } from '../shared/api/endpoints';
+import { API_V1_PREFIX } from '../shared/api/endpoints';
 import { authContext, requireAuth } from './auth';
 import { jsonError, zodErrorMessage } from './errors';
 import authRoutes from './routes/auth';
@@ -14,10 +14,24 @@ import transferRoutes from './routes/transfer';
 
 const app = new Hono<AppEnv>();
 
+const LEGACY_API_PREFIX = '/api';
+const API_PREFIXES = [API_V1_PREFIX, LEGACY_API_PREFIX] as const;
+
+const api = new Hono<AppEnv>();
+api.route('/auth', authRoutes);
+api.route('/bookmarks', bookmarksRoutes);
+api.route('/categories', categoriesRoutes);
+api.route('/settings', settingsRoutes);
+api.route('/transfer', transferRoutes);
+
 app.use('/api/*', authContext);
 app.use('/api/*', async (c, next) => {
   const path = new URL(c.req.url).pathname;
-  if (path === ENDPOINTS.authLogin || path === ENDPOINTS.authLogout) {
+  if (
+    API_PREFIXES.some(
+      (prefix) => path === `${prefix}/auth/login` || path === `${prefix}/auth/logout`,
+    )
+  ) {
     await next();
     return;
   }
@@ -25,11 +39,8 @@ app.use('/api/*', async (c, next) => {
 });
 
 app.get('/health', (c) => c.json({ ok: true }));
-app.route('/api/auth', authRoutes);
-app.route(ENDPOINTS.bookmarks, bookmarksRoutes);
-app.route(ENDPOINTS.categories, categoriesRoutes);
-app.route(ENDPOINTS.settings, settingsRoutes);
-app.route('/api/transfer', transferRoutes);
+app.route(API_V1_PREFIX, api);
+app.route(LEGACY_API_PREFIX, api);
 
 app.notFound((c) => jsonError(c, 404, 'not_found', 'Not found'));
 

@@ -4,20 +4,23 @@
  * 仅放路径常量与纯函数，不引入运行时依赖。
  */
 
+/** 当前公开 API 版本。旧 `/api` 路径仍由 Worker 提供兼容别名。 */
+export const API_V1_PREFIX = '/api/v1';
+
 /** API 路径常量。 */
 export const ENDPOINTS = {
-  authLogin: '/api/auth/login',
-  authLogout: '/api/auth/logout',
-  authMe: '/api/auth/me',
-  categories: '/api/categories',
-  bookmarks: '/api/bookmarks',
-  bookmarksSearch: '/api/bookmarks/search',
-  bookmarksPinned: '/api/bookmarks/pinned',
-  bookmarksMetadata: '/api/bookmarks/metadata',
-  bookmarksTags: '/api/bookmarks/tags',
-  settings: '/api/settings',
-  transferExport: '/api/transfer/export',
-  transferImport: '/api/transfer/import',
+  authLogin: `${API_V1_PREFIX}/auth/login`,
+  authLogout: `${API_V1_PREFIX}/auth/logout`,
+  authMe: `${API_V1_PREFIX}/auth/me`,
+  categories: `${API_V1_PREFIX}/categories`,
+  bookmarks: `${API_V1_PREFIX}/bookmarks`,
+  bookmarksSearch: `${API_V1_PREFIX}/bookmarks/search`,
+  bookmarksPinned: `${API_V1_PREFIX}/bookmarks/pinned`,
+  bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
+  bookmarksTags: `${API_V1_PREFIX}/bookmarks/tags`,
+  settings: `${API_V1_PREFIX}/settings`,
+  transferExport: `${API_V1_PREFIX}/transfer/export`,
+  transferImport: `${API_V1_PREFIX}/transfer/import`,
 } as const;
 
 /** 构造 query string。空值跳过。返回形如 `"?a=1&b=2"` 或空串。 */

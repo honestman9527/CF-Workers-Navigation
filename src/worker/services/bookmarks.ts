@@ -32,6 +32,10 @@ type BookmarkRow = {
   updated_at: string;
 };
 
+// D1 limits the number of bound variables in a prepared statement. Keep tag
+// lookups below that limit when the workspace contains a large bookmark set.
+const TAG_LOOKUP_BATCH_SIZE = 50;
+
 export function normalizeUrl(raw: string): string {
   try {
     const parsed = new URL(raw.trim());
@@ -104,16 +108,17 @@ export type BookmarkWrite = {
 async function withTags(env: Bindings, rows: Bookmark[]): Promise<BookmarkDto[]> {
   if (rows.length === 0) return [];
   const db = getDb(env);
-  const links = await db
-    .select({ bookmarkId: bookmarkTags.bookmarkId, name: tags.name })
-    .from(bookmarkTags)
-    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-    .where(
-      inArray(
-        bookmarkTags.bookmarkId,
-        rows.map((row) => row.id),
-      ),
-    );
+  const links: Array<{ bookmarkId: number; name: string }> = [];
+  const bookmarkIds = rows.map((row) => row.id);
+  for (let offset = 0; offset < bookmarkIds.length; offset += TAG_LOOKUP_BATCH_SIZE) {
+    const batch = bookmarkIds.slice(offset, offset + TAG_LOOKUP_BATCH_SIZE);
+    const batchLinks = await db
+      .select({ bookmarkId: bookmarkTags.bookmarkId, name: tags.name })
+      .from(bookmarkTags)
+      .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+      .where(inArray(bookmarkTags.bookmarkId, batch));
+    links.push(...batchLinks);
+  }
   const byBookmark = new Map<number, string[]>();
   for (const link of links)
     byBookmark.set(link.bookmarkId, [...(byBookmark.get(link.bookmarkId) ?? []), link.name]);
