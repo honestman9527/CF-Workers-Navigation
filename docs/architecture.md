@@ -23,6 +23,8 @@ migrations/     # D1 初始基线迁移
 
 Worker 内部按「薄路由 + 服务」分层：`routes/` 只做 HTTP 层工作——解析参数与 body、zod 校验、把服务结果与错误映射为 JSON 响应；业务逻辑与数据访问在 `services/`，导入导出格式的探测、解析与序列化在 `transfer/`。路由不直接触碰数据库。
 
+书签列表的状态、分类和标签筛选在 D1 SQL 层完成，避免把无关记录读入 Worker；标签关联读取按批次绑定 ID，写入则批量复用标签并使用 `bookmark_tags.tag_id` 反向索引支持标签统计。批量排序使用 D1 batch，减少逐条更新的往返。
+
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 
 ## 依赖方向

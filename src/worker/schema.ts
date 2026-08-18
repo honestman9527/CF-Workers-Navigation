@@ -85,7 +85,10 @@ export const bookmarkTags = sqliteTable(
       .notNull()
       .references(() => tags.id, { onDelete: 'cascade' }),
   },
-  (table) => [uniqueIndex('bookmark_tags_unique_idx').on(table.bookmarkId, table.tagId)],
+  (table) => [
+    uniqueIndex('bookmark_tags_unique_idx').on(table.bookmarkId, table.tagId),
+    index('bookmark_tags_tag_idx').on(table.tagId),
+  ],
 );
 
 export const settings = sqliteTable('settings', {

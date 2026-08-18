@@ -5,8 +5,6 @@ import {
   ArrowDownUp,
   Bookmark as BookmarkIcon,
   Inbox,
-  LayoutGrid,
-  List,
   Menu,
   Plus,
   Search,
@@ -287,31 +285,14 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
               <kbd className="hidden text-[10px] text-muted-foreground sm:block">/</kbd>
             )}
           </div>
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
-                {view === 'active'
-                  ? '你的网络入口'
-                  : view === 'archive'
-                    ? '暂时收起'
-                    : '可恢复项目'}
-              </p>
-              <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-                {title}
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-            </div>
-            <button
-              className="hidden rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground sm:block"
-              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              aria-label="切换视图"
-            >
-              {viewMode === 'grid' ? (
-                <List className="size-4" />
-              ) : (
-                <LayoutGrid className="size-4" />
-              )}
-            </button>
+          <div>
+            <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
+              {view === 'active' ? '你的网络入口' : view === 'archive' ? '暂时收起' : '可恢复项目'}
+            </p>
+            <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+              {title}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
           </div>
           {loading ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

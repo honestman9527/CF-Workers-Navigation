@@ -128,16 +128,31 @@ async function withTags(env: Bindings, rows: Bookmark[]): Promise<BookmarkDto[]>
 async function replaceTags(env: Bindings, bookmarkId: number, names: string[] | undefined) {
   if (names === undefined) return;
   const db = getDb(env);
-  const clean = [...new Set(names.map((name) => name.trim()).filter(Boolean))].slice(0, 30);
-  await db.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmarkId));
-  for (const name of clean) {
+  const cleanBySlug = new Map<string, string>();
+  for (const rawName of names) {
+    const name = rawName.trim();
     const slug = slugify(name);
-    if (!slug) continue;
-    let [tag] = await db.select().from(tags).where(eq(tags.slug, slug));
-    if (!tag) {
-      [tag] = await db.insert(tags).values({ name, slug }).returning();
-    }
-    await db.insert(bookmarkTags).values({ bookmarkId, tagId: tag.id });
+    if (name && slug && !cleanBySlug.has(slug)) cleanBySlug.set(slug, name);
+  }
+  const clean = [...cleanBySlug].slice(0, 30).map(([slug, name]) => ({ name, slug }));
+
+  await db.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmarkId));
+  if (clean.length === 0) return;
+
+  const slugs = clean.map((tag) => tag.slug);
+  const existing = await db.select({ slug: tags.slug }).from(tags).where(inArray(tags.slug, slugs));
+  const existingSlugs = new Set(existing.map((tag) => tag.slug));
+  const missing = clean.filter((tag) => !existingSlugs.has(tag.slug));
+  if (missing.length > 0) {
+    await db.insert(tags).values(missing).onConflictDoNothing({ target: tags.slug });
+  }
+
+  const resolved = await db.select({ id: tags.id }).from(tags).where(inArray(tags.slug, slugs));
+  if (resolved.length > 0) {
+    await db
+      .insert(bookmarkTags)
+      .values(resolved.map((tag) => ({ bookmarkId, tagId: tag.id })))
+      .onConflictDoNothing();
   }
 }
 
@@ -178,35 +193,69 @@ export async function listBookmarks(
 ): Promise<BookmarkDto[]> {
   const db = getDb(env);
   const view = options.view ?? 'active';
+  const viewCondition =
+    view === 'active'
+      ? and(isNull(bookmarks.deletedAt), isNull(bookmarks.archivedAt))
+      : view === 'archive'
+        ? and(isNull(bookmarks.deletedAt), sql`${bookmarks.archivedAt} IS NOT NULL`)
+        : view === 'trash'
+          ? sql`${bookmarks.deletedAt} IS NOT NULL`
+          : undefined;
+  const tagCondition = options.tag
+    ? sql`EXISTS (
+        SELECT 1
+        FROM bookmark_tags AS filter_bt
+        INNER JOIN tags AS filter_t ON filter_bt.tag_id = filter_t.id
+        WHERE filter_bt.bookmark_id = ${bookmarks.id}
+          AND filter_t.slug = ${slugify(options.tag)}
+      )`
+    : undefined;
+  const conditions = [
+    viewCondition,
+    !options.includeChildren && options.categoryId !== undefined
+      ? eq(bookmarks.categoryId, options.categoryId)
+      : undefined,
+    tagCondition,
+  ].filter((condition): condition is NonNullable<typeof condition> => condition !== undefined);
   let rows: Bookmark[];
   if (options.categoryId !== undefined && options.includeChildren) {
     const raw = await db.all<BookmarkRow>(sql`
       WITH RECURSIVE subtree(id) AS (
         SELECT id FROM categories WHERE id = ${options.categoryId}
         UNION ALL SELECT categories.id FROM categories JOIN subtree ON categories.parent_id = subtree.id
-      ) SELECT b.* FROM bookmarks b JOIN subtree s ON b.category_id = s.id ORDER BY b.sort_order, b.id
+      )
+      SELECT b.*
+      FROM bookmarks b
+      JOIN subtree s ON b.category_id = s.id
+      WHERE ${
+        view === 'active'
+          ? sql`b.deleted_at IS NULL AND b.archived_at IS NULL`
+          : view === 'archive'
+            ? sql`b.deleted_at IS NULL AND b.archived_at IS NOT NULL`
+            : view === 'trash'
+              ? sql`b.deleted_at IS NOT NULL`
+              : sql`1 = 1`
+      }
+      ${
+        options.tag
+          ? sql`AND EXISTS (
+          SELECT 1
+          FROM bookmark_tags AS filter_bt
+          INNER JOIN tags AS filter_t ON filter_bt.tag_id = filter_t.id
+          WHERE filter_bt.bookmark_id = b.id
+            AND filter_t.slug = ${slugify(options.tag)}
+        )`
+          : sql``
+      }
+      ORDER BY b.sort_order, b.id
     `);
     rows = raw.map(fromRaw);
   } else {
-    rows = await db.select().from(bookmarks).orderBy(bookmarks.sortOrder, bookmarks.id);
-  }
-  rows = rows.filter((row) => {
-    if (view === 'active') return row.deletedAt === null && row.archivedAt === null;
-    if (view === 'archive') return row.deletedAt === null && row.archivedAt !== null;
-    if (view === 'trash') return row.deletedAt !== null;
-    return true;
-  });
-  if (options.categoryId !== undefined && !options.includeChildren)
-    rows = rows.filter((row) => row.categoryId === options.categoryId);
-  if (options.tag) {
-    const wanted = slugify(options.tag);
-    const links = await db
-      .select({ bookmarkId: bookmarkTags.bookmarkId })
-      .from(bookmarkTags)
-      .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
-      .where(eq(tags.slug, wanted));
-    const ids = new Set(links.map((link) => link.bookmarkId));
-    rows = rows.filter((row) => ids.has(row.id));
+    rows = await db
+      .select()
+      .from(bookmarks)
+      .where(and(...conditions))
+      .orderBy(bookmarks.sortOrder, bookmarks.id);
   }
   return withTags(env, rows);
 }
@@ -394,12 +443,11 @@ export async function reorderBookmarks(
   const categoryId = existing[0]?.categoryId;
   if (existing.some((bookmark) => bookmark.categoryId !== categoryId))
     throw new ServiceError(400, 'validation_error', 'Bookmarks must share the same category');
-  await Promise.all(
-    items.map((item) =>
-      db
-        .update(bookmarks)
-        .set({ sortOrder: item.sortOrder, updatedAt: sql`CURRENT_TIMESTAMP` })
-        .where(eq(bookmarks.id, item.id)),
-    ),
+  const updates = items.map((item) =>
+    db
+      .update(bookmarks)
+      .set({ sortOrder: item.sortOrder, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(bookmarks.id, item.id)),
   );
+  await db.batch(updates as [(typeof updates)[number], ...typeof updates]);
 }
