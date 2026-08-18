@@ -99,8 +99,6 @@ export type ImportStrategy = 'skip' | 'create' | 'update';
 
 /** 导入结果摘要。 */
 export type ImportSummary = {
-  categoriesCreated: number;
-  categoriesReused: number;
   bookmarksCreated: number;
   bookmarksSkipped: number;
   bookmarksUpdated: number;

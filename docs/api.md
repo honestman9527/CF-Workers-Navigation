@@ -39,7 +39,30 @@ Authorization: Bearer <ADMIN_PASSWORD>
 
 兼容旧分类数据时，`GET /api/v1/bookmarks?category=&includeChildren=1` 仍可读取文件夹及其子文件夹；新 Web 流程使用 `view` 与 `tag`。
 
-导入支持 HTML 与 JSON。旧导出里的 `isPublic` 会被忽略。请求和响应类型以 `src/shared/api/types.ts` 及 Worker 路由为准。
+导入支持 HTML 与 JSON。JSON 使用版本化的扁平标签备份：
+
+```json
+{
+  "version": 1,
+  "exportedAt": "2026-08-19T00:00:00.000Z",
+  "bookmarks": [
+    {
+      "title": "Example",
+      "url": "https://example.com",
+      "tags": ["开发", "常用"],
+      "description": null,
+      "iconUrl": null,
+      "isPinned": false,
+      "archivedAt": null,
+      "deletedAt": null,
+      "sortOrder": 0,
+      "addedAt": "2026-08-19T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+书签字段兼容旧备份，缺少 `tags` 时按空数组处理；旧分类树 JSON 不再兼容。HTML 导入会把浏览器文件夹路径转换成标签，HTML 导出按标签生成文件夹（同一书签有多个标签时会在对应文件夹中重复），完整往返请使用 JSON。请求和响应类型以 `src/shared/api/types.ts` 及 Worker 路由为准。
 
 Worker 错误响应遵循共享 `ApiErrorShape`，错误码定义在 `src/shared/errors.ts`。
 

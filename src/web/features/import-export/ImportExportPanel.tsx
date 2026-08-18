@@ -48,7 +48,7 @@ type ImportState = {
 const INITIAL_IMPORT: ImportState = { stage: 'idle', progress: 0, summary: null, error: null };
 
 function summaryText(summary: ImportSummary) {
-  return `新建 ${summary.categoriesCreated} 个分类、${summary.bookmarksCreated} 个书签，复用 ${summary.categoriesReused} 个分类，跳过 ${summary.bookmarksSkipped} 个重复，更新 ${summary.bookmarksUpdated} 个书签。`;
+  return `新建 ${summary.bookmarksCreated} 个书签，跳过 ${summary.bookmarksSkipped} 个重复，更新 ${summary.bookmarksUpdated} 个书签。`;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -361,16 +361,6 @@ export function ImportExportPanel({
 
           {importState.summary ? (
             <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">
-              <SummaryStat
-                label="新建分类"
-                value={importState.summary.categoriesCreated}
-                tone="accent"
-              />
-              <SummaryStat
-                label="复用分类"
-                value={importState.summary.categoriesReused}
-                tone="muted"
-              />
               <SummaryStat
                 label="新建书签"
                 value={importState.summary.bookmarksCreated}

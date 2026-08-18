@@ -2,17 +2,16 @@ import type {
   ImportStrategy,
   ImportSummary,
   TransferBookmark,
-  TransferCategory,
   TransferData,
 } from '../transfer/types';
 import type { Bindings } from '../types';
 
-import { eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { getDb } from '../db';
-import { bookmarks, categories, type Bookmark, type NewBookmark } from '../schema';
-import { uniqueSlug } from '../slug';
-import { normalizeUrl } from './bookmarks';
+import { bookmarks, type NewBookmark } from '../schema';
+import { ensureDefaultCategory, normalizeUrl, replaceTags } from './bookmarks';
+import { listBookmarks } from './bookmarks';
 
 const BOOKMARK_INSERT_CHUNK_SIZE = 12;
 const BOOKMARK_UPDATE_BATCH_SIZE = 25;
@@ -20,21 +19,49 @@ const BOOKMARK_UPDATE_BATCH_SIZE = 25;
 type Db = ReturnType<typeof getDb>;
 
 type ImportIndex = {
-  categoryByKey: Map<string, number>;
-  slugs: Set<string>;
   bookmarkUrls: Set<string>;
 };
 
-function categoryKey(parentId: number | null, name: string): string {
-  return `${parentId ?? 'root'}\0${name}`;
-}
-
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
+  for (let index = 0; index < items.length; index += size)
     result.push(items.slice(index, index + size));
-  }
   return result;
+}
+
+function toTransferBookmark(
+  bookmark: Awaited<ReturnType<typeof listBookmarks>>[number],
+): TransferBookmark {
+  return {
+    title: bookmark.title,
+    url: bookmark.url,
+    description: bookmark.description,
+    iconUrl: bookmark.iconUrl,
+    isPinned: bookmark.isPinned,
+    tags: bookmark.tags,
+    archivedAt: bookmark.archivedAt,
+    deletedAt: bookmark.deletedAt,
+    sortOrder: bookmark.sortOrder,
+    addedAt: bookmark.createdAt,
+  };
+}
+
+export async function exportTransferData(env: Bindings): Promise<TransferData> {
+  const rows = await listBookmarks(env, { view: 'all' });
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    bookmarks: rows.map(toTransferBookmark),
+  };
+}
+
+async function loadImportIndex(db: Db): Promise<ImportIndex> {
+  const rows = await db
+    .select({ urlNormalized: bookmarks.urlNormalized, url: bookmarks.url })
+    .from(bookmarks);
+  const bookmarkUrls = new Set<string>();
+  for (const row of rows) bookmarkUrls.add(row.urlNormalized || normalizeUrl(row.url));
+  return { bookmarkUrls };
 }
 
 function toBookmarkValues(bookmark: TransferBookmark, categoryId: number): NewBookmark {
@@ -45,137 +72,15 @@ function toBookmarkValues(bookmark: TransferBookmark, categoryId: number): NewBo
     description: bookmark.description ?? null,
     iconUrl: bookmark.iconUrl ?? null,
     isPinned: bookmark.isPinned ?? false,
+    archivedAt: bookmark.archivedAt ?? null,
+    deletedAt: bookmark.deletedAt ?? null,
     sortOrder: bookmark.sortOrder ?? 0,
     urlNormalized: normalizeUrl(bookmark.url),
   };
 }
 
-export async function exportTransferData(env: Bindings): Promise<TransferData> {
-  const db = getDb(env);
-  const categoryRows = await db
-    .select()
-    .from(categories)
-    .orderBy(categories.sortOrder, categories.id);
-  const bookmarkRows =
-    categoryRows.length === 0
-      ? []
-      : await db.select().from(bookmarks).orderBy(bookmarks.sortOrder, bookmarks.id);
-
-  const nodes = new Map<number, TransferCategory>();
-  const roots: TransferCategory[] = [];
-
-  for (const row of categoryRows) {
-    nodes.set(row.id, {
-      name: row.name,
-      slug: row.slug,
-      icon: row.icon,
-      sortOrder: row.sortOrder,
-      children: [],
-      bookmarks: [],
-    });
-  }
-
-  const bookmarksByCategory = new Map<number, Bookmark[]>();
-  for (const bookmark of bookmarkRows) {
-    if (bookmark.categoryId === null) continue;
-    const list = bookmarksByCategory.get(bookmark.categoryId) ?? [];
-    list.push(bookmark);
-    bookmarksByCategory.set(bookmark.categoryId, list);
-  }
-
-  for (const row of categoryRows) {
-    const node = nodes.get(row.id)!;
-    const rows = bookmarksByCategory.get(row.id) ?? [];
-    node.bookmarks = rows.map((bookmark) => ({
-      title: bookmark.title,
-      url: bookmark.url,
-      description: bookmark.description,
-      iconUrl: bookmark.iconUrl,
-      isPinned: bookmark.isPinned,
-      sortOrder: bookmark.sortOrder,
-      addedAt: bookmark.createdAt,
-    }));
-
-    if (row.parentId === null) {
-      roots.push(node);
-    } else {
-      nodes.get(row.parentId)?.children.push(node);
-    }
-  }
-
-  return { exportedAt: new Date().toISOString(), categories: roots };
-}
-
-async function loadImportIndex(db: Db): Promise<ImportIndex> {
-  const categoryRows = await db
-    .select({
-      id: categories.id,
-      parentId: categories.parentId,
-      name: categories.name,
-      slug: categories.slug,
-    })
-    .from(categories);
-  const bookmarkRows = await db
-    .select({ url: bookmarks.url })
-    .from(bookmarks)
-    .where(isNull(bookmarks.deletedAt));
-
-  const categoryByKey = new Map<string, number>();
-  const slugs = new Set<string>();
-  for (const row of categoryRows) {
-    categoryByKey.set(categoryKey(row.parentId, row.name), row.id);
-    if (row.slug) {
-      slugs.add(row.slug);
-    }
-  }
-
-  const bookmarkUrls = new Set<string>();
-  for (const row of bookmarkRows) {
-    bookmarkUrls.add(row.url);
-  }
-
-  return { categoryByKey, slugs, bookmarkUrls };
-}
-
-async function importCategory(
-  db: Db,
-  index: ImportIndex,
-  category: TransferCategory,
-  parentId: number | null,
-  strategy: ImportStrategy,
-  summary: ImportSummary,
-): Promise<void> {
-  const key = categoryKey(parentId, category.name);
-  let categoryId = index.categoryByKey.get(key);
-
-  if (categoryId !== undefined) {
-    summary.categoriesReused += 1;
-  } else {
-    const slug = uniqueSlug(category.slug ?? category.name, index.slugs);
-    const [created] = await db
-      .insert(categories)
-      .values({
-        name: category.name,
-        slug,
-        parentId,
-        icon: category.icon ?? null,
-        sortOrder: category.sortOrder ?? 0,
-      })
-      .returning({ id: categories.id });
-    categoryId = created.id;
-    index.categoryByKey.set(key, categoryId);
-    index.slugs.add(slug);
-    summary.categoriesCreated += 1;
-  }
-
-  await importBookmarks(db, index, category.bookmarks, categoryId, strategy, summary);
-
-  for (const child of category.children) {
-    await importCategory(db, index, child, categoryId, strategy, summary);
-  }
-}
-
 async function importBookmarks(
+  env: Bindings,
   db: Db,
   index: ImportIndex,
   transferBookmarks: TransferBookmark[],
@@ -183,56 +88,64 @@ async function importBookmarks(
   strategy: ImportStrategy,
   summary: ImportSummary,
 ): Promise<void> {
-  const inserts: NewBookmark[] = [];
+  const inserts: TransferBookmark[] = [];
   const updates: TransferBookmark[] = [];
 
   for (const bookmark of transferBookmarks) {
-    const exists = index.bookmarkUrls.has(bookmark.url);
-
+    const normalized = normalizeUrl(bookmark.url);
+    const exists = index.bookmarkUrls.has(normalized);
     if (exists) {
       if (strategy === 'skip') {
         summary.bookmarksSkipped += 1;
-        continue;
-      }
-
-      if (strategy === 'update') {
+      } else if (strategy === 'update') {
         updates.push(bookmark);
         summary.bookmarksUpdated += 1;
-        continue;
+      } else {
+        inserts.push(bookmark);
+        index.bookmarkUrls.add(normalized);
+        summary.bookmarksCreated += 1;
       }
-
-      inserts.push(toBookmarkValues(bookmark, categoryId));
-      index.bookmarkUrls.add(bookmark.url);
-      summary.bookmarksCreated += 1;
       continue;
     }
-
-    inserts.push(toBookmarkValues(bookmark, categoryId));
-    index.bookmarkUrls.add(bookmark.url);
+    inserts.push(bookmark);
+    index.bookmarkUrls.add(normalized);
     summary.bookmarksCreated += 1;
   }
 
   for (const chunk of chunks(inserts, BOOKMARK_INSERT_CHUNK_SIZE)) {
-    await db.insert(bookmarks).values(chunk);
+    const created = await db
+      .insert(bookmarks)
+      .values(chunk.map((bookmark) => toBookmarkValues(bookmark, categoryId)))
+      .returning({ id: bookmarks.id });
+    for (let index = 0; index < created.length; index += 1) {
+      await replaceTags(env, created[index].id, chunk[index].tags);
+    }
   }
 
   for (const chunk of chunks(updates, BOOKMARK_UPDATE_BATCH_SIZE)) {
-    const updateStatements = chunk.map((bookmark) =>
+    const statements = chunk.map((bookmark) =>
       db
         .update(bookmarks)
         .set({
-          categoryId,
           title: bookmark.title,
           description: bookmark.description ?? null,
           iconUrl: bookmark.iconUrl ?? null,
           isPinned: bookmark.isPinned ?? false,
+          archivedAt: bookmark.archivedAt ?? null,
+          deletedAt: bookmark.deletedAt ?? null,
           sortOrder: bookmark.sortOrder ?? 0,
+          updatedAt: new Date().toISOString(),
         })
-        .where(eq(bookmarks.url, bookmark.url)),
+        .where(eq(bookmarks.urlNormalized, normalizeUrl(bookmark.url))),
     );
-    await db.batch(
-      updateStatements as [(typeof updateStatements)[number], ...typeof updateStatements],
-    );
+    await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
+    for (const bookmark of chunk) {
+      const [row] = await db
+        .select({ id: bookmarks.id })
+        .from(bookmarks)
+        .where(eq(bookmarks.urlNormalized, normalizeUrl(bookmark.url)));
+      if (row) await replaceTags(env, row.id, bookmark.tags);
+    }
   }
 }
 
@@ -243,18 +156,15 @@ export async function importTransferData(
 ): Promise<ImportSummary> {
   const db = getDb(env);
   const summary: ImportSummary = {
-    categoriesCreated: 0,
-    categoriesReused: 0,
     bookmarksCreated: 0,
     bookmarksSkipped: 0,
     bookmarksUpdated: 0,
     errors: [],
   };
-
   const index = await loadImportIndex(db);
-  for (const category of data.categories) {
-    await importCategory(db, index, category, null, strategy, summary);
+  if (data.bookmarks.length > 0) {
+    const categoryId = await ensureDefaultCategory(env);
+    await importBookmarks(env, db, index, data.bookmarks, categoryId, strategy, summary);
   }
-
   return summary;
 }

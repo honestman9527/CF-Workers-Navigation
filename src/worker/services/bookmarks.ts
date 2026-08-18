@@ -125,7 +125,7 @@ async function withTags(env: Bindings, rows: Bookmark[]): Promise<BookmarkDto[]>
   return rows.map((row) => toBookmarkDto(row, byBookmark.get(row.id) ?? []));
 }
 
-async function replaceTags(env: Bindings, bookmarkId: number, names: string[] | undefined) {
+export async function replaceTags(env: Bindings, bookmarkId: number, names: string[] | undefined) {
   if (names === undefined) return;
   const db = getDb(env);
   const cleanBySlug = new Map<string, string>();
@@ -156,7 +156,7 @@ async function replaceTags(env: Bindings, bookmarkId: number, names: string[] | 
   }
 }
 
-async function ensureDefaultCategory(env: Bindings): Promise<number> {
+export async function ensureDefaultCategory(env: Bindings): Promise<number> {
   const db = getDb(env);
   const [existing] = await db
     .select({ id: categories.id })

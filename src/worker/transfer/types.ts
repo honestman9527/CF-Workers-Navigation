@@ -4,22 +4,17 @@ export type TransferBookmark = {
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
+  tags: string[];
+  archivedAt?: string | null;
+  deletedAt?: string | null;
   sortOrder?: number;
   addedAt?: string | null;
 };
 
-export type TransferCategory = {
-  name: string;
-  slug?: string;
-  icon?: string | null;
-  sortOrder?: number;
-  children: TransferCategory[];
-  bookmarks: TransferBookmark[];
-};
-
 export type TransferData = {
+  version: 1;
   exportedAt: string;
-  categories: TransferCategory[];
+  bookmarks: TransferBookmark[];
 };
 
 export type { ImportStrategy, ImportSummary } from '../../shared/api/types';
