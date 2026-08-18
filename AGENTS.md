@@ -19,7 +19,7 @@
 - 组件库使用`shadcn/ui`，没有适配的再自己实现
 - 功能性图标统一使用 `lucide-react`；不得手写 SVG 或混用其他图标库
 - 前端样式优先使用 Tailwind 工具类；全局 CSS 只保留 token、关键帧和必要全局规则。
-- 未经确认不得执行 commit、push、rebase 或部署
+- 未经确认不得在main分支执行 commit、push、rebase 或部署
 - 不得绕过格式、lint、类型检查和测试
 - 涉及前端体验的修改，Playwright不用于自动截图验证，交由人工确认
 
