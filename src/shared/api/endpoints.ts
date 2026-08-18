@@ -14,6 +14,7 @@ export const ENDPOINTS = {
   bookmarksSearch: '/api/bookmarks/search',
   bookmarksPinned: '/api/bookmarks/pinned',
   bookmarksMetadata: '/api/bookmarks/metadata',
+  bookmarksTags: '/api/bookmarks/tags',
   settings: '/api/settings',
   transferExport: '/api/transfer/export',
   transferImport: '/api/transfer/import',

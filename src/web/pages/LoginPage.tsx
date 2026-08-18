@@ -1,3 +1,4 @@
+import { Bookmark } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -26,10 +27,15 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           }
         }}
       >
-        <p className="font-display text-[11px] tracking-[0.28em] text-seal uppercase">私人书签柜</p>
-        <h1 className="mt-3 font-display text-4xl leading-none tracking-tight">进来找书签</h1>
+        <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
+          <Bookmark className="size-6" />
+        </div>
+        <p className="font-display text-[11px] tracking-[0.28em] text-seal uppercase">
+          personal index
+        </p>
+        <h1 className="mt-3 font-display text-4xl leading-none tracking-tight">打开你的书签柜</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          整柜只属于你。输入密码后打开文件夹。
+          只保留真正有用的网络入口，输入密码开始整理。
         </p>
 
         <div className="mt-8 flex flex-col gap-2">

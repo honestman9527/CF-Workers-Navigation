@@ -11,12 +11,16 @@
 /** 书签 DTO。对齐 worker `toBookmark` 转换后的输出与 drizzle schema。 */
 export type Bookmark = {
   id: number;
-  categoryId: number;
+  categoryId: number | null;
   title: string;
   url: string;
   description: string | null;
   iconUrl: string | null;
   isPinned: boolean;
+  tags: string[];
+  archivedAt: string | null;
+  deletedAt: string | null;
+  urlNormalized?: string;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -39,14 +43,17 @@ export type CategoryNode = {
 
 /** 书签创建/更新入参。 */
 export type BookmarkInput = {
-  categoryId: number;
+  categoryId?: number | null;
   title: string;
   url: string;
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
   sortOrder?: number;
+  tags?: string[];
 };
+
+export type Tag = { id: number; name: string; slug: string; bookmarkCount: number };
 
 /** 分类创建/更新入参。 */
 export type CategoryInput = {

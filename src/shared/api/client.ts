@@ -21,6 +21,7 @@ import type {
   CategoryNode,
   MetadataPreview,
   Settings,
+  Tag,
 } from './types';
 
 import { ENDPOINTS, buildQuery, joinUrl } from './endpoints';
@@ -96,8 +97,10 @@ export interface ApiClient {
     categoryId?: number,
     includeChildren?: boolean,
     signal?: AbortSignal,
+    options?: { view?: 'active' | 'archive' | 'trash' | 'all'; tag?: string },
   ): Promise<Bookmark[]>;
   getPinnedBookmarks(token?: string, signal?: AbortSignal): Promise<Bookmark[]>;
+  getTags(token?: string, signal?: AbortSignal): Promise<Tag[]>;
   searchBookmarks(
     token: string | undefined,
     query: string,
@@ -109,6 +112,9 @@ export interface ApiClient {
   createBookmark(token: string, input: BookmarkInput): Promise<Bookmark>;
   updateBookmark(token: string, id: number, input: Partial<BookmarkInput>): Promise<Bookmark>;
   deleteBookmark(token: string, id: number): Promise<void>;
+  archiveBookmark(token: string, id: number): Promise<Bookmark>;
+  restoreBookmark(token: string, id: number): Promise<Bookmark>;
+  permanentDeleteBookmark(token: string, id: number): Promise<void>;
   createCategory(token: string, input: CategoryInput): Promise<CategoryNode>;
   updateCategory(token: string, id: number, input: Partial<CategoryInput>): Promise<CategoryNode>;
   deleteCategory(token: string, id: number): Promise<void>;
@@ -135,15 +141,20 @@ export function createApiClient(options: ClientOptions): ApiClient {
     getCategories(token?: string, signal?: AbortSignal) {
       return request<CategoryNode[]>(options, ENDPOINTS.categories, { signal }, token);
     },
-    getBookmarks(token, categoryId, includeChildren = false, signal?: AbortSignal) {
+    getBookmarks(token, categoryId, includeChildren = false, signal?: AbortSignal, filterOptions?) {
       const path = `${ENDPOINTS.bookmarks}${buildQuery({
         category: categoryId,
         includeChildren: includeChildren ? 1 : undefined,
+        view: filterOptions?.view,
+        tag: filterOptions?.tag,
       })}`;
       return request<Bookmark[]>(options, path, { signal }, token);
     },
     getPinnedBookmarks(token?: string, signal?: AbortSignal) {
       return request<Bookmark[]>(options, ENDPOINTS.bookmarksPinned, { signal }, token);
+    },
+    getTags(token?: string, signal?: AbortSignal) {
+      return request<Tag[]>(options, ENDPOINTS.bookmarksTags, { signal }, token);
     },
     searchBookmarks(token, query, signal?: AbortSignal) {
       const path = `${ENDPOINTS.bookmarksSearch}${buildQuery({ q: query })}`;
@@ -182,6 +193,30 @@ export function createApiClient(options: ClientOptions): ApiClient {
     },
     deleteBookmark(token, id) {
       return request<void>(options, `${ENDPOINTS.bookmarks}/${id}`, { method: 'DELETE' }, token);
+    },
+    archiveBookmark(token, id) {
+      return request<Bookmark>(
+        options,
+        `${ENDPOINTS.bookmarks}/${id}/archive`,
+        { method: 'POST' },
+        token,
+      );
+    },
+    restoreBookmark(token, id) {
+      return request<Bookmark>(
+        options,
+        `${ENDPOINTS.bookmarks}/${id}/restore`,
+        { method: 'POST' },
+        token,
+      );
+    },
+    permanentDeleteBookmark(token, id) {
+      return request<void>(
+        options,
+        `${ENDPOINTS.bookmarks}/${id}/permanent`,
+        { method: 'DELETE' },
+        token,
+      );
     },
     createCategory(token, input) {
       return request<CategoryNode>(

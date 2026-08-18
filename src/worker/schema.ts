@@ -36,14 +36,15 @@ export const bookmarks = sqliteTable(
   'bookmarks',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    categoryId: integer('category_id')
-      .notNull()
-      .references(() => categories.id, { onDelete: 'cascade' }),
+    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     url: text('url').notNull(),
     description: text('description'),
     iconUrl: text('icon_url'),
     isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
+    archivedAt: text('archived_at'),
+    deletedAt: text('deleted_at'),
+    urlNormalized: text('url_normalized').notNull().default(''),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: text('created_at')
       .notNull()
@@ -56,7 +57,35 @@ export const bookmarks = sqliteTable(
     index('bookmarks_category_sort_idx').on(table.categoryId, table.sortOrder),
     index('bookmarks_url_idx').on(table.url),
     index('bookmarks_pinned_sort_idx').on(table.isPinned, table.sortOrder, table.id),
+    index('bookmarks_status_idx').on(table.deletedAt, table.archivedAt, table.updatedAt),
+    index('bookmarks_url_normalized_idx').on(table.urlNormalized),
   ],
+);
+
+export const tags = sqliteTable(
+  'tags',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [uniqueIndex('tags_slug_idx').on(table.slug)],
+);
+
+export const bookmarkTags = sqliteTable(
+  'bookmark_tags',
+  {
+    bookmarkId: integer('bookmark_id')
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: 'cascade' }),
+    tagId: integer('tag_id')
+      .notNull()
+      .references(() => tags.id, { onDelete: 'cascade' }),
+  },
+  (table) => [uniqueIndex('bookmark_tags_unique_idx').on(table.bookmarkId, table.tagId)],
 );
 
 export const settings = sqliteTable('settings', {
@@ -71,4 +100,5 @@ export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
+export type Tag = typeof tags.$inferSelect;
 export type Setting = typeof settings.$inferSelect;

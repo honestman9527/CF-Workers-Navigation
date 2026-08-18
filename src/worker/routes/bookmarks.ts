@@ -22,17 +22,22 @@ import {
   reorderBookmarks,
   searchBookmarks,
   updateBookmark,
+  archiveBookmark,
+  restoreBookmark,
+  permanentlyDeleteBookmark,
+  listTags,
 } from '../services/bookmarks';
 import { getSettings } from '../settings';
 
 const bookmarkInputSchema = z.object({
-  categoryId: z.number().int().positive(),
+  categoryId: z.number().int().positive().nullable().optional(),
   title: z.string().trim().min(1),
   url: z.string().trim().url(),
   description: z.string().nullable().optional(),
   iconUrl: z.string().trim().url().nullable().optional(),
   isPinned: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
 });
 
 const bookmarkUpdateSchema = bookmarkInputSchema
@@ -64,6 +69,8 @@ bookmarksRoutes.get('/pinned', async (c) => {
   return c.json(await listPinnedBookmarks(c.env));
 });
 
+bookmarksRoutes.get('/tags', async (c) => c.json(await listTags(c.env)));
+
 bookmarksRoutes.get('/metadata', async (c) => {
   const url = metadataQuerySchema.parse(c.req.query('url'));
   const config = await getSettings(getDb(c.env));
@@ -82,7 +89,14 @@ bookmarksRoutes.get('/metadata', async (c) => {
 bookmarksRoutes.get('/', async (c) => {
   const categoryId = categoryQuerySchema.parse(c.req.query('category'));
   const includeChildren = includeChildrenRequested(c.req.query('includeChildren'));
-  return c.json(await listBookmarks(c.env, { categoryId, includeChildren }));
+  const requestedView = c.req.query('view');
+  const view =
+    requestedView === 'archive' || requestedView === 'trash' || requestedView === 'all'
+      ? requestedView
+      : 'active';
+  return c.json(
+    await listBookmarks(c.env, { categoryId, includeChildren, view, tag: c.req.query('tag') }),
+  );
 });
 
 bookmarksRoutes.post('/', async (c) => {
@@ -135,9 +149,34 @@ bookmarksRoutes.put('/:id', async (c) => {
   }
 });
 
+bookmarksRoutes.post('/:id/archive', async (c) => {
+  try {
+    return c.json(await archiveBookmark(c.env, idParamSchema.parse(c.req.param('id'))));
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
+});
+
+bookmarksRoutes.post('/:id/restore', async (c) => {
+  try {
+    return c.json(await restoreBookmark(c.env, idParamSchema.parse(c.req.param('id'))));
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
+});
+
 bookmarksRoutes.delete('/:id', async (c) => {
   try {
     await deleteBookmark(c.env, idParamSchema.parse(c.req.param('id')));
+    return c.body(null, 204);
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
+});
+
+bookmarksRoutes.delete('/:id/permanent', async (c) => {
+  try {
+    await permanentlyDeleteBookmark(c.env, idParamSchema.parse(c.req.param('id')));
     return c.body(null, 204);
   } catch (error) {
     return handleServiceError(c, error);

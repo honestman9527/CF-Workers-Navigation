@@ -8,6 +8,7 @@ export type {
   TransferFormat,
   ImportStrategy,
   ImportSummary,
+  Tag,
 } from '@shared/api/types';
 
 /** Web 导出 adapter 的浏览器结果，不进入跨运行时契约。 */

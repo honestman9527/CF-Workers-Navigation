@@ -7,11 +7,12 @@ import type {
 } from '../transfer/types';
 import type { Bindings } from '../types';
 
-import { eq } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 
 import { getDb } from '../db';
 import { bookmarks, categories, type Bookmark, type NewBookmark } from '../schema';
 import { uniqueSlug } from '../slug';
+import { normalizeUrl } from './bookmarks';
 
 const BOOKMARK_INSERT_CHUNK_SIZE = 12;
 const BOOKMARK_UPDATE_BATCH_SIZE = 25;
@@ -45,6 +46,7 @@ function toBookmarkValues(bookmark: TransferBookmark, categoryId: number): NewBo
     iconUrl: bookmark.iconUrl ?? null,
     isPinned: bookmark.isPinned ?? false,
     sortOrder: bookmark.sortOrder ?? 0,
+    urlNormalized: normalizeUrl(bookmark.url),
   };
 }
 
@@ -75,6 +77,7 @@ export async function exportTransferData(env: Bindings): Promise<TransferData> {
 
   const bookmarksByCategory = new Map<number, Bookmark[]>();
   for (const bookmark of bookmarkRows) {
+    if (bookmark.categoryId === null) continue;
     const list = bookmarksByCategory.get(bookmark.categoryId) ?? [];
     list.push(bookmark);
     bookmarksByCategory.set(bookmark.categoryId, list);
@@ -112,7 +115,10 @@ async function loadImportIndex(db: Db): Promise<ImportIndex> {
       slug: categories.slug,
     })
     .from(categories);
-  const bookmarkRows = await db.select({ url: bookmarks.url }).from(bookmarks);
+  const bookmarkRows = await db
+    .select({ url: bookmarks.url })
+    .from(bookmarks)
+    .where(isNull(bookmarks.deletedAt));
 
   const categoryByKey = new Map<string, number>();
   const slugs = new Set<string>();

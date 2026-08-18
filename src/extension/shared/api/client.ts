@@ -16,6 +16,7 @@ import type {
   CategoryNode,
   MetadataPreview,
   Settings,
+  Tag,
 } from "@shared/api/types";
 
 export { ApiError };
@@ -56,4 +57,5 @@ export type {
   CategoryNode,
   MetadataPreview,
   Settings,
+  Tag,
 };

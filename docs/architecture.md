@@ -6,7 +6,7 @@
 src/
 ├── worker/     # Hono API、登录会话、Drizzle、元数据与导入导出
 │   ├── routes/     # 薄路由：解析参数与 body、zod 校验、把结果与错误映射为 HTTP 响应
-│   ├── services/   # 业务逻辑与数据访问：书签、文件夹、导入导出
+│   ├── services/   # 业务逻辑与数据访问：书签、标签、导入导出
 │   └── transfer/   # 导入导出格式的探测、解析与序列化
 ├── web/        # 必须登录的 React 书签柜，通过同源 /api/* 访问 Worker
 │   ├── features/   # 业务模块按功能聚合：auth、bookmarks、categories、layout 等

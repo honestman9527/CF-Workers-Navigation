@@ -1,6 +1,6 @@
 /**
  * Popup - 快速将当前页收藏到 Nav。
- * 分类选择对齐 Web 端 CategoryPicker（树形展开 + 路径搜索）。
+ * 标签输入与 Web 端保持一致，分类仅作为旧数据兼容层。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -14,16 +14,12 @@ import {
 } from "lucide-react";
 import {
   getConfig,
-  getLastCategoryId,
-  setLastCategoryId,
-  resolveDefaultCategory,
   notifyBookmarksChanged,
 } from "@ext/shared/storage";
 import { hasHostPermission, ensureHostPermission } from "@ext/shared/permissions";
 import { api, ApiError } from "@ext/shared/api/client";
 import { faviconFor, domainOf, type ExtConfig } from "@ext/shared/config";
-import type { CategoryNode, MetadataPreview } from "@ext/shared/api/types";
-import { CategoryPicker } from "./components/CategoryPicker";
+import type { MetadataPreview } from "@ext/shared/api/types";
 
 type PopupState =
   | "loading"
@@ -62,8 +58,7 @@ export default function App() {
   const [tabUrl, setTabUrl] = useState("");
   const [tabTitle, setTabTitle] = useState("");
   const [metadata, setMetadata] = useState<MetadataPreview | null>(null);
-  const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [tags, setTags] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPinned, setIsPinned] = useState(false);
@@ -112,40 +107,18 @@ export default function App() {
       }
 
       let meta: MetadataPreview | null = null;
-      let catNodes: CategoryNode[] = [];
-
       try {
-        const [m, c] = await Promise.all([
-          api.getMetadata(cfg.apiBaseUrl, cfg.adminToken, url),
-          api.getCategories(cfg.apiBaseUrl, cfg.adminToken),
-        ]);
-        meta = m;
-        catNodes = c;
-      } catch (e) {
-        try {
-          catNodes = await api.getCategories(cfg.apiBaseUrl, cfg.adminToken);
-        } catch {
-          setErrorMsg(e instanceof ApiError ? e.message : "获取数据失败");
-          setTabUrl(url);
-          setTabTitle(titleFromTab);
-          setState("error");
-          return;
-        }
+        meta = await api.getMetadata(cfg.apiBaseUrl, cfg.adminToken, url);
+      } catch {
         meta = null;
       }
 
-      setCategoryTree(catNodes);
       setMetadata(meta);
       setTabUrl(url);
       setTabTitle(titleFromTab);
       setTitle(meta?.title || titleFromTab || domainOf(url));
       setDescription(meta?.description || "");
       setIsPinned(false);
-
-      // 优先上次使用的分类（与右键收藏共享），否则第一个根分类
-      const lastCategoryId = await getLastCategoryId();
-      const defaultNode = resolveDefaultCategory(catNodes, lastCategoryId);
-      setSelectedCategoryId(defaultNode?.id ?? null);
 
       setState("ready");
     } catch (e) {
@@ -169,7 +142,7 @@ export default function App() {
 
   const handleSubmit = useCallback(async () => {
     const cfg = configRef.current;
-    if (!cfg?.apiBaseUrl || !cfg.adminToken || selectedCategoryId === null) return;
+    if (!cfg?.apiBaseUrl || !cfg.adminToken) return;
 
     const trimmedTitle = title.trim() || tabTitle || domainOf(tabUrl);
     const iconUrl = metadata?.iconUrl || faviconFor(domainOf(tabUrl));
@@ -177,21 +150,20 @@ export default function App() {
     setState("submitting");
     try {
       await api.createBookmark(cfg.apiBaseUrl, cfg.adminToken, {
-        categoryId: selectedCategoryId,
         title: trimmedTitle,
         url: tabUrl,
         description: description.trim() || null,
         iconUrl,
         isPinned,
+        tags: tags.split(",").map((item) => item.trim()).filter(Boolean),
       });
-      await setLastCategoryId(selectedCategoryId);
       notifyBookmarksChanged({ affectsPinned: isPinned });
       setState("success");
     } catch (e) {
       setErrorMsg(e instanceof ApiError ? e.message : "创建失败");
       setState("create-error");
     }
-  }, [title, description, tabUrl, tabTitle, metadata, selectedCategoryId, isPinned]);
+  }, [title, description, tabUrl, tabTitle, metadata, isPinned, tags]);
 
   const handleReset = useCallback(() => {
     setState("ready");
@@ -316,8 +288,7 @@ export default function App() {
   // ---- Ready (form) ----
   const domain = domainOf(tabUrl);
   const displayIcon = metadata?.iconUrl || faviconFor(domain);
-  const canSubmit =
-    title.trim().length > 0 && selectedCategoryId !== null && categoryTree.length > 0;
+  const canSubmit = title.trim().length > 0;
 
   return (
     <div className="animate-fade-in">
@@ -390,24 +361,7 @@ export default function App() {
           />
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]" htmlFor="popup-cat">
-            分类
-          </label>
-          {categoryTree.length > 0 ? (
-            <CategoryPicker
-              id="popup-cat"
-              categories={categoryTree}
-              value={selectedCategoryId}
-              onChange={setSelectedCategoryId}
-              placeholder="选择要放入的分类"
-            />
-          ) : (
-            <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--border-color)] px-3 py-2.5 text-sm text-[var(--text-secondary)]">
-              暂无分类，请先在 Web 端新建。
-            </p>
-          )}
-        </div>
+        <div><label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]" htmlFor="popup-tags">标签</label><input id="popup-tags" className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="开发, 阅读, 工具" /></div>
 
         <label className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border-color)] bg-[var(--bg-muted)]/60 px-3 py-2.5 transition-colors hover:bg-[var(--bg-muted)]">
           <input

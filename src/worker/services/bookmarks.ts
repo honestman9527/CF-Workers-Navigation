@@ -1,27 +1,59 @@
-import type { Bookmark as BookmarkDto } from '../../shared/api/types';
+import type { Bookmark as BookmarkDto, Tag as TagDto } from '../../shared/api/types';
 import type { Bindings } from '../types';
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { getDb } from '../db';
-import { bookmarks, type Bookmark, type NewBookmark } from '../schema';
+import {
+  bookmarkTags,
+  bookmarks,
+  categories,
+  tags,
+  type Bookmark,
+  type NewBookmark,
+} from '../schema';
 import { categoryExists } from './categories';
 import { ServiceError } from './errors';
 
+type BookmarkView = 'active' | 'archive' | 'trash' | 'all';
 type BookmarkRow = {
   id: number;
-  category_id: number;
+  category_id: number | null;
   title: string;
   url: string;
   description: string | null;
   icon_url: string | null;
   is_pinned: number;
+  archived_at: string | null;
+  deleted_at: string | null;
+  url_normalized: string;
   sort_order: number;
   created_at: string;
   updated_at: string;
 };
 
-export function toBookmarkDto(row: Bookmark): BookmarkDto {
+export function normalizeUrl(raw: string): string {
+  try {
+    const parsed = new URL(raw.trim());
+    parsed.hash = '';
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+    if (parsed.pathname.length > 1) parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString();
+  } catch {
+    return raw.trim().toLowerCase().replace(/\/$/, '');
+  }
+}
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_-]/gu, '');
+}
+
+function toBookmarkDto(row: Bookmark, tagNames: string[] = []): BookmarkDto {
   return {
     id: row.id,
     categoryId: row.categoryId,
@@ -30,13 +62,17 @@ export function toBookmarkDto(row: Bookmark): BookmarkDto {
     description: row.description,
     iconUrl: row.iconUrl,
     isPinned: row.isPinned,
+    tags: tagNames,
+    archivedAt: row.archivedAt,
+    deletedAt: row.deletedAt,
+    urlNormalized: row.urlNormalized,
     sortOrder: row.sortOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-function fromSqlRow(row: BookmarkRow): BookmarkDto {
+function fromRaw(row: BookmarkRow): Bookmark {
   return {
     id: row.id,
     categoryId: row.category_id,
@@ -45,6 +81,9 @@ function fromSqlRow(row: BookmarkRow): BookmarkDto {
     description: row.description,
     iconUrl: row.icon_url,
     isPinned: Boolean(row.is_pinned),
+    archivedAt: row.archived_at,
+    deletedAt: row.deleted_at,
+    urlNormalized: row.url_normalized,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -52,69 +91,127 @@ function fromSqlRow(row: BookmarkRow): BookmarkDto {
 }
 
 export type BookmarkWrite = {
-  categoryId: number;
+  categoryId?: number | null;
   title: string;
   url: string;
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
   sortOrder?: number;
+  tags?: string[];
 };
 
-function toInsertValues(input: BookmarkWrite): NewBookmark {
-  return {
-    categoryId: input.categoryId,
-    title: input.title,
-    url: input.url,
-    description: input.description,
-    iconUrl: input.iconUrl,
-    isPinned: input.isPinned,
-    sortOrder: input.sortOrder,
-  };
+async function withTags(env: Bindings, rows: Bookmark[]): Promise<BookmarkDto[]> {
+  if (rows.length === 0) return [];
+  const db = getDb(env);
+  const links = await db
+    .select({ bookmarkId: bookmarkTags.bookmarkId, name: tags.name })
+    .from(bookmarkTags)
+    .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+    .where(
+      inArray(
+        bookmarkTags.bookmarkId,
+        rows.map((row) => row.id),
+      ),
+    );
+  const byBookmark = new Map<number, string[]>();
+  for (const link of links)
+    byBookmark.set(link.bookmarkId, [...(byBookmark.get(link.bookmarkId) ?? []), link.name]);
+  return rows.map((row) => toBookmarkDto(row, byBookmark.get(row.id) ?? []));
+}
+
+async function replaceTags(env: Bindings, bookmarkId: number, names: string[] | undefined) {
+  if (names === undefined) return;
+  const db = getDb(env);
+  const clean = [...new Set(names.map((name) => name.trim()).filter(Boolean))].slice(0, 30);
+  await db.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmarkId));
+  for (const name of clean) {
+    const slug = slugify(name);
+    if (!slug) continue;
+    let [tag] = await db.select().from(tags).where(eq(tags.slug, slug));
+    if (!tag) {
+      [tag] = await db.insert(tags).values({ name, slug }).returning();
+    }
+    await db.insert(bookmarkTags).values({ bookmarkId, tagId: tag.id });
+  }
+}
+
+async function ensureDefaultCategory(env: Bindings): Promise<number> {
+  const db = getDb(env);
+  const [existing] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.slug, 'all-bookmarks'));
+  if (existing) return existing.id;
+  const [created] = await db
+    .insert(categories)
+    .values({ name: '所有书签', slug: 'all-bookmarks' })
+    .returning({ id: categories.id });
+  return created.id;
+}
+
+async function assertNotDuplicate(env: Bindings, url: string, excludeId?: number) {
+  const db = getDb(env);
+  const normalized = normalizeUrl(url);
+  const rows = await db
+    .select({ id: bookmarks.id })
+    .from(bookmarks)
+    .where(and(eq(bookmarks.urlNormalized, normalized), isNull(bookmarks.deletedAt)));
+  if (rows.some((row) => row.id !== excludeId)) {
+    throw new ServiceError(409, 'conflict', '这个网址已经存在');
+  }
 }
 
 export async function listBookmarks(
   env: Bindings,
-  options: { categoryId?: number; includeChildren?: boolean },
+  options: {
+    categoryId?: number;
+    includeChildren?: boolean;
+    tag?: string;
+    view?: BookmarkView;
+  } = {},
 ): Promise<BookmarkDto[]> {
   const db = getDb(env);
-
+  const view = options.view ?? 'active';
+  let rows: Bookmark[];
   if (options.categoryId !== undefined && options.includeChildren) {
-    const rows = await db.all<BookmarkRow>(sql`
+    const raw = await db.all<BookmarkRow>(sql`
       WITH RECURSIVE subtree(id) AS (
         SELECT id FROM categories WHERE id = ${options.categoryId}
-        UNION ALL
-        SELECT categories.id FROM categories JOIN subtree ON categories.parent_id = subtree.id
-      )
-      SELECT bookmarks.id, bookmarks.category_id, bookmarks.title, bookmarks.url, bookmarks.description,
-        bookmarks.icon_url, bookmarks.is_pinned, bookmarks.sort_order, bookmarks.created_at, bookmarks.updated_at
-      FROM bookmarks
-      JOIN subtree ON bookmarks.category_id = subtree.id
-      ORDER BY bookmarks.sort_order, bookmarks.id
+        UNION ALL SELECT categories.id FROM categories JOIN subtree ON categories.parent_id = subtree.id
+      ) SELECT b.* FROM bookmarks b JOIN subtree s ON b.category_id = s.id ORDER BY b.sort_order, b.id
     `);
-    return rows.map(fromSqlRow);
+    rows = raw.map(fromRaw);
+  } else {
+    rows = await db.select().from(bookmarks).orderBy(bookmarks.sortOrder, bookmarks.id);
   }
-
-  if (options.categoryId !== undefined) {
-    const rows = await db
-      .select()
-      .from(bookmarks)
-      .where(eq(bookmarks.categoryId, options.categoryId))
-      .orderBy(bookmarks.sortOrder, bookmarks.id);
-    return rows.map(toBookmarkDto);
+  rows = rows.filter((row) => {
+    if (view === 'active') return row.deletedAt === null && row.archivedAt === null;
+    if (view === 'archive') return row.deletedAt === null && row.archivedAt !== null;
+    if (view === 'trash') return row.deletedAt !== null;
+    return true;
+  });
+  if (options.categoryId !== undefined && !options.includeChildren)
+    rows = rows.filter((row) => row.categoryId === options.categoryId);
+  if (options.tag) {
+    const wanted = slugify(options.tag);
+    const links = await db
+      .select({ bookmarkId: bookmarkTags.bookmarkId })
+      .from(bookmarkTags)
+      .innerJoin(tags, eq(bookmarkTags.tagId, tags.id))
+      .where(eq(tags.slug, wanted));
+    const ids = new Set(links.map((link) => link.bookmarkId));
+    rows = rows.filter((row) => ids.has(row.id));
   }
-
-  const rows = await db.select().from(bookmarks).orderBy(bookmarks.sortOrder, bookmarks.id);
-  return rows.map(toBookmarkDto);
+  return withTags(env, rows);
 }
 
 export async function getBookmark(env: Bindings, id: number): Promise<BookmarkDto> {
   const db = getDb(env);
   const [bookmark] = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
-  if (bookmark === undefined) {
-    throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  }
-  return toBookmarkDto(bookmark);
+  if (!bookmark) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+  const [dto] = await withTags(env, [bookmark]);
+  return dto;
 }
 
 export async function listPinnedBookmarks(env: Bindings): Promise<BookmarkDto[]> {
@@ -122,55 +219,68 @@ export async function listPinnedBookmarks(env: Bindings): Promise<BookmarkDto[]>
   const rows = await db
     .select()
     .from(bookmarks)
-    .where(eq(bookmarks.isPinned, true))
+    .where(
+      and(eq(bookmarks.isPinned, true), isNull(bookmarks.deletedAt), isNull(bookmarks.archivedAt)),
+    )
     .orderBy(bookmarks.sortOrder, bookmarks.id);
-  return rows.map(toBookmarkDto);
+  return withTags(env, rows);
 }
 
 function buildFtsQuery(raw: string): string {
-  const tokens = raw
+  return raw
     .split(/\s+/)
     .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-
-  if (tokens.length === 0) {
-    return '';
-  }
-
-  return tokens.map((token) => `"${token.replace(/"/g, '""')}"*`).join(' OR ');
+    .filter(Boolean)
+    .map((token) => `"${token.replace(/"/g, '""')}"*`)
+    .join(' OR ');
 }
 
 export async function searchBookmarks(env: Bindings, query: string): Promise<BookmarkDto[]> {
   const ftsQuery = buildFtsQuery(query);
-  if (ftsQuery.length === 0) {
-    return [];
-  }
-
+  if (!ftsQuery) return [];
   const db = getDb(env);
   try {
-    const rows = await db.all<BookmarkRow>(sql`
-      SELECT b.id, b.category_id, b.title, b.url, b.description,
-        b.icon_url, b.is_pinned, b.sort_order, b.created_at, b.updated_at
-      FROM bookmarks b
-      JOIN bookmarks_fts ON b.id = bookmarks_fts.rowid
-      WHERE bookmarks_fts MATCH ${ftsQuery}
-      ORDER BY rank
-      LIMIT 100
-    `);
-    return rows.map(fromSqlRow);
+    const raw = await db.all<BookmarkRow>(
+      sql`SELECT b.* FROM bookmarks b JOIN bookmarks_fts ON b.id = bookmarks_fts.rowid WHERE bookmarks_fts MATCH ${ftsQuery} AND b.deleted_at IS NULL AND b.archived_at IS NULL ORDER BY rank LIMIT 100`,
+    );
+    return withTags(env, raw.map(fromRaw));
   } catch {
     return [];
   }
 }
 
-export async function createBookmark(env: Bindings, input: BookmarkWrite): Promise<BookmarkDto> {
-  if (!(await categoryExists(env, input.categoryId))) {
-    throw new ServiceError(404, 'not_found', 'Category not found');
-  }
-
+export async function listTags(env: Bindings): Promise<TagDto[]> {
   const db = getDb(env);
-  const [bookmark] = await db.insert(bookmarks).values(toInsertValues(input)).returning();
-  return toBookmarkDto(bookmark);
+  const rows = await db.all<{ id: number; name: string; slug: string; bookmark_count: number }>(
+    sql`SELECT t.id, t.name, t.slug, COUNT(CASE WHEN b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count FROM tags t LEFT JOIN bookmark_tags bt ON bt.tag_id=t.id LEFT JOIN bookmarks b ON b.id=bt.bookmark_id GROUP BY t.id ORDER BY t.name COLLATE NOCASE`,
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    bookmarkCount: Number(row.bookmark_count),
+  }));
+}
+
+export async function createBookmark(env: Bindings, input: BookmarkWrite): Promise<BookmarkDto> {
+  await assertNotDuplicate(env, input.url);
+  const categoryId = input.categoryId ?? (await ensureDefaultCategory(env));
+  if (!(await categoryExists(env, categoryId)))
+    throw new ServiceError(404, 'not_found', 'Category not found');
+  const db = getDb(env);
+  const values: NewBookmark = {
+    categoryId,
+    title: input.title,
+    url: input.url,
+    description: input.description,
+    iconUrl: input.iconUrl,
+    isPinned: input.isPinned,
+    sortOrder: input.sortOrder,
+    urlNormalized: normalizeUrl(input.url),
+  };
+  const [bookmark] = await db.insert(bookmarks).values(values).returning();
+  await replaceTags(env, bookmark.id, input.tags);
+  return getBookmark(env, bookmark.id);
 }
 
 export async function updateBookmark(
@@ -179,24 +289,32 @@ export async function updateBookmark(
   input: Partial<BookmarkWrite>,
 ): Promise<BookmarkDto> {
   const db = getDb(env);
-  const [current] = await db
-    .select({ id: bookmarks.id })
-    .from(bookmarks)
-    .where(eq(bookmarks.id, id));
-  if (current === undefined) {
-    throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  }
-
-  if (input.categoryId !== undefined && !(await categoryExists(env, input.categoryId))) {
+  const [current] = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
+  if (!current) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+  if (current.deletedAt || current.archivedAt)
+    throw new ServiceError(400, 'validation_error', '归档或回收站中的书签不可编辑');
+  if (input.url !== undefined) await assertNotDuplicate(env, input.url, id);
+  if (
+    input.categoryId !== undefined &&
+    input.categoryId !== null &&
+    !(await categoryExists(env, input.categoryId))
+  )
     throw new ServiceError(404, 'not_found', 'Category not found');
-  }
-
+  const categoryUpdate =
+    input.categoryId === undefined
+      ? {}
+      : {
+          categoryId:
+            input.categoryId === null ? await ensureDefaultCategory(env) : input.categoryId,
+        };
   const [bookmark] = await db
     .update(bookmarks)
     .set({
-      ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+      ...categoryUpdate,
       ...(input.title !== undefined ? { title: input.title } : {}),
-      ...(input.url !== undefined ? { url: input.url } : {}),
+      ...(input.url !== undefined
+        ? { url: input.url, urlNormalized: normalizeUrl(input.url) }
+        : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.iconUrl !== undefined ? { iconUrl: input.iconUrl } : {}),
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
@@ -205,19 +323,55 @@ export async function updateBookmark(
     })
     .where(eq(bookmarks.id, id))
     .returning();
+  await replaceTags(env, id, input.tags);
+  return getBookmark(env, bookmark.id);
+}
 
-  return toBookmarkDto(bookmark);
+export async function archiveBookmark(env: Bindings, id: number): Promise<BookmarkDto> {
+  const db = getDb(env);
+  const [row] = await db
+    .update(bookmarks)
+    .set({ archivedAt: sql`CURRENT_TIMESTAMP`, isPinned: false, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(and(eq(bookmarks.id, id), isNull(bookmarks.deletedAt)))
+    .returning();
+  if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+  return getBookmark(env, id);
+}
+
+export async function restoreBookmark(env: Bindings, id: number): Promise<BookmarkDto> {
+  const db = getDb(env);
+  const [current] = await db
+    .select({ url: bookmarks.url })
+    .from(bookmarks)
+    .where(eq(bookmarks.id, id));
+  if (!current) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+  await assertNotDuplicate(env, current.url, id);
+  const [row] = await db
+    .update(bookmarks)
+    .set({ archivedAt: null, deletedAt: null, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(bookmarks.id, id))
+    .returning();
+  if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+  return getBookmark(env, id);
 }
 
 export async function deleteBookmark(env: Bindings, id: number): Promise<void> {
   const db = getDb(env);
-  const deleted = await db
-    .delete(bookmarks)
-    .where(eq(bookmarks.id, id))
+  const [row] = await db
+    .update(bookmarks)
+    .set({ deletedAt: sql`CURRENT_TIMESTAMP`, isPinned: false, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(and(eq(bookmarks.id, id), isNull(bookmarks.deletedAt)))
     .returning({ id: bookmarks.id });
-  if (deleted.length === 0) {
-    throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  }
+  if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+}
+
+export async function permanentlyDeleteBookmark(env: Bindings, id: number): Promise<void> {
+  const db = getDb(env);
+  const row = await db
+    .delete(bookmarks)
+    .where(and(eq(bookmarks.id, id), sql`${bookmarks.deletedAt} IS NOT NULL`))
+    .returning({ id: bookmarks.id });
+  if (row.length === 0) throw new ServiceError(404, 'not_found', 'Bookmark not found');
 }
 
 export async function reorderBookmarks(
@@ -230,21 +384,17 @@ export async function reorderBookmarks(
     .select({ id: bookmarks.id, categoryId: bookmarks.categoryId })
     .from(bookmarks)
     .where(inArray(bookmarks.id, ids));
-
-  if (existing.length !== ids.length) {
+  if (existing.length !== ids.length)
     throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  }
-
-  const [first] = existing;
-  if (existing.some((bookmark) => bookmark.categoryId !== first.categoryId)) {
+  const categoryId = existing[0]?.categoryId;
+  if (existing.some((bookmark) => bookmark.categoryId !== categoryId))
     throw new ServiceError(400, 'validation_error', 'Bookmarks must share the same category');
-  }
-
-  const updates = items.map((item) =>
-    db
-      .update(bookmarks)
-      .set({ sortOrder: item.sortOrder, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(eq(bookmarks.id, item.id)),
+  await Promise.all(
+    items.map((item) =>
+      db
+        .update(bookmarks)
+        .set({ sortOrder: item.sortOrder, updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(bookmarks.id, item.id)),
+    ),
   );
-  await db.batch(updates as [(typeof updates)[number], ...typeof updates]);
 }

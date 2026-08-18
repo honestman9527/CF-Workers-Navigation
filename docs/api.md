@@ -28,15 +28,28 @@ Authorization: Bearer <ADMIN_PASSWORD>
 
 ## 需登录的接口
 
-- 文件夹：`GET/POST /api/categories`、`PUT/DELETE /api/categories/:id`、`PATCH /api/categories/reorder`
-- 书签：`GET/POST /api/bookmarks`、`GET /api/bookmarks/:id`、`PUT/DELETE /api/bookmarks/:id`、`PATCH /api/bookmarks/reorder`
+- 兼容接口：`GET/POST /api/categories`、`PUT/DELETE /api/categories/:id`、`PATCH /api/categories/reorder`（旧数据迁移使用，Web 不再展示）
+- 书签：`GET/POST /api/bookmarks`、`GET /api/bookmarks/:id`、`PUT/DELETE /api/bookmarks/:id`、`PATCH /api/bookmarks/reorder`、`GET /api/bookmarks/tags`
 - 搜索 / 收藏：`GET /api/bookmarks/search?q=`、`GET /api/bookmarks/pinned`
 - 元数据：`GET /api/bookmarks/metadata?url=`
 - 设置：`GET/PUT /api/settings`
 - 迁移：`GET /api/transfer/export`、`POST /api/transfer/import`
 
-`GET /api/bookmarks?category=&includeChildren=1` 会包含该文件夹及其子文件夹里的书签。
+兼容旧分类数据时，`GET /api/bookmarks?category=&includeChildren=1` 仍可读取文件夹及其子文件夹；新 Web 流程使用 `view` 与 `tag`。
 
 导入支持 HTML 与 JSON。旧导出里的 `isPublic` 会被忽略。请求和响应类型以 `src/shared/api/types.ts` 及 Worker 路由为准。
 
 Worker 错误响应遵循共享 `ApiErrorShape`，错误码定义在 `src/shared/errors.ts`。
+
+# 标签书签 API
+
+书签不再依赖分类组织。创建、更新时可传 `tags: string[]`；服务会按标签名称建立关联。
+
+- `GET /api/bookmarks?view=active|archive|trash|all&tag=slug`：按状态和标签筛选。默认只返回活动书签。
+- `GET /api/bookmarks/tags`：返回标签及活动书签数量。
+- `POST /api/bookmarks/:id/archive`：归档；归档内容不能编辑，也不会出现在搜索中。
+- `POST /api/bookmarks/:id/restore`：从归档或回收站恢复。
+- `DELETE /api/bookmarks/:id`：移入回收站，不参与搜索和重复判断。
+- `DELETE /api/bookmarks/:id/permanent`：永久删除回收站内容。
+
+网址会规范化后做重复判断（协议、主机名小写，去掉 hash 和末尾斜杠）。重复网址返回 `409 conflict`。
