@@ -4,6 +4,7 @@ import {
   Archive,
   ArrowDownUp,
   Bookmark as BookmarkIcon,
+  Hash,
   Inbox,
   Menu,
   Plus,
@@ -223,8 +224,11 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
           <TagIcon />
           标签
+          <span className="ml-auto font-mono text-[10px] font-normal tracking-normal">
+            {tags.length}
+          </span>
         </div>
-        <div className="grid gap-0.5">
+        <div className="grid max-h-[min(44vh,28rem)] gap-0.5 overflow-y-auto pr-1">
           {tags.map((item) => (
             <button
               key={item.slug}
@@ -272,6 +276,66 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
               <kbd className="hidden text-[10px] text-muted-foreground sm:block">/</kbd>
             )}
           </div>
+          {view === 'active' ? (
+            <section className="border-b border-border pb-4">
+              <div className="mb-2 flex items-center gap-2">
+                <Hash className="size-4 text-primary" />
+                <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                  标签索引
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">{tags.length}</span>
+              </div>
+              {tags.length > 0 ? (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => selectView('active', { pinned: true })}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition',
+                      pinnedOnly && !tag
+                        ? 'border-primary/35 bg-primary/10 font-medium text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
+                    )}
+                  >
+                    <Star className="size-3.5" />
+                    常用
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectView('active')}
+                    className={cn(
+                      'shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition',
+                      !tag && !pinnedOnly
+                        ? 'border-primary/35 bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
+                    )}
+                  >
+                    全部
+                  </button>
+                  {tags.map((item) => (
+                    <button
+                      key={item.slug}
+                      type="button"
+                      onClick={() => selectView('active', { tag: item.slug })}
+                      className={cn(
+                        'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition',
+                        tag === item.slug
+                          ? 'border-primary/35 bg-primary/10 font-medium text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
+                      )}
+                    >
+                      <span className="max-w-32 truncate">{item.name}</span>
+                      <span className="font-mono text-[10px] opacity-70">{item.bookmarkCount}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  给书签加上标签，之后可以在这里一键筛选。
+                </p>
+              )}
+            </section>
+          ) : null}
           <div>
             <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
               {view === 'active' ? '你的网络入口' : view === 'archive' ? '暂时收起' : '可恢复项目'}
@@ -322,6 +386,11 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
                     onPermanentDelete={(id) =>
                       void mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
                     }
+                    onSelectTag={
+                      view === 'active'
+                        ? (nextTag) => selectView('active', { tag: nextTag })
+                        : undefined
+                    }
                   />
                 ))}
               </div>
@@ -346,6 +415,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           <BookmarkForm
             open
             bookmark={editor === 'new' ? undefined : editor}
+            availableTags={tags}
             onClose={() => setEditor(null)}
             onSubmit={async (input: BookmarkInput) => {
               if (editor !== 'new' && editor !== null)

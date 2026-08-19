@@ -32,6 +32,7 @@ export function BookmarkCard({
   onArchive,
   onRestore,
   onPermanentDelete,
+  onSelectTag,
 }: {
   bookmark: Bookmark;
   viewMode?: 'grid' | 'list';
@@ -41,6 +42,7 @@ export function BookmarkCard({
   onArchive: (id: number) => void;
   onRestore: (id: number) => void;
   onPermanentDelete: (id: number) => void;
+  onSelectTag?: (tag: string) => void;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [bookmark.iconUrl]);
@@ -120,6 +122,21 @@ export function BookmarkCard({
       )}
     </div>
   );
+  const tagButton = (item: string) =>
+    onSelectTag ? (
+      <button
+        key={item}
+        type="button"
+        className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] text-primary transition hover:bg-primary/20"
+        onClick={() => onSelectTag(item)}
+      >
+        #{item}
+      </button>
+    ) : (
+      <span key={item} className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+        #{item}
+      </span>
+    );
   return (
     <article
       className={cn(
@@ -154,23 +171,12 @@ export function BookmarkCard({
             {bookmark.description || '没有描述'}
           </p>
           <div className="relative z-10 mt-auto flex flex-wrap gap-1.5">
-            {bookmark.tags.map((item) => (
-              <span
-                key={item}
-                className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary"
-              >
-                #{item}
-              </span>
-            ))}
+            {bookmark.tags.map(tagButton)}
           </div>
         </>
       ) : (
         <div className="relative z-10 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
-          {bookmark.tags.slice(0, 3).map((item) => (
-            <span key={item} className="text-[11px] text-primary">
-              #{item}
-            </span>
-          ))}
+          {bookmark.tags.slice(0, 3).map(tagButton)}
         </div>
       )}
       {active ? (

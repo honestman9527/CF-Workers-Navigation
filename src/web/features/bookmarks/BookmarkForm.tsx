@@ -1,6 +1,6 @@
-import type { Bookmark, BookmarkInput, MetadataPreview } from '@shared/api/types';
+import type { Bookmark, BookmarkInput, MetadataPreview, Tag } from '@shared/api/types';
 
-import { Image, RefreshCw, Sparkles } from 'lucide-react';
+import { Image, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,18 @@ import { DialogPanel } from '@nav/components/DialogPanel';
 export function BookmarkForm({
   open,
   bookmark,
+  availableTags = [],
   onClose,
   onSubmit,
 }: {
   open: boolean;
   bookmark?: Bookmark;
+  availableTags?: Tag[];
   onClose: () => void;
   onSubmit: (input: BookmarkInput) => Promise<void>;
 }) {
   const [form, setForm] = useState({ title: '', url: '', description: '', iconUrl: '', tags: '' });
+  const [tagDraft, setTagDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -40,9 +43,34 @@ export function BookmarkForm({
           }
         : { title: '', url: '', description: '', iconUrl: '', tags: '' },
     );
+    setTagDraft('');
     setError(null);
     setMetadata(null);
   }, [open, bookmark]);
+
+  const selectedTags = form.tags
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  function addTag(raw: string) {
+    const next = raw.trim().replace(/^#/, '');
+    if (!next) return;
+    const exists = selectedTags.some(
+      (item) => item.toLocaleLowerCase() === next.toLocaleLowerCase(),
+    );
+    if (!exists) {
+      setForm((current) => ({ ...current, tags: [...selectedTags, next].join(', ') }));
+    }
+    setTagDraft('');
+  }
+
+  function removeTag(target: string) {
+    setForm((current) => ({
+      ...current,
+      tags: selectedTags.filter((item) => item !== target).join(', '),
+    }));
+  }
 
   async function fetchFavicon(showError = true): Promise<string> {
     const url = form.url.trim();
@@ -78,7 +106,9 @@ export function BookmarkForm({
       <h2 id="bookmark-form-title" className="font-display text-xl font-semibold">
         {bookmark ? '编辑书签' : '添加书签'}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">网址会自动查重。用逗号分隔多个标签。</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        网址会自动查重。回车添加标签，也可以点选已有标签。
+      </p>
       <form
         className="mt-5 grid gap-4"
         onSubmit={async (event) => {
@@ -102,10 +132,7 @@ export function BookmarkForm({
               url: form.url.trim(),
               description: form.description.trim() || null,
               iconUrl: iconUrl || null,
-              tags: form.tags
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean),
+              tags: selectedTags,
               isPinned: bookmark?.isPinned ?? false,
             });
           } catch (caught) {
@@ -176,14 +203,72 @@ export function BookmarkForm({
           />
         </div>
         <div>
-          <Label htmlFor="bookmark-tags">标签</Label>
-          <Input
-            id="bookmark-tags"
-            className="mt-2"
-            value={form.tags}
-            onChange={(e) => setForm({ ...form, tags: e.target.value })}
-            placeholder="开发, 阅读, 工具"
-          />
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="bookmark-tags">标签</Label>
+            <span className="text-[11px] text-muted-foreground">回车确认</span>
+          </div>
+          <div className="mt-2 rounded-md border border-input bg-transparent px-2 py-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+            {selectedTags.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {selectedTags.map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                  >
+                    #{item}
+                    <button
+                      type="button"
+                      className="rounded-sm text-primary/70 hover:text-primary"
+                      onClick={() => removeTag(item)}
+                      aria-label={`移除标签 ${item}`}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <Input
+              id="bookmark-tags"
+              value={tagDraft}
+              onChange={(event) => setTagDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ',') {
+                  event.preventDefault();
+                  addTag(tagDraft);
+                } else if (event.key === 'Backspace' && !tagDraft && selectedTags.length > 0) {
+                  removeTag(selectedTags[selectedTags.length - 1]);
+                }
+              }}
+              placeholder={selectedTags.length > 0 ? '继续添加标签' : '例如：开发、阅读、工具'}
+              className="h-8 border-0 px-1 shadow-none focus-visible:ring-0"
+            />
+          </div>
+          {availableTags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">已有标签</span>
+              {availableTags
+                .filter(
+                  (item) =>
+                    !selectedTags.some(
+                      (selected) => selected.toLocaleLowerCase() === item.name.toLocaleLowerCase(),
+                    ) &&
+                    (!tagDraft.trim() ||
+                      item.name.toLocaleLowerCase().includes(tagDraft.trim().toLocaleLowerCase())),
+                )
+                .slice(0, 8)
+                .map((item) => (
+                  <button
+                    key={item.slug}
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition hover:border-primary/45 hover:bg-primary/5 hover:text-primary"
+                    onClick={() => addTag(item.name)}
+                  >
+                    + {item.name}
+                  </button>
+                ))}
+            </div>
+          ) : null}
         </div>
         <div>
           <Label htmlFor="bookmark-description">描述</Label>
