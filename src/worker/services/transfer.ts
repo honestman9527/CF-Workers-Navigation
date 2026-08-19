@@ -11,7 +11,9 @@ import { eq, sql } from 'drizzle-orm';
 import { bookmarks } from '../schema';
 import { listBookmarks, normalizeUrl, replaceTags } from './bookmarks';
 
-const INSERT_CHUNK_SIZE = 20;
+// D1 limits the number of bound parameters per statement. Each bookmark insert
+// currently binds nine values, so ten rows stay below the limit with headroom.
+const INSERT_CHUNK_SIZE = 10;
 const UPDATE_CHUNK_SIZE = 25;
 
 function chunks<T>(items: T[], size: number): T[][] {

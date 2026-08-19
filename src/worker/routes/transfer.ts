@@ -91,8 +91,8 @@ transferRoutes.post('/import', async (c) => {
     const summary = await importTransferData(c.get('db'), data, strategy);
     return c.json(summary, 200);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '导入失败';
-    return jsonError(c, 500, 'internal_error', message);
+    console.error('Bookmark import failed', error);
+    return jsonError(c, 500, 'internal_error', '数据库写入失败，请查看 Worker 日志');
   }
 });
 

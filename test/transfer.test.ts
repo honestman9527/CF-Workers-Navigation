@@ -117,6 +117,29 @@ describe('transfer api', () => {
     );
     expect((await second.json()).bookmarksUpdated).toBe(1);
   });
+
+  it('imports backups larger than one D1 insert batch', async () => {
+    const bookmarks = Array.from({ length: 25 }, (_, index) => ({
+      title: `Batch import ${index}`,
+      url: `https://batch-import-${index}.example.com`,
+      tags: ['batch'],
+    }));
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ version: 1, bookmarks }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      bookmarksCreated: 25,
+      bookmarksSkipped: 0,
+      bookmarksUpdated: 0,
+    });
+  });
 });
 
 describe('parseJson tag backup', () => {
