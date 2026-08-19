@@ -4,7 +4,7 @@ import {
   History as ClockCounterClockwise,
   LoaderCircle as Spinner,
 } from "lucide-react";
-import type { Bookmark } from "@ext/shared/api/types";
+import type { Bookmark } from "@shared/api/types";
 import { resolveBookmarkIcon, domainOf } from "@ext/shared/config";
 import type { RecentItem } from "@ext/shared/storage";
 
@@ -13,8 +13,6 @@ type SearchResultsProps = {
   recents: RecentItem[];
   loading: boolean;
   error: string | null;
-  /** 结果来自本地缓存（远端不可用）。 */
-  fromCache?: boolean;
   highlighted: number;
   query: string;
   onHover: (index: number) => void;
@@ -30,7 +28,6 @@ export default function SearchResults({
   recents,
   loading,
   error,
-  fromCache = false,
   highlighted,
   query,
   onHover,
@@ -110,11 +107,6 @@ export default function SearchResults({
 
       {!loading && !error && query && results.length > 0 && (
         <>
-          {fromCache ? (
-            <div className="px-4 pb-1 pt-1 text-[11px] font-medium tracking-wider text-amber-400/80">
-              本地缓存结果 · 服务暂不可用
-            </div>
-          ) : null}
           {results.slice(0, 8).map((bm, i) => (
             <ResultRow
               key={bm.id}

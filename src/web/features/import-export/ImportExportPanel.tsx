@@ -1,4 +1,4 @@
-import type { ImportSummary, TransferFormat } from '@nav/api/types';
+import type { ImportSummary, TransferFormat } from '@shared/api/types';
 
 import {
   Braces,

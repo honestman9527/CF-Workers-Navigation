@@ -55,10 +55,6 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
   const iconUrl =
     typeof record.iconUrl === 'string' && record.iconUrl.trim() ? record.iconUrl.trim() : null;
   const isPinned = typeof record.isPinned === 'boolean' ? record.isPinned : undefined;
-  const sortOrder =
-    typeof record.sortOrder === 'number' && Number.isFinite(record.sortOrder)
-      ? record.sortOrder
-      : undefined;
   const addedAt = typeof record.addedAt === 'string' ? record.addedAt : null;
   const archivedAt = typeof record.archivedAt === 'string' ? record.archivedAt : null;
   const deletedAt = typeof record.deletedAt === 'string' ? record.deletedAt : null;
@@ -72,7 +68,6 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
     tags: normalizeTags(record.tags),
     archivedAt,
     deletedAt,
-    sortOrder,
     addedAt,
   };
 }

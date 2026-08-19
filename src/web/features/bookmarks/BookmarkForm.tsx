@@ -1,10 +1,12 @@
-import type { Bookmark, BookmarkInput, MetadataPreview } from '@nav/api/types';
+import type { Bookmark, BookmarkInput, MetadataPreview } from '@shared/api/types';
 
 import { Image, RefreshCw, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Input, Label, Textarea } from '@/components/ui/primitives';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 

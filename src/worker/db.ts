@@ -1,7 +1,7 @@
-import type { Bindings } from './types';
+import type { Bindings, Db } from './types';
 
 import { drizzle } from 'drizzle-orm/d1';
 
-export function getDb(env: Bindings) {
+export function getDb(env: Bindings): Db {
   return drizzle(env.DB);
 }

@@ -1,6 +1,6 @@
 import { useRef, type MouseEvent } from "react";
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
-import type { Bookmark } from "@ext/shared/api/types";
+import type { Bookmark } from "@shared/api/types";
 import { resolveBookmarkIcon, faviconFor, domainOf } from "@ext/shared/config";
 import { openLink } from "@ext/shared/navigation";
 

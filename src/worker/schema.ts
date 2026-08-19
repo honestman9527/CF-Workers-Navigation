@@ -1,42 +1,10 @@
 import { sql } from 'drizzle-orm';
-import {
-  AnySQLiteColumn,
-  index,
-  integer,
-  sqliteTable,
-  text,
-  uniqueIndex,
-} from 'drizzle-orm/sqlite-core';
-
-export const categories = sqliteTable(
-  'categories',
-  {
-    id: integer('id').primaryKey({ autoIncrement: true }),
-    parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id, {
-      onDelete: 'cascade',
-    }),
-    name: text('name').notNull(),
-    slug: text('slug').notNull(),
-    icon: text('icon'),
-    sortOrder: integer('sort_order').notNull().default(0),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-    updatedAt: text('updated_at')
-      .notNull()
-      .default(sql`CURRENT_TIMESTAMP`),
-  },
-  (table) => [
-    uniqueIndex('categories_slug_idx').on(table.slug),
-    index('categories_parent_sort_idx').on(table.parentId, table.sortOrder),
-  ],
-);
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const bookmarks = sqliteTable(
   'bookmarks',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     url: text('url').notNull(),
     description: text('description'),
@@ -45,7 +13,6 @@ export const bookmarks = sqliteTable(
     archivedAt: text('archived_at'),
     deletedAt: text('deleted_at'),
     urlNormalized: text('url_normalized').notNull().default(''),
-    sortOrder: integer('sort_order').notNull().default(0),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -54,11 +21,22 @@ export const bookmarks = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
-    index('bookmarks_category_sort_idx').on(table.categoryId, table.sortOrder),
-    index('bookmarks_url_idx').on(table.url),
-    index('bookmarks_pinned_sort_idx').on(table.isPinned, table.sortOrder, table.id),
-    index('bookmarks_status_idx').on(table.deletedAt, table.archivedAt, table.updatedAt),
-    index('bookmarks_url_normalized_idx').on(table.urlNormalized),
+    index('bookmarks_status_created_idx').on(
+      table.deletedAt,
+      table.archivedAt,
+      table.createdAt,
+      table.id,
+    ),
+    index('bookmarks_pinned_created_idx').on(
+      table.isPinned,
+      table.deletedAt,
+      table.archivedAt,
+      table.createdAt,
+      table.id,
+    ),
+    uniqueIndex('bookmarks_url_normalized_idx')
+      .on(table.urlNormalized)
+      .where(sql`${table.deletedAt} IS NULL`),
   ],
 );
 
@@ -99,8 +77,6 @@ export const settings = sqliteTable('settings', {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-export type Category = typeof categories.$inferSelect;
-export type NewCategory = typeof categories.$inferInsert;
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
 export type Tag = typeof tags.$inferSelect;

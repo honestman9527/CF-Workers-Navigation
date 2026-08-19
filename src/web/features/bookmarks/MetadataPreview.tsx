@@ -1,8 +1,8 @@
-import type { MetadataPreview as MetadataShape } from '@nav/api/types';
+import type { MetadataPreview as MetadataShape } from '@shared/api/types';
 
 import { Tag } from 'lucide-react';
 
-import { Badge } from '@/components/ui/primitives';
+import { Badge } from '@/components/ui/badge';
 
 const LANGUAGE_LABELS: Record<string, string> = {
   zh: '中文',

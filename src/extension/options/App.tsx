@@ -271,9 +271,9 @@ export default function App() {
     setConnectionStatus("testing");
     setConnectionMsg("");
     try {
-      await api.getCategories(apiBaseUrl.trim(), adminToken || undefined);
+      await api.getBookmarks(apiBaseUrl.trim(), adminToken || undefined, { limit: 1 });
       setConnectionStatus("success");
-      setConnectionMsg("连接成功，分类数据可读");
+      setConnectionMsg("连接成功，书签数据可读");
     } catch (e) {
       setConnectionStatus("failed");
       setConnectionMsg(e instanceof ApiError ? e.message : "连接失败");

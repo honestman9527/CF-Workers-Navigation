@@ -2,8 +2,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { crx } from '@crxjs/vite-plugin';
+import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 import manifest from './src/extension/manifest';
@@ -14,7 +15,7 @@ const extensionRoot = path.join(projectRoot, 'src/extension');
 export default defineConfig({
   root: extensionRoot,
   publicDir: path.join(projectRoot, 'public'),
-  plugins: [react(), tailwindcss(), crx({ manifest })],
+  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss(), crx({ manifest })],
   resolve: {
     alias: {
       '@ext': extensionRoot,

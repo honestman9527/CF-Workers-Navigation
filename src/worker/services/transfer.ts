@@ -4,126 +4,108 @@ import type {
   TransferBookmark,
   TransferData,
 } from '../transfer/types';
-import type { Bindings } from '../types';
+import type { Db } from '../types';
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-import { getDb } from '../db';
-import { bookmarks, type NewBookmark } from '../schema';
-import { ensureDefaultCategory, normalizeUrl, replaceTags } from './bookmarks';
-import { listBookmarks } from './bookmarks';
+import { bookmarks } from '../schema';
+import { listBookmarks, normalizeUrl, replaceTags } from './bookmarks';
 
-const BOOKMARK_INSERT_CHUNK_SIZE = 12;
-const BOOKMARK_UPDATE_BATCH_SIZE = 25;
-
-type Db = ReturnType<typeof getDb>;
-
-type ImportIndex = {
-  bookmarkUrls: Set<string>;
-};
+const INSERT_CHUNK_SIZE = 20;
+const UPDATE_CHUNK_SIZE = 25;
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
-  for (let index = 0; index < items.length; index += size)
+  for (let index = 0; index < items.length; index += size) {
     result.push(items.slice(index, index + size));
+  }
   return result;
 }
 
-function toTransferBookmark(
-  bookmark: Awaited<ReturnType<typeof listBookmarks>>[number],
-): TransferBookmark {
-  return {
-    title: bookmark.title,
-    url: bookmark.url,
-    description: bookmark.description,
-    iconUrl: bookmark.iconUrl,
-    isPinned: bookmark.isPinned,
-    tags: bookmark.tags,
-    archivedAt: bookmark.archivedAt,
-    deletedAt: bookmark.deletedAt,
-    sortOrder: bookmark.sortOrder,
-    addedAt: bookmark.createdAt,
-  };
+export async function exportTransferData(db: Db): Promise<TransferData> {
+  const exported: TransferBookmark[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await listBookmarks(db, { view: 'all', cursor, limit: 100 });
+    exported.push(
+      ...page.items.map((bookmark) => ({
+        title: bookmark.title,
+        url: bookmark.url,
+        description: bookmark.description,
+        iconUrl: bookmark.iconUrl,
+        isPinned: bookmark.isPinned,
+        tags: bookmark.tags,
+        archivedAt: bookmark.archivedAt,
+        deletedAt: bookmark.deletedAt,
+        addedAt: bookmark.createdAt,
+      })),
+    );
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+  return { version: 1, exportedAt: new Date().toISOString(), bookmarks: exported };
 }
 
-export async function exportTransferData(env: Bindings): Promise<TransferData> {
-  const rows = await listBookmarks(env, { view: 'all' });
-  return {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    bookmarks: rows.map(toTransferBookmark),
-  };
-}
-
-async function loadImportIndex(db: Db): Promise<ImportIndex> {
-  const rows = await db
-    .select({ urlNormalized: bookmarks.urlNormalized, url: bookmarks.url })
-    .from(bookmarks);
-  const bookmarkUrls = new Set<string>();
-  for (const row of rows) bookmarkUrls.add(row.urlNormalized || normalizeUrl(row.url));
-  return { bookmarkUrls };
-}
-
-function toBookmarkValues(bookmark: TransferBookmark, categoryId: number): NewBookmark {
-  return {
-    categoryId,
-    title: bookmark.title,
-    url: bookmark.url,
-    description: bookmark.description ?? null,
-    iconUrl: bookmark.iconUrl ?? null,
-    isPinned: bookmark.isPinned ?? false,
-    archivedAt: bookmark.archivedAt ?? null,
-    deletedAt: bookmark.deletedAt ?? null,
-    sortOrder: bookmark.sortOrder ?? 0,
-    urlNormalized: normalizeUrl(bookmark.url),
-  };
-}
-
-async function importBookmarks(
-  env: Bindings,
+export async function importTransferData(
   db: Db,
-  index: ImportIndex,
-  transferBookmarks: TransferBookmark[],
-  categoryId: number,
+  data: TransferData,
   strategy: ImportStrategy,
-  summary: ImportSummary,
-): Promise<void> {
+): Promise<ImportSummary> {
+  const summary: ImportSummary = {
+    bookmarksCreated: 0,
+    bookmarksSkipped: 0,
+    bookmarksUpdated: 0,
+    errors: [],
+  };
+  const existingRows = await db
+    .select({ id: bookmarks.id, urlNormalized: bookmarks.urlNormalized, url: bookmarks.url })
+    .from(bookmarks);
+  const existing = new Map(
+    existingRows.map((row) => [row.urlNormalized || normalizeUrl(row.url), row.id]),
+  );
   const inserts: TransferBookmark[] = [];
-  const updates: TransferBookmark[] = [];
+  const updates: Array<{ id: number; bookmark: TransferBookmark }> = [];
 
-  for (const bookmark of transferBookmarks) {
+  for (const bookmark of data.bookmarks) {
     const normalized = normalizeUrl(bookmark.url);
-    const exists = index.bookmarkUrls.has(normalized);
-    if (exists) {
-      if (strategy === 'skip') {
-        summary.bookmarksSkipped += 1;
-      } else if (strategy === 'update') {
-        updates.push(bookmark);
+    const id = existing.get(normalized);
+    if (id !== undefined) {
+      if (strategy === 'update') {
+        updates.push({ id, bookmark });
         summary.bookmarksUpdated += 1;
       } else {
-        inserts.push(bookmark);
-        index.bookmarkUrls.add(normalized);
-        summary.bookmarksCreated += 1;
+        summary.bookmarksSkipped += 1;
       }
       continue;
     }
     inserts.push(bookmark);
-    index.bookmarkUrls.add(normalized);
+    existing.set(normalized, -1);
     summary.bookmarksCreated += 1;
   }
 
-  for (const chunk of chunks(inserts, BOOKMARK_INSERT_CHUNK_SIZE)) {
+  for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
     const created = await db
       .insert(bookmarks)
-      .values(chunk.map((bookmark) => toBookmarkValues(bookmark, categoryId)))
+      .values(
+        chunk.map((bookmark) => ({
+          title: bookmark.title,
+          url: bookmark.url,
+          description: bookmark.description ?? null,
+          iconUrl: bookmark.iconUrl ?? null,
+          isPinned: bookmark.isPinned ?? false,
+          archivedAt: bookmark.archivedAt ?? null,
+          deletedAt: bookmark.deletedAt ?? null,
+          createdAt: bookmark.addedAt ?? undefined,
+          urlNormalized: normalizeUrl(bookmark.url),
+        })),
+      )
       .returning({ id: bookmarks.id });
     for (let index = 0; index < created.length; index += 1) {
-      await replaceTags(env, created[index].id, chunk[index].tags);
+      await replaceTags(db, created[index].id, chunk[index].tags);
     }
   }
 
-  for (const chunk of chunks(updates, BOOKMARK_UPDATE_BATCH_SIZE)) {
-    const statements = chunk.map((bookmark) =>
+  for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
+    const statements = chunk.map(({ id, bookmark }) =>
       db
         .update(bookmarks)
         .set({
@@ -133,38 +115,13 @@ async function importBookmarks(
           isPinned: bookmark.isPinned ?? false,
           archivedAt: bookmark.archivedAt ?? null,
           deletedAt: bookmark.deletedAt ?? null,
-          sortOrder: bookmark.sortOrder ?? 0,
-          updatedAt: new Date().toISOString(),
+          updatedAt: sql`CURRENT_TIMESTAMP`,
         })
-        .where(eq(bookmarks.urlNormalized, normalizeUrl(bookmark.url))),
+        .where(eq(bookmarks.id, id)),
     );
     await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-    for (const bookmark of chunk) {
-      const [row] = await db
-        .select({ id: bookmarks.id })
-        .from(bookmarks)
-        .where(eq(bookmarks.urlNormalized, normalizeUrl(bookmark.url)));
-      if (row) await replaceTags(env, row.id, bookmark.tags);
-    }
+    for (const { id, bookmark } of chunk) await replaceTags(db, id, bookmark.tags);
   }
-}
 
-export async function importTransferData(
-  env: Bindings,
-  data: TransferData,
-  strategy: ImportStrategy,
-): Promise<ImportSummary> {
-  const db = getDb(env);
-  const summary: ImportSummary = {
-    bookmarksCreated: 0,
-    bookmarksSkipped: 0,
-    bookmarksUpdated: 0,
-    errors: [],
-  };
-  const index = await loadImportIndex(db);
-  if (data.bookmarks.length > 0) {
-    const categoryId = await ensureDefaultCategory(env);
-    await importBookmarks(env, db, index, data.bookmarks, categoryId, strategy, summary);
-  }
   return summary;
 }

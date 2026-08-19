@@ -5,7 +5,7 @@ const adminHeaders = { Authorization: 'Bearer dev-password', 'Content-Type': 'ap
 
 describe('settings api', () => {
   it('returns default settings', async () => {
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       headers: adminHeaders,
     });
 
@@ -19,7 +19,7 @@ describe('settings api', () => {
   });
 
   it('updates favicon proxy settings as admin', async () => {
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: adminHeaders,
       body: JSON.stringify({
@@ -38,13 +38,13 @@ describe('settings api', () => {
   });
 
   it('persists updated settings across requests', async () => {
-    await exports.default.fetch('https://example.com/api/settings', {
+    await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: adminHeaders,
       body: JSON.stringify({ faviconProxyEnabled: false }),
     });
 
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       headers: adminHeaders,
     });
     const json = (await response.json()) as { faviconProxyEnabled: boolean };
@@ -52,7 +52,7 @@ describe('settings api', () => {
   });
 
   it('uses the configured tool for standalone favicon requests', async () => {
-    await exports.default.fetch('https://example.com/api/settings', {
+    await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: adminHeaders,
       body: JSON.stringify({
@@ -62,7 +62,7 @@ describe('settings api', () => {
     });
 
     const response = await exports.default.fetch(
-      'https://example.com/api/bookmarks/favicon?url=https%3A%2F%2Fdevelopers.cloudflare.com%2Fworkers',
+      'https://example.com/api/v1/bookmarks/favicon?url=https%3A%2F%2Fdevelopers.cloudflare.com%2Fworkers',
       { headers: adminHeaders },
     );
 
@@ -75,7 +75,7 @@ describe('settings api', () => {
   });
 
   it('requires admin token for updates', async () => {
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ faviconProxyEnabled: true }),
@@ -85,7 +85,7 @@ describe('settings api', () => {
   });
 
   it('rejects invalid favicon proxy URL without {domain} placeholder', async () => {
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: adminHeaders,
       body: JSON.stringify({ faviconProxyUrl: 'https://example.com/favicon.ico' }),
@@ -95,7 +95,7 @@ describe('settings api', () => {
   });
 
   it('rejects empty update body', async () => {
-    const response = await exports.default.fetch('https://example.com/api/settings', {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
       method: 'PUT',
       headers: adminHeaders,
       body: JSON.stringify({}),

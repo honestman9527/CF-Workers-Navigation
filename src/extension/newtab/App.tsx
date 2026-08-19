@@ -1,16 +1,13 @@
-import { lazy, Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback } from "react";
 import { ArrowRight, CircleAlert as WarningCircle, Settings as Gear } from "lucide-react";
-import type { Bookmark } from "@ext/shared/api/types";
+import type { Bookmark } from "@shared/api/types";
 import type { ExtConfig } from "@ext/shared/config";
-import { searchBookmarksLocal } from "@ext/shared/config";
 import {
   getConfig,
   onConfigChange,
   getBackgroundImage,
   getPinnedCache,
   setPinnedCache,
-  getBookmarksCache,
-  setBookmarksCache,
   getRecentItems,
   pushRecentItem,
   getLastEngineId,
@@ -35,7 +32,6 @@ export default function App() {
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [initialEngineId, setInitialEngineId] = useState<string | null>(null);
-  const bookmarksIndexRef = useRef<Bookmark[]>([]);
 
   // 加载配置 + 最近 + 上次引擎
   useEffect(() => {
@@ -71,35 +67,6 @@ export default function App() {
     return unsub;
   }, []);
 
-
-  const applyBookmarksIndex = useCallback((list: Bookmark[]) => {
-    bookmarksIndexRef.current = list;
-  }, []);
-
-  const loadBookmarksIndex = useCallback(
-    async (cfg: ExtConfig) => {
-      if (!cfg.apiBaseUrl) {
-        applyBookmarksIndex([]);
-        return;
-      }
-
-      const cache = await getBookmarksCache();
-      if (isCacheForScope(cache, cfg.apiBaseUrl, cfg.adminToken)) {
-        applyBookmarksIndex(cache!.data);
-        if (isCacheFresh(cache, cfg.apiBaseUrl, cfg.adminToken)) return;
-      }
-
-      try {
-        const list = await api.getBookmarks(cfg.apiBaseUrl, cfg.adminToken);
-        applyBookmarksIndex(list);
-        await setBookmarksCache(cfg.apiBaseUrl, cfg.adminToken, list);
-      } catch {
-        // 保留已有缓存；无缓存则保持空索引
-      }
-    },
-    [applyBookmarksIndex]
-  );
-
   const loadPinned = useCallback(async (cfg: ExtConfig) => {
     if (!cfg.apiBaseUrl) {
       setPinned([]);
@@ -122,10 +89,10 @@ export default function App() {
     setPinnedError(null);
 
     try {
-      const result = await api.getPinnedBookmarks(cfg.apiBaseUrl, cfg.adminToken);
-      setPinned(result);
+      const page = await api.getBookmarks(cfg.apiBaseUrl, cfg.adminToken, { pinned: true, limit: 100 });
+      setPinned(page.items);
       setPinnedError(null);
-      await setPinnedCache(cfg.apiBaseUrl, cfg.adminToken, result);
+      await setPinnedCache(cfg.apiBaseUrl, cfg.adminToken, page.items);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "网络错误";
       if (cacheValid) {
@@ -139,13 +106,12 @@ export default function App() {
     }
   }, []);
 
-  // 配置变化时加载 dock + 书签索引
+  // 配置变化时加载 dock
   useEffect(() => {
     if (config) {
       void loadPinned(config);
-      void loadBookmarksIndex(config);
     }
-  }, [config?.apiBaseUrl, config?.adminToken, loadPinned, loadBookmarksIndex, config]);
+  }, [config?.apiBaseUrl, config?.adminToken, loadPinned, config]);
 
   // popup / 右键收藏成功后刷新
   useEffect(() => {
@@ -155,34 +121,23 @@ export default function App() {
       const msg = message as BookmarksChangedMessage | undefined;
       if (msg?.type !== MSG_BOOKMARKS_CHANGED) return;
       if (msg.affectsPinned) void loadPinned(config);
-      void loadBookmarksIndex(config);
     };
 
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
-  }, [config, loadPinned, loadBookmarksIndex]);
+  }, [config, loadPinned]);
 
-  const handleSearchLocal = useCallback((query: string): Bookmark[] => {
-    return searchBookmarksLocal(bookmarksIndexRef.current, query, 8);
-  }, []);
-
-  // 远端 FTS；失败时回落本地索引
+  // 远端 FTS，避免在扩展中下载并维护全量书签索引。
   const handleSearchBookmarks = useCallback(
     async (query: string): Promise<SearchOutcome> => {
       if (!config?.apiBaseUrl) {
-        const local = searchBookmarksLocal(bookmarksIndexRef.current, query, 8);
-        if (local.length > 0) return { bookmarks: local, fromCache: true };
         throw new Error("未配置 API 地址");
       }
 
       try {
-        const remote = await api.searchBookmarks(config.apiBaseUrl, config.adminToken, query);
-        return { bookmarks: remote.slice(0, 8), fromCache: false };
+        const page = await api.searchBookmarks(config.apiBaseUrl, config.adminToken, query, { limit: 8 });
+        return { bookmarks: page.items };
       } catch (err) {
-        const local = searchBookmarksLocal(bookmarksIndexRef.current, query, 8);
-        if (local.length > 0 || bookmarksIndexRef.current.length > 0) {
-          return { bookmarks: local, fromCache: true };
-        }
         if (err instanceof ApiError) throw new Error(err.message);
         throw new Error("网络错误，请检查 API 地址与主机权限");
       }
@@ -314,7 +269,6 @@ export default function App() {
             enterBehavior={config.enterBehavior}
             recents={recents}
             onSearchBookmarks={handleSearchBookmarks}
-            onSearchLocal={handleSearchLocal}
             onOpenBookmark={handleOpenBookmark}
             onEngineChange={handleEngineChange}
             onOpenSettings={openSettings}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, type KeyboardEvent, type MouseEvent } from "react";
 import { ArrowDown, ArrowUp, Search as MagnifyingGlass } from "lucide-react";
-import type { Bookmark } from "@ext/shared/api/types";
+import type { Bookmark } from "@shared/api/types";
 import type { EnterBehavior, SearchEngine } from "@ext/shared/config";
 import {
   buildSearchUrl,
@@ -15,8 +15,6 @@ import SearchResults from "./SearchResults";
 
 export type SearchOutcome = {
   bookmarks: Bookmark[];
-  /** 仅本地缓存命中（远端失败或跳过）。 */
-  fromCache?: boolean;
 };
 
 type SearchBoxProps = {
@@ -26,13 +24,8 @@ type SearchBoxProps = {
   enterBehavior: EnterBehavior;
   /** 最近打开（空查询时展示）。 */
   recents: RecentItem[];
-  /**
-   * 搜索书签。可先同步本地再异步远端。
-   * 失败且无本地结果时应 throw。
-   */
+  /** 搜索书签；失败时应 throw。 */
   onSearchBookmarks: (query: string) => Promise<SearchOutcome>;
-  /** 本地即时检索（有缓存时在 debounce 前先出结果）。 */
-  onSearchLocal?: (query: string) => Bookmark[];
   /** 打开书签/最近项时回调（用于记录最近；当前标签跳转前会 await）。 */
   onOpenBookmark?: (item: {
     id?: number;
@@ -53,7 +46,6 @@ export default function SearchBox({
   enterBehavior,
   recents,
   onSearchBookmarks,
-  onSearchLocal,
   onOpenBookmark,
   onEngineChange,
   onOpenSettings,
@@ -62,7 +54,6 @@ export default function SearchBox({
   const [results, setResults] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [fromCache, setFromCache] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const [activeEngineId, setActiveEngineId] = useState(defaultEngineId);
   const [focused, setFocused] = useState(false);
@@ -101,7 +92,7 @@ export default function SearchBox({
     onEngineChange?.(id);
   }
 
-  // 搜索：本地先出，再远端精修
+  // 搜索：短暂防抖后请求远端 FTS。
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -111,49 +102,32 @@ export default function SearchBox({
       setResults([]);
       setLoading(false);
       setSearchError(null);
-      setFromCache(false);
       setHighlighted(-1);
       return;
     }
 
-    // 本地即时
-    const local = onSearchLocal?.(q) ?? [];
-    if (local.length > 0) {
-      setResults(local);
-      setLoading(false);
-      setSearchError(null);
-    } else {
-      setLoading(true);
-    }
-    setFromCache(false);
+    setLoading(true);
+    setSearchError(null);
 
     debounceRef.current = setTimeout(async () => {
       try {
         const outcome = await onSearchBookmarks(q);
         setResults(outcome.bookmarks);
-        setFromCache(Boolean(outcome.fromCache));
         setSearchError(null);
         setHighlighted(-1);
       } catch (err) {
-        if (local.length > 0) {
-          setResults(local);
-          setFromCache(true);
-          setSearchError(null);
-        } else {
-          setResults([]);
-          setFromCache(false);
-          setSearchError(err instanceof Error ? err.message : "无法连接 Nav 服务");
-        }
+        setResults([]);
+        setSearchError(err instanceof Error ? err.message : "无法连接 Nav 服务");
         setHighlighted(-1);
       } finally {
         setLoading(false);
       }
-    }, local.length > 0 ? 180 : 250);
+    }, 250);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, onSearchBookmarks, onSearchLocal]);
+  }, [searchQuery, onSearchBookmarks]);
 
   function navigate(url: string, forceNewTab = false) {
     openLink(url, { openInNewTab, forceNewTab });
@@ -250,7 +224,6 @@ export default function SearchBox({
         setResults([]);
         setHighlighted(-1);
         setSearchError(null);
-        setFromCache(false);
       } else {
         inputRef.current?.blur();
       }
@@ -275,8 +248,7 @@ export default function SearchBox({
       searchError ||
       results.length > 0 ||
       (Boolean(searchQuery) && !loading) ||
-      showingRecents ||
-      fromCache);
+      showingRecents);
 
   const placeholder = hasBang
     ? `在 ${activeEngine?.name ?? ""} 中搜索…  (!${bang.bang})`
@@ -312,7 +284,6 @@ export default function SearchBox({
             recents={showingRecents ? visibleRecents : []}
             loading={loading}
             error={searchError}
-            fromCache={fromCache}
             highlighted={highlighted}
             query={searchQuery}
             onHover={setHighlighted}

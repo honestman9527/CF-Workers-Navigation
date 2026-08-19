@@ -1,17 +1,7 @@
-/**
- * 跨端共享 API 数据契约 —— 单一真相源。
- *
- * Worker 路由输出、Web 前端、extension 客户端均引用本文件类型，
- * 避免三处分别定义导致漂移。
- *
- * 注意：本文件为纯类型与常量，不引入任何运行时依赖，
- * 以便 worker（esbuild bundle）与浏览器（vite）两端均可无副作用引用。
- */
+/** 跨端 API DTO：Worker、Web、extension 的唯一契约。 */
 
-/** 书签 DTO。对齐 worker `toBookmark` 转换后的输出与 drizzle schema。 */
 export type Bookmark = {
   id: number;
-  categoryId: number | null;
   title: string;
   url: string;
   description: string | null;
@@ -20,54 +10,36 @@ export type Bookmark = {
   tags: string[];
   archivedAt: string | null;
   deletedAt: string | null;
-  urlNormalized?: string;
-  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };
 
-/** 分类树节点 DTO。对齐 worker `categories` 路由的树构造输出。 */
-export type CategoryNode = {
-  id: number;
-  parentId: number | null;
-  name: string;
-  slug: string;
-  icon: string | null;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
-  bookmarkCount: number;
-  totalBookmarkCount: number;
-  children: CategoryNode[];
-};
-
-/** 书签创建/更新入参。 */
 export type BookmarkInput = {
-  categoryId?: number | null;
   title: string;
   url: string;
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
-  sortOrder?: number;
   tags?: string[];
+};
+
+export type BookmarkView = 'active' | 'archive' | 'trash' | 'all';
+
+export type BookmarkListOptions = {
+  view?: BookmarkView;
+  tag?: string;
+  pinned?: boolean;
+  cursor?: string;
+  limit?: number;
+};
+
+export type BookmarkPage = {
+  items: Bookmark[];
+  nextCursor: string | null;
 };
 
 export type Tag = { id: number; name: string; slug: string; bookmarkCount: number };
 
-/** 分类创建/更新入参。 */
-export type CategoryInput = {
-  name: string;
-  parentId?: number | null;
-  icon?: string | null;
-  sortOrder?: number;
-};
-
-/**
- * 元数据抓取预览 DTO。对齐 worker `metadata.ts` 的 `MetadataShape`。
- * 完整版本，含 metadata 子对象；extension 端此前为简化版，
- * 收敛到此处后补回字段（行为增强，非破坏）。
- */
 export type MetadataPreview = {
   url: string;
   title: string;
@@ -85,26 +57,20 @@ export type MetadataPreview = {
   };
 };
 
-/** 单独获取 favicon 的结果，不触发元数据抓取。 */
 export type FaviconPreview = {
   url: string;
   iconUrl: string;
   source: 'proxy' | 'none';
 };
 
-/** 设置 DTO。对齐 worker `settings.ts` 的 `SettingsConfig`。 */
 export type Settings = {
   faviconProxyUrl: string;
   faviconProxyEnabled: boolean;
 };
 
-/** 导入导出格式。 */
 export type TransferFormat = 'html' | 'json';
-
-/** 导入策略。 */
 export type ImportStrategy = 'skip' | 'create' | 'update';
 
-/** 导入结果摘要。 */
 export type ImportSummary = {
   bookmarksCreated: number;
   bookmarksSkipped: number;

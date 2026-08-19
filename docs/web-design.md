@@ -13,7 +13,7 @@
 | 火漆 seal      | `#d65f4a` | `#f17a62` |
 | 青釉 verdigris | `#2e7567` | `#79c5ae` |
 
-字体：展示用 `Fraunces`（书签柜标题），正文 `Geist`，网址与计数用 `Geist Mono`。
+字体：正文与标题使用 `Geist`，网址与计数使用 `Geist Mono`。
 
 ## 布局
 
@@ -40,9 +40,9 @@
 
 - 骨架与导航：Sidebar 系（侧边栏索引、导航结构），配合 AppShell 工作台壳。
 - 覆盖层：Dialog、AlertDialog；覆盖层必须带标题，视觉隐藏用 `sr-only`。
-- 内容块：Card 系，按 CardHeader / CardTitle / CardContent / CardFooter 完整组合。
+- 内容块：优先使用现有 Card 系；简单空状态和加载占位可保持功能内局部结构，不为一次性布局新增组件文件。
 - 表单：Field 组合（Field + FieldLabel + Input / Select / Textarea / Checkbox），校验用 `data-invalid` + `aria-invalid`。
-- 反馈与点缀：toast、Skeleton、Empty、Badge、Separator、Tooltip、DropdownMenu 等，不复刻样式。
+- 反馈与点缀：优先使用已安装的 toast、Badge、Separator、DropdownMenu 等，不保留未使用的 UI 文件。
 - 图标只用 lucide-react，按钮内图标走 `data-icon`，不写尺寸类。
 
 以上是组合惯例：具体以 `src/web/components/ui` 中已安装的组件为准，缺的组件按需补装进同一目录，而不是手写自定义结构替代。配色只走语义 token（paper/ink/rule 落到 background/foreground/border，seal/rust 落到 primary 等），组件不写死 hex，也不做手写 `dark:` 覆盖。

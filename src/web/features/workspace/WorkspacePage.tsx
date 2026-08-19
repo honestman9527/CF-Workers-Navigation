@@ -1,11 +1,9 @@
-import type { Bookmark, Tag } from '@nav/api/types';
+import type { Bookmark, BookmarkInput, BookmarkView, Tag } from '@shared/api/types';
 
 import {
   Archive,
   ArrowDownUp,
   Bookmark as BookmarkIcon,
-  ChevronLeft,
-  ChevronRight,
   Inbox,
   Menu,
   Plus,
@@ -15,71 +13,85 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
-import { api, ApiError } from '@nav/api/client';
+import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
-import { BookmarkForm } from '@nav/features/bookmarks/BookmarkForm';
-import { ImportExportPanel } from '@nav/features/import-export/ImportExportPanel';
+import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
-import { SettingsPanel } from '@nav/features/settings/SettingsPanel';
 import { useTheme } from '@nav/hooks/useTheme';
 
-type View = 'active' | 'archive' | 'trash';
-const PAGE_SIZE = 24;
+const BookmarkForm = lazy(() =>
+  import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
+    default: module.BookmarkForm,
+  })),
+);
+const ImportExportPanel = lazy(() =>
+  import('@nav/features/import-export/ImportExportPanel').then((module) => ({
+    default: module.ImportExportPanel,
+  })),
+);
+const SettingsPanel = lazy(() =>
+  import('@nav/features/settings/SettingsPanel').then((module) => ({
+    default: module.SettingsPanel,
+  })),
+);
+
+type View = Exclude<BookmarkView, 'all'>;
 
 export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promise<void> }) {
   const { theme, setTheme } = useTheme();
   const searchRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>('active');
-  const [homeOnly, setHomeOnly] = useState(true);
-  const [tag, setTag] = useState<string | undefined>();
+  const [pinnedOnly, setPinnedOnly] = useState(true);
+  const [tag, setTag] = useState<string>();
   const [query, setQuery] = useState('');
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
-  const [pinned, setPinned] = useState<Bookmark[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editor, setEditor] = useState<Bookmark | null | 'new'>(null);
+  const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [page, setPage] = useState(1);
 
-  const load = async () => {
-    setLoading(true);
+  function reportError(message: string) {
+    pushToast(message, 'error');
+  }
+
+  function handleUnauthorized() {
+    void logout();
+  }
+
+  const page = useBookmarkPage({
+    view,
+    tag,
+    pinned: view === 'active' && pinnedOnly && !tag,
+    query,
+    onUnauthorized: handleUnauthorized,
+    onError: reportError,
+  });
+
+  async function loadTags() {
     try {
-      const [items, tagList, favorite] = await Promise.all([
-        query.trim() && view === 'active'
-          ? api.searchBookmarks(undefined, query.trim())
-          : api.getBookmarks(undefined, undefined, false, undefined, { view, tag }),
-        api.getTags(),
-        api.getPinnedBookmarks(),
-      ]);
-      setBookmarks(items);
-      setTags(tagList);
-      setPinned(favorite);
+      setTags(await api.getTags());
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) void logout();
-      pushToast(error instanceof Error ? error.message : '加载失败', 'error');
-    } finally {
-      setLoading(false);
+      reportError(error instanceof Error ? error.message : '标签加载失败');
     }
-  };
+  }
 
   useEffect(() => {
-    void load();
-  }, [view, tag, query]);
-  useEffect(() => setPage(1), [view, homeOnly, tag, query]);
+    void loadTags();
+  }, []);
+
   useEffect(() => {
     document.title =
       view === 'active' ? '书签柜' : view === 'archive' ? '归档 · 书签柜' : '回收站 · 书签柜';
   }, [view]);
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key === '/' && !(event.target as HTMLElement)?.closest('input,textarea')) {
@@ -91,37 +103,37 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const visible = view === 'active' && homeOnly && !query && !tag ? pinned : bookmarks;
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  const pageItems = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount]);
+  function selectView(next: View, options?: { pinned?: boolean; tag?: string }) {
+    setView(next);
+    setPinnedOnly(options?.pinned ?? false);
+    setTag(options?.tag);
+    setQuery('');
+    setNavOpen(false);
+  }
+
+  async function mutate(action: () => Promise<unknown>, message: string) {
+    try {
+      await action();
+      page.refresh();
+      await loadTags();
+      pushToast(message, 'success');
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : '操作失败');
+    }
+  }
+
   const title =
     view === 'active'
       ? query
         ? `搜索 “${query}”`
         : tag
           ? `#${tag}`
-          : homeOnly
+          : pinnedOnly
             ? '常用入口'
             : '所有书签'
       : view === 'archive'
         ? '归档'
         : '回收站';
-  const subtitle = loading
-    ? '同步中…'
-    : pageCount > 1
-      ? `${visible.length} 个书签 · 第 ${page} / ${pageCount} 页`
-      : `${visible.length} 个书签`;
-
-  async function mutate(action: () => Promise<unknown>, message: string) {
-    try {
-      await action();
-      await load();
-      pushToast(message, 'success');
-    } catch (error) {
-      pushToast(error instanceof Error ? error.message : '操作失败', 'error');
-    }
-  }
 
   const header = (
     <div className="flex h-[var(--header-h)] items-center justify-between gap-4 px-4 sm:px-8">
@@ -131,19 +143,14 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           onClick={() => setNavOpen(true)}
           aria-label="打开索引"
         >
-          <Menu className="size-4" />
+          <Menu />
         </button>
         <button
           className="flex items-center gap-3"
-          onClick={() => {
-            setView('active');
-            setHomeOnly(true);
-            setTag(undefined);
-            setQuery('');
-          }}
+          onClick={() => selectView('active', { pinned: true })}
         >
           <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <BookmarkIcon className="size-5" />
+            <BookmarkIcon />
           </span>
           <span className="text-left">
             <strong className="block font-display text-base">书签柜</strong>
@@ -154,17 +161,12 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         </button>
       </div>
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setTransferOpen(true)}
-          aria-label="打开导入导出"
-        >
-          <ArrowDownUp className="size-4" />
+        <Button size="sm" variant="outline" onClick={() => setTransferOpen(true)}>
+          <ArrowDownUp />
           <span className="hidden md:inline">导入 / 导出</span>
         </Button>
         <Button size="sm" onClick={() => setEditor('new')}>
-          <Plus className="size-4" />
+          <Plus />
           <span className="hidden sm:inline">添加书签</span>
         </Button>
         <HeaderMenu
@@ -184,79 +186,49 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       <div className="flex items-center justify-between lg:hidden">
         <span className="font-display text-lg">索引</span>
         <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(false)}>
-          <X className="size-4" />
+          <X />
         </Button>
       </div>
       <nav className="grid gap-1">
         <button
-          onClick={() => {
-            setView('active');
-            setHomeOnly(false);
-            setTag(undefined);
-            setQuery('');
-            setNavOpen(false);
-          }}
-          className={cn('nav-item', view === 'active' && !homeOnly && !tag && 'nav-item-active')}
+          onClick={() => selectView('active')}
+          className={cn('nav-item', view === 'active' && !pinnedOnly && !tag && 'nav-item-active')}
         >
-          <Inbox className="size-4" />
-          所有书签 <span>{tags.reduce((n, t) => n + t.bookmarkCount, 0) || ''}</span>
+          <Inbox />
+          所有书签
         </button>
         <button
-          onClick={() => {
-            setView('active');
-            setHomeOnly(true);
-            setTag(undefined);
-            setQuery('');
-            setNavOpen(false);
-          }}
-          className={cn('nav-item', view === 'active' && homeOnly && !tag && 'nav-item-active')}
+          onClick={() => selectView('active', { pinned: true })}
+          className={cn('nav-item', view === 'active' && pinnedOnly && !tag && 'nav-item-active')}
         >
-          <Star className="size-4" />
-          常用入口 <span>{pinned.length}</span>
+          <Star />
+          常用入口
         </button>
         <button
-          onClick={() => {
-            setView('archive');
-            setHomeOnly(false);
-            setTag(undefined);
-            setQuery('');
-            setNavOpen(false);
-          }}
+          onClick={() => selectView('archive')}
           className={cn('nav-item', view === 'archive' && 'nav-item-active')}
         >
-          <Archive className="size-4" />
+          <Archive />
           归档
         </button>
         <button
-          onClick={() => {
-            setView('trash');
-            setHomeOnly(false);
-            setTag(undefined);
-            setQuery('');
-            setNavOpen(false);
-          }}
+          onClick={() => selectView('trash')}
           className={cn('nav-item', view === 'trash' && 'nav-item-active')}
         >
-          <Trash2 className="size-4" />
+          <Trash2 />
           回收站
         </button>
       </nav>
       <div className="border-t border-border pt-4">
         <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-          <TagIcon className="size-3.5" />
+          <TagIcon />
           标签
         </div>
         <div className="grid gap-0.5">
           {tags.map((item) => (
             <button
               key={item.slug}
-              onClick={() => {
-                setView('active');
-                setHomeOnly(false);
-                setTag(item.slug);
-                setQuery('');
-                setNavOpen(false);
-              }}
+              onClick={() => selectView('active', { tag: item.slug })}
               className={cn('nav-item', tag === item.slug && 'nav-item-active')}
             >
               <span className="truncate">{item.name}</span>
@@ -284,17 +256,17 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       >
         <div className="mx-auto w-full max-w-6xl space-y-7 px-1 sm:px-2">
           <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 focus-within:border-primary/60">
-            <Search className="size-4 text-muted-foreground" />
+            <Search />
             <input
               ref={searchRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索标题、网址或描述"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {query ? (
               <button onClick={() => setQuery('')} aria-label="清除搜索">
-                <X className="size-4 text-muted-foreground" />
+                <X />
               </button>
             ) : (
               <kbd className="hidden text-[10px] text-muted-foreground sm:block">/</kbd>
@@ -307,15 +279,17 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
             <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               {title}
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {page.loading ? '同步中…' : `已加载 ${page.items.length} 个书签`}
+            </p>
           </div>
-          {loading ? (
+          {page.loading ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="h-36 animate-pulse rounded-xl bg-muted" />
-              <div className="h-36 animate-pulse rounded-xl bg-muted" />
-              <div className="h-36 animate-pulse rounded-xl bg-muted" />
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-36 animate-pulse rounded-xl bg-muted" />
+              ))}
             </div>
-          ) : visible.length === 0 ? (
+          ) : page.items.length === 0 ? (
             <div className="border-y border-border py-16 text-center">
               <BookmarkIcon className="mx-auto size-8 text-muted-foreground/40" />
               <p className="mt-3 font-medium">这里还没有书签</p>
@@ -330,84 +304,72 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
                     : 'grid gap-2',
                 )}
               >
-                {pageItems.map((bookmark) => (
+                {page.items.map((bookmark) => (
                   <BookmarkCard
                     key={bookmark.id}
                     bookmark={bookmark}
                     viewMode={viewMode}
-                    onEdit={(item) => setEditor(item)}
-                    onDelete={(id) => mutate(() => api.deleteBookmark('', id), '已移入回收站')}
+                    onEdit={setEditor}
+                    onDelete={(id) => void mutate(() => api.deleteBookmark('', id), '已移入回收站')}
                     onTogglePin={(item) =>
-                      mutate(
+                      void mutate(
                         () => api.updateBookmark('', item.id, { isPinned: !item.isPinned }),
                         item.isPinned ? '已取消常用' : '已加入常用',
                       )
                     }
-                    onArchive={(id) => mutate(() => api.archiveBookmark('', id), '已归档')}
-                    onRestore={(id) => mutate(() => api.restoreBookmark('', id), '已恢复')}
+                    onArchive={(id) => void mutate(() => api.archiveBookmark('', id), '已归档')}
+                    onRestore={(id) => void mutate(() => api.restoreBookmark('', id), '已恢复')}
                     onPermanentDelete={(id) =>
-                      mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
+                      void mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
                     }
                   />
                 ))}
               </div>
-              {pageCount > 1 ? (
-                <nav
-                  className="flex items-center justify-center gap-3 border-t border-border pt-5"
-                  aria-label="书签分页"
-                >
+              {page.hasMore ? (
+                <div className="flex justify-center border-t border-border pt-5">
                   <Button
-                    type="button"
-                    size="sm"
                     variant="outline"
-                    disabled={page === 1}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    disabled={page.loadingMore}
+                    onClick={() => void page.loadMore()}
                   >
-                    <ChevronLeft />
-                    上一页
+                    {page.loadingMore ? '加载中…' : '加载更多'}
                   </Button>
-                  <span className="min-w-20 text-center font-mono text-xs text-muted-foreground">
-                    {page} / {pageCount}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={page === pageCount}
-                    onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
-                  >
-                    下一页
-                    <ChevronRight />
-                  </Button>
-                </nav>
+                </div>
               ) : null}
             </>
           )}
         </div>
       </AppShell>
       <Toaster />
-      <BookmarkForm
-        open={editor !== null}
-        bookmark={editor === 'new' ? undefined : (editor ?? undefined)}
-        onClose={() => setEditor(null)}
-        onSubmit={async (input) => {
-          const editingBookmark = editor !== null && editor !== 'new' ? editor : undefined;
-          if (editingBookmark) {
-            await api.updateBookmark('', editingBookmark.id, input);
-          } else {
-            await api.createBookmark('', input);
-          }
-          await load();
-          pushToast(editingBookmark ? '书签已更新' : '书签已创建', 'success');
-          setEditor(null);
-        }}
-      />
-      <ImportExportPanel
-        open={transferOpen}
-        onClose={() => setTransferOpen(false)}
-        onImported={load}
-      />
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Suspense fallback={null}>
+        {editor !== null ? (
+          <BookmarkForm
+            open
+            bookmark={editor === 'new' ? undefined : editor}
+            onClose={() => setEditor(null)}
+            onSubmit={async (input: BookmarkInput) => {
+              if (editor !== 'new' && editor !== null)
+                await api.updateBookmark('', editor.id, input);
+              else await api.createBookmark('', input);
+              setEditor(null);
+              page.refresh();
+              await loadTags();
+              pushToast(editor === 'new' ? '书签已创建' : '书签已更新', 'success');
+            }}
+          />
+        ) : null}
+        {transferOpen ? (
+          <ImportExportPanel
+            open
+            onClose={() => setTransferOpen(false)}
+            onImported={async () => {
+              page.refresh();
+              await loadTags();
+            }}
+          />
+        ) : null}
+        {settingsOpen ? <SettingsPanel open onClose={() => setSettingsOpen(false)} /> : null}
+      </Suspense>
     </>
   );
 }

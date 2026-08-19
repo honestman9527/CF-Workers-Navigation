@@ -24,7 +24,9 @@ workflow 会依次执行依赖安装、类型检查、测试、D1 解析与迁�
 
 ## 手动部署
 
-首次部署前创建 D1，并把返回的 `database_id` 写入 `wrangler.jsonc`：
+`0.3.0` 的数据库基线是破坏性重置：分类表、分类关联和手动排序字段已删除，不提供旧库原地迁移。升级现有部署前先通过旧版本导出 JSON，然后创建新的 D1 数据库或明确清空旧库，再应用新基线并导入数据。旧分类树 JSON 不受支持，应先在旧版本中导出扁平书签数据。
+
+首次部署或重置时创建 D1，并把返回的 `database_id` 写入 `wrangler.jsonc`：
 
 ```bash
 pnpm exec wrangler d1 create nav
@@ -42,4 +44,4 @@ pnpm test
 pnpm deploy
 ```
 
-`deploy` 会先构建 Web 到 `dist/web`，再由 Wrangler 部署 Worker 和静态资源。生产环境只应用已提交迁移，不在部署过程中生成迁移。当前 `migrations/0000_empty_deathbird.sql` 是新数据库的完整初始基线；后续结构变化应新增递增 migration，不再重写这份基线。
+`deploy` 会先构建 Web 到 `dist/web`，再由 Wrangler 部署 Worker 和静态资源。生产环境只应用已提交迁移，不在部署过程中生成迁移。当前 `migrations/0000_baseline.sql` 是 `0.3.0` 新数据库的完整初始基线；后续结构变化应新增递增 migration，不再重写这份基线。

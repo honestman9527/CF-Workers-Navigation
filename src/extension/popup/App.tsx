@@ -1,6 +1,6 @@
 /**
  * Popup - 快速将当前页收藏到 Nav。
- * 标签输入与 Web 端保持一致，分类仅作为旧数据兼容层。
+ * 标签输入与 Web 端保持一致。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -19,7 +19,7 @@ import {
 import { hasHostPermission, ensureHostPermission } from "@ext/shared/permissions";
 import { api, ApiError } from "@ext/shared/api/client";
 import { faviconFor, domainOf, type ExtConfig } from "@ext/shared/config";
-import type { MetadataPreview } from "@ext/shared/api/types";
+import type { MetadataPreview } from "@shared/api/types";
 
 type PopupState =
   | "loading"

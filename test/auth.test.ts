@@ -82,7 +82,7 @@ describe('auth api', () => {
   });
 
   it('logs in with the password and exposes /me', async () => {
-    const login = await exports.default.fetch('https://example.com/api/auth/login', {
+    const login = await exports.default.fetch('https://example.com/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'dev-password' }),
@@ -93,7 +93,7 @@ describe('auth api', () => {
     expect(cookie).toContain('nav_session=');
     expect(cookie).toContain('HttpOnly');
 
-    const me = await exports.default.fetch('https://example.com/api/auth/me', {
+    const me = await exports.default.fetch('https://example.com/api/v1/auth/me', {
       headers: { Cookie: cookie?.split(';')[0] ?? '' },
     });
     expect(me.status).toBe(200);
@@ -101,7 +101,7 @@ describe('auth api', () => {
   });
 
   it('rejects a wrong password', async () => {
-    const response = await exports.default.fetch('https://example.com/api/auth/login', {
+    const response = await exports.default.fetch('https://example.com/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: 'nope' }),
@@ -111,7 +111,17 @@ describe('auth api', () => {
   });
 
   it('requires auth for personal data', async () => {
-    const response = await exports.default.fetch('https://example.com/api/categories');
+    const response = await exports.default.fetch('https://example.com/api/v1/bookmarks');
     expect(response.status).toBe(401);
+  });
+
+  it('does not expose the legacy unversioned api alias', async () => {
+    const response = await exports.default.fetch('https://example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'dev-password' }),
+    });
+
+    expect(response.status).toBe(404);
   });
 });

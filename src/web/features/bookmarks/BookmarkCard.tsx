@@ -1,4 +1,4 @@
-import type { Bookmark } from '@nav/api/types';
+import type { Bookmark } from '@shared/api/types';
 
 import {
   Archive,
@@ -10,9 +10,9 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/primitives';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function domainOf(url: string) {
@@ -23,7 +23,7 @@ function domainOf(url: string) {
   }
 }
 
-export const BookmarkCard = memo(function BookmarkCard({
+export function BookmarkCard({
   bookmark,
   viewMode = 'grid',
   onEdit,
@@ -44,7 +44,7 @@ export const BookmarkCard = memo(function BookmarkCard({
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [bookmark.iconUrl]);
-  const domain = useMemo(() => domainOf(bookmark.url), [bookmark.url]);
+  const domain = domainOf(bookmark.url);
   const icon =
     !bookmark.iconUrl || failed ? (
       <span className="text-sm font-semibold text-primary">{domain.charAt(0).toUpperCase()}</span>
@@ -178,4 +178,4 @@ export const BookmarkCard = memo(function BookmarkCard({
       ) : null}
     </article>
   );
-});
+}

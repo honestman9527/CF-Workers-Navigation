@@ -1,9 +1,7 @@
 /**
  * 扩展端 API adapter —— 基于 @shared 的 createApiClient 构建。
  *
- * 保留原有方法签名（baseUrl 第一参数，token 第二参数），
- * 使所有调用点（background / popup / newtab / options）零改动。
- * 内部委托给 shared client，消除 request / ApiError / joinUrl / buildQuery 重复。
+ * 保留扩展端 baseUrl 第一参数的调用方式，内部统一委托 shared client。
  */
 import {
   createApiClient,
@@ -13,7 +11,8 @@ import {
 import type {
   Bookmark,
   BookmarkInput,
-  CategoryNode,
+  BookmarkListOptions,
+  BookmarkPage,
   MetadataPreview,
   Settings,
   Tag,
@@ -27,17 +26,16 @@ function withBaseUrl(baseUrl: string, token?: string): ApiClient {
 }
 
 export const api = {
-  getCategories(baseUrl: string, token?: string) {
-    return withBaseUrl(baseUrl, token).getCategories(token);
+  getBookmarks(baseUrl: string, token: string | undefined, options?: BookmarkListOptions) {
+    return withBaseUrl(baseUrl, token).getBookmarks(token, options);
   },
-  getBookmarks(baseUrl: string, token: string | undefined, categoryId?: number, includeChildren = false) {
-    return withBaseUrl(baseUrl, token ?? undefined).getBookmarks(token, categoryId, includeChildren);
-  },
-  getPinnedBookmarks(baseUrl: string, token?: string) {
-    return withBaseUrl(baseUrl, token).getPinnedBookmarks(token);
-  },
-  searchBookmarks(baseUrl: string, token: string | undefined, query: string) {
-    return withBaseUrl(baseUrl, token ?? undefined).searchBookmarks(token, query);
+  searchBookmarks(
+    baseUrl: string,
+    token: string | undefined,
+    query: string,
+    options?: BookmarkListOptions,
+  ) {
+    return withBaseUrl(baseUrl, token).searchBookmarks(token, query, options);
   },
   getMetadata(baseUrl: string, token: string, url: string) {
     return withBaseUrl(baseUrl, token).getMetadata(token, url);
@@ -53,11 +51,11 @@ export const api = {
   },
 };
 
-// 保留类型导出，供调用点 import type 使用（零改动兼容）
 export type {
   Bookmark,
   BookmarkInput,
-  CategoryNode,
+  BookmarkListOptions,
+  BookmarkPage,
   MetadataPreview,
   Settings,
   Tag,

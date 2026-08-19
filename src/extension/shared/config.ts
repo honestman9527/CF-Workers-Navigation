@@ -3,8 +3,6 @@
  * 类型放在这里、默认值也放在这里，storage.ts / api client / UI 共用。
  */
 
-import type { Bookmark } from "./api/types";
-
 /** 搜索引擎定义。url 中 {query} 为占位符。 */
 export type SearchEngine = {
   id: string;
@@ -192,47 +190,4 @@ export function parseBangQuery(raw: string, engines: SearchEngine[]): BangParseR
 
   // 未知 bang：当作普通查询（保留 !）
   return { query: trimmed };
-}
-
-/**
- * 本地书签检索（个人量级足够）。
- * 全 token 匹配 title/url/description，按相关度排序。
- */
-export function searchBookmarksLocal(
-  bookmarks: Bookmark[],
-  query: string,
-  limit = 8
-): Bookmark[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  const tokens = q.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return [];
-
-  const scored: { bm: Bookmark; score: number }[] = [];
-
-  for (const bm of bookmarks) {
-    const title = bm.title.toLowerCase();
-    const url = bm.url.toLowerCase();
-    const host = domainOf(bm.url).toLowerCase();
-    const desc = (bm.description ?? "").toLowerCase();
-
-    let score = 0;
-    let ok = true;
-    for (const t of tokens) {
-      if (title === t) score += 100;
-      else if (title.startsWith(t)) score += 55;
-      else if (title.includes(t)) score += 35;
-      else if (host.startsWith(t) || host.includes(t)) score += 28;
-      else if (url.includes(t)) score += 18;
-      else if (desc.includes(t)) score += 10;
-      else {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) scored.push({ bm, score });
-  }
-
-  scored.sort((a, b) => b.score - a.score || a.bm.title.localeCompare(b.bm.title));
-  return scored.slice(0, limit).map((s) => s.bm);
 }

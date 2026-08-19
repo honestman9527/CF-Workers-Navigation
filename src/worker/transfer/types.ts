@@ -7,7 +7,6 @@ export type TransferBookmark = {
   tags: string[];
   archivedAt?: string | null;
   deletedAt?: string | null;
-  sortOrder?: number;
   addedAt?: string | null;
 };
 

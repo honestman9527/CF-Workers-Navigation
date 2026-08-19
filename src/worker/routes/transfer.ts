@@ -40,7 +40,7 @@ transferRoutes.get('/export', async (c) => {
   if (format === 'auto') {
     return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
   }
-  const data = await exportTransferData(c.env);
+  const data = await exportTransferData(c.get('db'));
 
   if (format === 'json') {
     return new Response(serializeJson(data), {
@@ -88,7 +88,7 @@ transferRoutes.post('/import', async (c) => {
   }
 
   try {
-    const summary = await importTransferData(c.env, data, strategy);
+    const summary = await importTransferData(c.get('db'), data, strategy);
     return c.json(summary, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : '导入失败';

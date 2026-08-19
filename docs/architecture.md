@@ -9,7 +9,7 @@ src/
 │   ├── services/   # 业务逻辑与数据访问：书签、标签、导入导出
 │   └── transfer/   # 导入导出格式的探测、解析与序列化
 ├── web/        # 必须登录的 React 书签柜，通过同源 /api/v1/* 访问 Worker
-│   ├── features/   # 业务模块按功能聚合：auth、bookmarks、categories、layout 等
+│   ├── features/   # 业务模块按功能聚合：auth、bookmarks、layout、settings 等
 │   ├── components/ # 功能无关的通用组件；ui/ 是项目本地 shadcn/base-nova 组件
 │   ├── pages/      # 整页入口（登录页）
 │   └── hooks/ lib/ api/ utils/   # 跨功能复用的基础代码
@@ -23,7 +23,9 @@ migrations/     # D1 初始基线迁移
 
 Worker 内部按「薄路由 + 服务」分层：`routes/` 只做 HTTP 层工作——解析参数与 body、zod 校验、把服务结果与错误映射为 JSON 响应；业务逻辑与数据访问在 `services/`，导入导出格式的探测、解析与序列化在 `transfer/`。路由不直接触碰数据库。
 
-书签列表的状态、分类和标签筛选在 D1 SQL 层完成，避免把无关记录读入 Worker；标签关联读取按批次绑定 ID，写入则批量复用标签并使用 `bookmark_tags.tag_id` 反向索引支持标签统计。批量排序使用 D1 batch，减少逐条更新的往返。
+每个 API 请求只创建一次 Drizzle 客户端并通过 Hono 上下文传给路由和服务。书签列表、状态、标签、置顶和搜索都在 D1 中筛选与分页；查询用 SQL 聚合标签，避免先取书签再逐条读取关联。写入批量复用标签，导入按块插入或更新，减少 D1 往返。
+
+书签按 `created_at + id` 使用不透明游标分页；全文搜索按 FTS5 `rank + id` 分页。数据库只保留 `bookmarks`、`tags`、`bookmark_tags`、`settings` 和 FTS5 结构，不保留分类或手动排序字段。
 
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 
@@ -59,9 +61,12 @@ Worker 不能混入 DOM，扩展不能混入 Worker 类型，Web 与扩展还需
 ## 构建与运行
 
 - `vite.web.config.ts` 以 `src/web` 为入口，构建到 `dist/web`。
-- `wrangler.jsonc` 将 `dist/web` 作为 ASSETS，由 Worker 同源提供 Web 和 `/api/v1/*`；`/api/*` 保留为旧客户端兼容别名。
+- `wrangler.jsonc` 将 `dist/web` 作为 ASSETS，由 Worker 同源提供 Web 和 `/api/v1/*`；未版本化的 `/api/*` 不挂载业务路由并返回 404。
 - `vite.extension.config.ts` 以 `src/extension` 为入口，构建到 `dist/extension`。
+- Web 与扩展构建都启用 React Compiler；业务代码不需要为普通派生值手工堆叠 `memo`、`useMemo` 或 `useCallback`。
 - Web 用 HttpOnly session cookie 登录；扩展配置与管理员密码保存在 Chrome storage，请求带 Bearer。
 - Web 通过同源请求访问 API；扩展通过配置的 Worker origin 跨源访问相同 API。
+
+Web 首屏只请求当前 24 条书签和标签，表单、设置、导入导出面板按需加载。扩展新标签页只缓存置顶 Dock 作为离线兜底，搜索直接调用远端 FTS，不下载全量书签索引。
 
 `pnpm dev` 先生成 `dist/web`，再并行启动 Wrangler 和 Web watch。扩展不进入该开发进程，使用 `pnpm watch:extension` 独立联调。

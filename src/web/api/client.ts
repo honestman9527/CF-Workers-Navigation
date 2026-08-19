@@ -1,7 +1,5 @@
 import type { ImportStrategy, ImportSummary } from '@shared/api/types';
 
-import type { ExportResult } from './types';
-
 import { createApiClient, ApiError } from '@shared/api/client';
 import { ENDPOINTS, buildQuery } from '@shared/api/endpoints';
 
@@ -10,6 +8,11 @@ export { ApiError };
 const client = createApiClient({
   fetch: (input, init) => globalThis.fetch(input, { ...init, credentials: 'include' }),
 });
+
+type ExportResult = {
+  blob: Blob;
+  filename: string;
+};
 
 async function exportData(format: 'html' | 'json'): Promise<ExportResult> {
   const response = await fetch(`${ENDPOINTS.transferExport}${buildQuery({ format })}`, {

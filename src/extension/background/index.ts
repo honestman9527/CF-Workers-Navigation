@@ -1,6 +1,6 @@
 /**
  * Background service worker - Context menu bookmark to Nav.
- * 右键一键收藏：写入默认标签体系，分类仅由 Worker 兼容层兜底。
+ * 右键一键收藏：写入书签，标签可在 Web 或 popup 中补充。
  */
 import {
   getConfig,

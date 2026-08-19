@@ -2,7 +2,7 @@ import { defineManifest } from "@crxjs/vite-plugin";
 export default defineManifest({
   manifest_version: 3,
   name: "Nav 新标签页",
-  version: "0.2.2",
+  version: "0.3.0",
   description:
     "连接 Nav 书签服务的全新标签页：中心搜索框 + 可配置搜索引擎 + Dock 收藏栏。",
   chrome_url_overrides: { newtab: "newtab/index.html" },

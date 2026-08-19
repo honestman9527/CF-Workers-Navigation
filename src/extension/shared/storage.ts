@@ -1,14 +1,12 @@
 import { DEFAULT_CONFIG } from "./config";
 import type { ExtConfig, BackgroundConfig, EnterBehavior, ClockDensity } from "./config";
-import type { Bookmark, CategoryNode } from "./api/types";
+import type { Bookmark } from "@shared/api/types";
 
 export const STORAGE_KEY = "nav_ext_config";
 export const BG_IMAGE_KEY = "nav_ext_bg_image";
-export const LAST_CATEGORY_KEY = "nav_ext_last_category";
 export const RECENT_KEY = "nav_ext_recent";
 export const RECENT_MAX = 8;
 export const LAST_ENGINE_KEY = "nav_ext_last_engine";
-export const BOOKMARKS_CACHE_KEY = "nav_ext_bookmarks_cache";
 export const CACHE_FRESH_MS = 60_000;
 
 type TimedApiCache = { ts: number; apiBaseUrl: string; authToken: string };
@@ -187,43 +185,6 @@ export async function clearPinnedCache(): Promise<void> {
   await chrome.storage.local.remove(PINNED_CACHE_KEY);
 }
 
-/* ---- 上次使用的分类（popup / 右键收藏共享）---- */
-
-/** 读取上次收藏使用的分类 id。 */
-export async function getLastCategoryId(): Promise<number | null> {
-  const result = await chrome.storage.local.get(LAST_CATEGORY_KEY);
-  const id = result[LAST_CATEGORY_KEY];
-  return typeof id === "number" && Number.isFinite(id) ? id : null;
-}
-
-/** 写入上次收藏使用的分类 id。 */
-export async function setLastCategoryId(id: number): Promise<void> {
-  await chrome.storage.local.set({ [LAST_CATEGORY_KEY]: id });
-}
-
-/**
- * 在分类树中解析默认分类：优先上次使用的 id，否则第一个根分类，再否则扁平第一项。
- */
-export function resolveDefaultCategory(
-  nodes: CategoryNode[],
-  lastCategoryId: number | null
-): CategoryNode | null {
-  if (lastCategoryId !== null) {
-    const found = findCategoryById(nodes, lastCategoryId);
-    if (found) return found;
-  }
-  return nodes.find((c) => c.parentId === null) ?? nodes[0] ?? null;
-}
-
-function findCategoryById(nodes: CategoryNode[], id: number): CategoryNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const child = findCategoryById(node.children, id);
-    if (child) return child;
-  }
-  return null;
-}
-
 /**
  * 通知扩展内其它页面（如已打开的新标签页）书签数据已变更。
  * 无监听方时 chrome.runtime.lastError 可忽略。
@@ -233,10 +194,6 @@ export function notifyBookmarksChanged(options?: { affectsPinned?: boolean }): v
     type: MSG_BOOKMARKS_CHANGED,
     affectsPinned: options?.affectsPinned,
   };
-  const cacheKeys = options?.affectsPinned
-    ? [BOOKMARKS_CACHE_KEY, PINNED_CACHE_KEY]
-    : [BOOKMARKS_CACHE_KEY];
-
   const send = () => {
     try {
       chrome.runtime.sendMessage(message, () => {
@@ -247,7 +204,11 @@ export function notifyBookmarksChanged(options?: { affectsPinned?: boolean }): v
     }
   };
 
-  void chrome.storage.local.remove(cacheKeys).then(send, send);
+  if (options?.affectsPinned) {
+    void chrome.storage.local.remove(PINNED_CACHE_KEY).then(send, send);
+  } else {
+    send();
+  }
 }
 
 /* ---- 最近打开（本地，供新标签页空查询快捷入口）---- */
@@ -312,36 +273,4 @@ export async function getLastEngineId(): Promise<string | null> {
 /** 写入上次选用的搜索引擎 id。 */
 export async function setLastEngineId(id: string): Promise<void> {
   await chrome.storage.local.set({ [LAST_ENGINE_KEY]: id });
-}
-
-/* ---- 全量书签本地缓存（local 搜索 / 离线兜底）---- */
-
-export type BookmarksCache = {
-  data: Bookmark[];
-  ts: number;
-  apiBaseUrl: string;
-  authToken: string;
-};
-
-/** 读取全量书签缓存。 */
-export async function getBookmarksCache(): Promise<BookmarksCache | null> {
-  const result = await chrome.storage.local.get(BOOKMARKS_CACHE_KEY);
-  const cache = result[BOOKMARKS_CACHE_KEY] as BookmarksCache | undefined;
-  if (!cache || !Array.isArray(cache.data) || typeof cache.apiBaseUrl !== "string") return null;
-  return cache;
-}
-
-/** 写入全量书签缓存。 */
-export async function setBookmarksCache(
-  apiBaseUrl: string,
-  authToken: string,
-  data: Bookmark[],
-): Promise<void> {
-  const cache: BookmarksCache = { data, ts: Date.now(), apiBaseUrl, authToken };
-  await chrome.storage.local.set({ [BOOKMARKS_CACHE_KEY]: cache });
-}
-
-/** 清除全量书签缓存。 */
-export async function clearBookmarksCache(): Promise<void> {
-  await chrome.storage.local.remove(BOOKMARKS_CACHE_KEY);
 }

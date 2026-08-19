@@ -2,7 +2,7 @@
 
 CF Workers Navigation 是部署在 Cloudflare Workers + D1 上的私人书签柜：同源 React Web 必须登录才能打开，Chrome MV3 扩展继续用密码连接同一套 API。
 
-标签是主要组织方式。首页展示常用入口，书签支持搜索、标签筛选、归档、回收站、重复网址检查和导入导出。旧分类表保留用于兼容迁移，但 Web 不再依赖分类。
+标签是唯一组织方式。首页展示常用入口，书签支持搜索、标签筛选、归档、回收站、重复网址检查和导入导出。列表与搜索按游标分页，不在浏览器或 Worker 中加载全量数据。
 
 ## 本地开发
 
@@ -24,4 +24,4 @@ pnpm dev
 | 扩展分发包  | `pnpm bundle:extension` | `dist/nav-extension-<version>.zip` |
 | Worker 部署 | `pnpm deploy`           | Cloudflare Worker + Web assets     |
 
-源码目录、运行时边界和 TypeScript 配置见 [架构](./architecture.md)，部署前置条件见 [部署](./deployment.md)，重构阶段见 [重构计划](./REFACTOR_PLAN.md)。
+源码目录、运行时边界和 TypeScript 配置见 [架构](./architecture.md)，部署前置条件见 [部署](./deployment.md)。

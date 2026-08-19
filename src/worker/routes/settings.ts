@@ -3,7 +3,6 @@ import type { AppEnv } from '../types';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { getDb } from '../db';
 import { parseJson } from '../http';
 import { getSettings, updateSettings } from '../settings';
 
@@ -24,8 +23,7 @@ const settingsUpdateSchema = z
 const settingsRoutes = new Hono<AppEnv>();
 
 settingsRoutes.get('/', async (c) => {
-  const db = getDb(c.env);
-  const config = await getSettings(db);
+  const config = await getSettings(c.get('db'));
   return c.json(config);
 });
 
@@ -36,8 +34,7 @@ settingsRoutes.put('/', async (c) => {
   }
 
   const input = settingsUpdateSchema.parse(body.body);
-  const db = getDb(c.env);
-  const updated = await updateSettings(db, input);
+  const updated = await updateSettings(c.get('db'), input);
 
   return c.json(updated);
 });

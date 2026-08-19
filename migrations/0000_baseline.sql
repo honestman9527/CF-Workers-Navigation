@@ -1,52 +1,43 @@
-CREATE TABLE `categories` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`parent_id` integer,
-	`name` text NOT NULL,
-	`slug` text NOT NULL,
-	`icon` text,
-	`is_public` integer DEFAULT true NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`parent_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE cascade
+CREATE TABLE `bookmark_tags` (
+	`bookmark_id` integer NOT NULL,
+	`tag_id` integer NOT NULL,
+	FOREIGN KEY (`bookmark_id`) REFERENCES `bookmarks`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `categories_slug_idx` ON `categories` (`slug`);
---> statement-breakpoint
-CREATE INDEX `categories_parent_sort_idx` ON `categories` (`parent_id`,`sort_order`);
---> statement-breakpoint
-CREATE INDEX `categories_public_parent_sort_idx` ON `categories` (`is_public`,`parent_id`,`sort_order`);
---> statement-breakpoint
+CREATE UNIQUE INDEX `bookmark_tags_unique_idx` ON `bookmark_tags` (`bookmark_id`,`tag_id`);--> statement-breakpoint
+CREATE INDEX `bookmark_tags_tag_idx` ON `bookmark_tags` (`tag_id`);--> statement-breakpoint
 CREATE TABLE `bookmarks` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`category_id` integer NOT NULL,
 	`title` text NOT NULL,
 	`url` text NOT NULL,
 	`description` text,
 	`icon_url` text,
-	`is_public` integer DEFAULT true NOT NULL,
 	`is_pinned` integer DEFAULT false NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
+	`archived_at` text,
+	`deleted_at` text,
+	`url_normalized` text DEFAULT '' NOT NULL,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE cascade
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `bookmarks_category_public_sort_idx` ON `bookmarks` (`category_id`,`is_public`,`sort_order`);
---> statement-breakpoint
-CREATE INDEX `bookmarks_category_sort_idx` ON `bookmarks` (`category_id`,`sort_order`);
---> statement-breakpoint
-CREATE INDEX `bookmarks_public_sort_idx` ON `bookmarks` (`is_public`,`sort_order`,`id`);
---> statement-breakpoint
-CREATE INDEX `bookmarks_url_idx` ON `bookmarks` (`url`);
---> statement-breakpoint
-CREATE INDEX `bookmarks_pinned_sort_idx` ON `bookmarks` (`is_pinned`,`sort_order`,`id`);
---> statement-breakpoint
+CREATE INDEX `bookmarks_status_created_idx` ON `bookmarks` (`deleted_at`,`archived_at`,`created_at`,`id`);--> statement-breakpoint
+CREATE INDEX `bookmarks_pinned_created_idx` ON `bookmarks` (`is_pinned`,`deleted_at`,`archived_at`,`created_at`,`id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `bookmarks_url_normalized_idx` ON `bookmarks` (`url_normalized`) WHERE "bookmarks"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE TABLE `settings` (
 	`key` text PRIMARY KEY NOT NULL,
 	`value` text NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+--> statement-breakpoint
+CREATE TABLE `tags` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`name` text NOT NULL,
+	`slug` text NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `tags_slug_idx` ON `tags` (`slug`);
 --> statement-breakpoint
 INSERT INTO `settings` (`key`, `value`) VALUES
 	('favicon_proxy_url', 'https://www.google.com/s2/favicons?domain={domain}&sz=64'),
@@ -75,7 +66,8 @@ BEGIN
 END;
 --> statement-breakpoint
 CREATE TRIGGER `bookmarks_fts_delete` AFTER DELETE ON `bookmarks` BEGIN
-	DELETE FROM `bookmarks_fts` WHERE `rowid` = old.id;
+	INSERT INTO `bookmarks_fts` (`bookmarks_fts`, `rowid`, `title`, `description`, `url`)
+	VALUES ('delete', old.id, old.title, COALESCE(old.description, ''), old.url);
 END;
 --> statement-breakpoint
 PRAGMA optimize;

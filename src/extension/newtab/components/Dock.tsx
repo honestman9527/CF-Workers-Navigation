@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { motion, useMotionValue } from "motion/react";
-import type { Bookmark } from "@ext/shared/api/types";
+import type { Bookmark } from "@shared/api/types";
 import DockItem from "./DockItem";
 
 type DockProps = {

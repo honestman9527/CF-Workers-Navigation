@@ -85,11 +85,13 @@ describe('transfer api', () => {
       'https://example.com/api/v1/bookmarks?view=all',
       { headers: { Authorization: 'Bearer dev-password' } },
     );
-    const bookmarks = (await bookmarksResponse.json()) as Array<{ url: string; tags: string[] }>;
-    expect(bookmarks.find((bookmark) => bookmark.url.includes('github'))?.tags).toEqual([
+    const page = (await bookmarksResponse.json()) as {
+      items: Array<{ url: string; tags: string[] }>;
+    };
+    expect(page.items.find((bookmark) => bookmark.url.includes('github'))?.tags).toEqual([
       '开发工具',
     ]);
-    expect(bookmarks.find((bookmark) => bookmark.url.includes('react'))?.tags).toEqual([
+    expect(page.items.find((bookmark) => bookmark.url.includes('react'))?.tags).toEqual([
       '开发工具',
       '前端',
     ]);

@@ -9,6 +9,7 @@ import {
   UserRound,
 } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/primitives';
 
 export function HeaderMenu({
   theme,
@@ -57,9 +57,7 @@ export function HeaderMenu({
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">书签柜</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                已登录，可整理文件夹
-              </span>
+              <span className="text-xs font-normal text-muted-foreground">已登录，可整理书签</span>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>

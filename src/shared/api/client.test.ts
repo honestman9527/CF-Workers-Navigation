@@ -5,7 +5,7 @@ import { createApiClient } from './client';
 describe('nav shared api client', () => {
   it('builds a request through the injected fetch adapter', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      new Response(JSON.stringify([]), {
+      new Response(JSON.stringify({ items: [], nextCursor: null }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -26,7 +26,7 @@ describe('nav shared api client', () => {
 
   it('forwards an abort signal to read requests', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
-      new Response(JSON.stringify([]), {
+      new Response(JSON.stringify({ items: [], nextCursor: null }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -34,7 +34,7 @@ describe('nav shared api client', () => {
     const client = createApiClient({ fetch });
     const controller = new AbortController();
 
-    await client.getCategories(undefined, controller.signal);
+    await client.getBookmarks(undefined, undefined, controller.signal);
 
     expect(fetch.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
@@ -68,7 +68,7 @@ describe('nav shared api client', () => {
     );
     const client = createApiClient({ fetch });
 
-    await expect(client.getCategories()).rejects.toMatchObject({
+    await expect(client.getBookmarks(undefined)).rejects.toMatchObject({
       status: 403,
       code: 'forbidden',
       message: 'No access',
