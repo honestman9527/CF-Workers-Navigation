@@ -1,5 +1,8 @@
 /** 跨端 API DTO：Worker、Web、extension 的唯一契约。 */
 
+/** 保留的「未分类」筛选值：任何分类 slug 不得与之相同。 */
+export const UNCATEGORIZED_SLUG = 'uncategorized';
+
 export type Bookmark = {
   id: number;
   title: string;
@@ -7,6 +10,9 @@ export type Bookmark = {
   description: string | null;
   iconUrl: string | null;
   isPinned: boolean;
+  categoryId: number | null;
+  categorySlug: string | null;
+  categoryName: string | null;
   tags: string[];
   archivedAt: string | null;
   deletedAt: string | null;
@@ -20,6 +26,7 @@ export type BookmarkInput = {
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
+  categoryId?: number | null;
   tags?: string[];
 };
 
@@ -27,6 +34,7 @@ export type BookmarkView = 'active' | 'archive' | 'trash' | 'all';
 
 export type BookmarkListOptions = {
   view?: BookmarkView;
+  category?: string;
   tag?: string;
   pinned?: boolean;
   cursor?: string;
@@ -39,6 +47,23 @@ export type BookmarkPage = {
 };
 
 export type Tag = { id: number; name: string; slug: string; bookmarkCount: number };
+
+export type Category = {
+  id: number;
+  parentId: number | null;
+  name: string;
+  slug: string;
+  icon: string | null;
+  sortOrder: number;
+  /** 该分类下直属活动书签数。 */
+  bookmarkCount: number;
+};
+
+export type CategoryInput = {
+  name: string;
+  parentId?: number | null;
+  icon?: string | null;
+};
 
 export type MetadataPreview = {
   url: string;

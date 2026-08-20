@@ -1,4 +1,4 @@
-import type { Bookmark, BookmarkInput, MetadataPreview, Tag } from '@shared/api/types';
+import type { Bookmark, BookmarkInput, Category, MetadataPreview, Tag } from '@shared/api/types';
 
 import { Image, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -9,21 +9,33 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
+import { CategoryPicker } from '@nav/features/categories/CategoryPicker';
 
 export function BookmarkForm({
   open,
   bookmark,
   availableTags = [],
+  availableCategories = [],
+  defaultCategoryId = null,
   onClose,
   onSubmit,
 }: {
   open: boolean;
   bookmark?: Bookmark;
   availableTags?: Tag[];
+  availableCategories?: Category[];
+  defaultCategoryId?: number | null;
   onClose: () => void;
   onSubmit: (input: BookmarkInput) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ title: '', url: '', description: '', iconUrl: '', tags: '' });
+  const [form, setForm] = useState({
+    title: '',
+    url: '',
+    description: '',
+    iconUrl: '',
+    tags: '',
+    categoryId: null as number | null,
+  });
   const [tagDraft, setTagDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,13 +52,21 @@ export function BookmarkForm({
             description: bookmark.description ?? '',
             iconUrl: bookmark.iconUrl ?? '',
             tags: bookmark.tags.join(', '),
+            categoryId: bookmark.categoryId,
           }
-        : { title: '', url: '', description: '', iconUrl: '', tags: '' },
+        : {
+            title: '',
+            url: '',
+            description: '',
+            iconUrl: '',
+            tags: '',
+            categoryId: defaultCategoryId,
+          },
     );
     setTagDraft('');
     setError(null);
     setMetadata(null);
-  }, [open, bookmark]);
+  }, [open, bookmark, defaultCategoryId]);
 
   const selectedTags = form.tags
     .split(',')
@@ -132,6 +152,7 @@ export function BookmarkForm({
               url: form.url.trim(),
               description: form.description.trim() || null,
               iconUrl: iconUrl || null,
+              categoryId: form.categoryId,
               tags: selectedTags,
               isPinned: bookmark?.isPinned ?? false,
             });
@@ -269,6 +290,16 @@ export function BookmarkForm({
                 ))}
             </div>
           ) : null}
+        </div>
+        <div>
+          <Label htmlFor="bookmark-category">分类</Label>
+          <div id="bookmark-category">
+            <CategoryPicker
+              categories={availableCategories}
+              value={form.categoryId}
+              onChange={(categoryId) => setForm((current) => ({ ...current, categoryId }))}
+            />
+          </div>
         </div>
         <div>
           <Label htmlFor="bookmark-description">描述</Label>

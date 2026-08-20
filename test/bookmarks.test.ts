@@ -42,10 +42,12 @@ describe('bookmarks api', () => {
     expect(created).toMatchObject({
       title: 'Cloudflare',
       tags: ['Infra', 'Docs'],
+      categoryId: null,
+      categorySlug: null,
+      categoryName: null,
       archivedAt: null,
       deletedAt: null,
     });
-    expect(created).not.toHaveProperty('categoryId');
     expect(created).not.toHaveProperty('sortOrder');
 
     const detail = await exports.default.fetch(`${API}/bookmarks/${created.id}`, {

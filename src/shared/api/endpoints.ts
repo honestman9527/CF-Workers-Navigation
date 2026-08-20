@@ -9,6 +9,8 @@ export const ENDPOINTS = {
   bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
   bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,
   bookmarksTags: `${API_V1_PREFIX}/bookmarks/tags`,
+  categories: `${API_V1_PREFIX}/categories`,
+  categoriesReorder: `${API_V1_PREFIX}/categories/reorder`,
   settings: `${API_V1_PREFIX}/settings`,
   transferExport: `${API_V1_PREFIX}/transfer/export`,
   transferImport: `${API_V1_PREFIX}/transfer/import`,

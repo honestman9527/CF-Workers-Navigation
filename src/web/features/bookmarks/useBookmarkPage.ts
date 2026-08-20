@@ -6,6 +6,7 @@ import { api, ApiError } from '@nav/api/client';
 
 export function useBookmarkPage({
   view,
+  category,
   tag,
   pinned,
   query,
@@ -13,6 +14,7 @@ export function useBookmarkPage({
   onError,
 }: {
   view: BookmarkView;
+  category?: string;
   tag?: string;
   pinned: boolean;
   query: string;
@@ -38,12 +40,24 @@ export function useBookmarkPage({
       ? api.searchBookmarks(
           undefined,
           debouncedQuery,
-          { view, tag, pinned: pinned || undefined, limit: 24 },
+          {
+            view,
+            category,
+            tag,
+            pinned: pinned || undefined,
+            limit: 24,
+          },
           controller.signal,
         )
       : api.getBookmarks(
           undefined,
-          { view, tag, pinned: pinned || undefined, limit: 24 },
+          {
+            view,
+            category,
+            tag,
+            pinned: pinned || undefined,
+            limit: 24,
+          },
           controller.signal,
         );
     void request
@@ -60,7 +74,7 @@ export function useBookmarkPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [debouncedQuery, pinned, refreshKey, tag, view]);
+  }, [category, debouncedQuery, pinned, refreshKey, tag, view]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
@@ -69,6 +83,7 @@ export function useBookmarkPage({
       const page = debouncedQuery
         ? await api.searchBookmarks(undefined, debouncedQuery, {
             view,
+            category,
             tag,
             pinned: pinned || undefined,
             cursor: nextCursor,
@@ -76,6 +91,7 @@ export function useBookmarkPage({
           })
         : await api.getBookmarks(undefined, {
             view,
+            category,
             tag,
             pinned: pinned || undefined,
             cursor: nextCursor,

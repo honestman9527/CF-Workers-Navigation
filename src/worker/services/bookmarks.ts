@@ -9,6 +9,7 @@ import type { Db } from '../types';
 
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
+import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import {
   decodeListCursor,
   decodeSearchCursor,
@@ -16,6 +17,8 @@ import {
   encodeSearchCursor,
 } from '../cursor';
 import { bookmarkTags, bookmarks, tags } from '../schema';
+import { slugify } from '../slug';
+import { assertCategoryExists } from './categories';
 import { ServiceError } from './errors';
 
 type BookmarkRow = {
@@ -25,6 +28,9 @@ type BookmarkRow = {
   description: string | null;
   icon_url: string | null;
   is_pinned: number;
+  category_id: number | null;
+  category_name: string | null;
+  category_slug: string | null;
   archived_at: string | null;
   deleted_at: string | null;
   created_at: string;
@@ -40,6 +46,7 @@ export type BookmarkWrite = {
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
+  categoryId?: number | null;
   tags?: string[];
 };
 
@@ -54,14 +61,6 @@ export function normalizeUrl(raw: string): string {
   } catch {
     return raw.trim().toLowerCase().replace(/\/$/, '');
   }
-}
-
-export function slugify(value: string): string {
-  return value
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}_-]/gu, '');
 }
 
 function parseTags(raw: string): string[] {
@@ -83,6 +82,9 @@ function toDto(row: BookmarkRow): BookmarkDto {
     description: row.description,
     iconUrl: row.icon_url,
     isPinned: Boolean(row.is_pinned),
+    categoryId: row.category_id,
+    categorySlug: row.category_slug,
+    categoryName: row.category_name,
     tags: parseTags(row.tag_names),
     archivedAt: row.archived_at,
     deletedAt: row.deleted_at,
@@ -128,6 +130,27 @@ function viewCondition(view: BookmarkView): ReturnType<typeof sql> {
 
 const tagProjection = sql`COALESCE(json_group_array(CASE WHEN t.id IS NULL THEN NULL ELSE t.name END), '[]')`;
 
+/** 分类过滤：未分类走 IS NULL；真实 slug 用递归 CTE 取整棵子树，未知 slug 得空集。 */
+function categoryConditions(category: string | undefined): {
+  cte: ReturnType<typeof sql>;
+  condition: ReturnType<typeof sql>;
+} {
+  if (!category) return { cte: sql``, condition: sql`` };
+  if (category === UNCATEGORIZED_SLUG) {
+    return { cte: sql``, condition: sql`AND b.category_id IS NULL` };
+  }
+  return {
+    cte: sql`
+      WITH RECURSIVE category_subtree(id) AS (
+        SELECT id FROM categories WHERE slug = ${slugify(category)}
+        UNION
+        SELECT c.id FROM categories c INNER JOIN category_subtree s ON c.parent_id = s.id
+      )
+    `,
+    condition: sql`AND b.category_id IN (SELECT id FROM category_subtree)`,
+  };
+}
+
 async function queryRows(
   db: Db,
   options: BookmarkListOptions & { id?: number } = {},
@@ -135,6 +158,7 @@ async function queryRows(
   const view = options.view ?? 'active';
   const cursor = decodeListCursor(options.cursor);
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(options.category);
   const tagCondition = options.tag
     ? sql`AND EXISTS (
         SELECT 1 FROM bookmark_tags filter_bt
@@ -148,13 +172,16 @@ async function queryRows(
     : sql``;
   const idCondition = options.id === undefined ? sql`` : sql`AND b.id = ${options.id}`;
   return db.all<BookmarkRow>(sql`
+    ${categoryCte}
     SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
       b.archived_at, b.deleted_at, b.created_at, b.updated_at,
+      b.category_id, c.name AS category_name, c.slug AS category_slug,
       ${tagProjection} AS tag_names
     FROM bookmarks b
     LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
     LEFT JOIN tags t ON t.id = bt.tag_id
-    WHERE ${viewCondition(view)} ${tagCondition} ${pinnedCondition} ${cursorCondition} ${idCondition}
+    LEFT JOIN categories c ON c.id = b.category_id
+    WHERE ${viewCondition(view)} ${tagCondition} ${categoryCondition} ${pinnedCondition} ${cursorCondition} ${idCondition}
     GROUP BY b.id
     ORDER BY b.created_at DESC, b.id DESC
     LIMIT ${options.id === undefined ? limit + 1 : 1}
@@ -199,6 +226,7 @@ export async function searchBookmarks(
     ? sql`AND (bookmarks_fts.rank > ${cursor.rank} OR (bookmarks_fts.rank = ${cursor.rank} AND b.id < ${cursor.id}))`
     : sql``;
   const view = options.view ?? 'active';
+  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(options.category);
   const tagCondition = options.tag
     ? sql`AND EXISTS (
         SELECT 1 FROM bookmark_tags filter_bt
@@ -208,15 +236,18 @@ export async function searchBookmarks(
     : sql``;
   const pinnedCondition = options.pinned ? sql`AND b.is_pinned = 1` : sql``;
   const rows = await db.all<SearchRow>(sql`
+    ${categoryCte}
     SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
       b.archived_at, b.deleted_at, b.created_at, b.updated_at,
+      b.category_id, c.name AS category_name, c.slug AS category_slug,
       bookmarks_fts.rank AS rank, ${tagProjection} AS tag_names
     FROM bookmarks_fts
     INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
     LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
     LEFT JOIN tags t ON t.id = bt.tag_id
+    LEFT JOIN categories c ON c.id = b.category_id
     WHERE bookmarks_fts MATCH ${ftsQuery}
-      AND ${viewCondition(view)} ${tagCondition} ${pinnedCondition} ${cursorCondition}
+      AND ${viewCondition(view)} ${tagCondition} ${categoryCondition} ${pinnedCondition} ${cursorCondition}
     GROUP BY b.id
     ORDER BY bookmarks_fts.rank ASC, b.id DESC
     LIMIT ${limit + 1}
@@ -239,7 +270,7 @@ export async function getBookmark(db: Db, id: number): Promise<BookmarkDto> {
 export async function listTags(db: Db): Promise<TagDto[]> {
   const rows = await db.all<{ id: number; name: string; slug: string; bookmark_count: number }>(sql`
     SELECT t.id, t.name, t.slug,
-      COUNT(CASE WHEN b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count
+      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count
     FROM tags t
     LEFT JOIN bookmark_tags bt ON bt.tag_id = t.id
     LEFT JOIN bookmarks b ON b.id = bt.bookmark_id
@@ -262,6 +293,9 @@ async function assertNotDuplicate(db: Db, url: string, excludeId?: number) {
 
 export async function createBookmark(db: Db, input: BookmarkWrite): Promise<BookmarkDto> {
   await assertNotDuplicate(db, input.url);
+  if (input.categoryId !== undefined && input.categoryId !== null) {
+    await assertCategoryExists(db, input.categoryId);
+  }
   const [bookmark] = await db
     .insert(bookmarks)
     .values({
@@ -270,6 +304,7 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       description: input.description,
       iconUrl: input.iconUrl,
       isPinned: input.isPinned,
+      categoryId: input.categoryId ?? null,
       urlNormalized: normalizeUrl(input.url),
     })
     .returning();
@@ -288,6 +323,9 @@ export async function updateBookmark(
     throw new ServiceError(400, 'validation_error', '归档或回收站中的书签不可编辑');
   }
   if (input.url !== undefined) await assertNotDuplicate(db, input.url, id);
+  if (input.categoryId !== undefined && input.categoryId !== null) {
+    await assertCategoryExists(db, input.categoryId);
+  }
   const [bookmark] = await db
     .update(bookmarks)
     .set({
@@ -298,6 +336,7 @@ export async function updateBookmark(
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.iconUrl !== undefined ? { iconUrl: input.iconUrl } : {}),
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
+      ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(bookmarks.id, id))

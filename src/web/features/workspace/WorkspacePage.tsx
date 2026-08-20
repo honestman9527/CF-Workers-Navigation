@@ -1,13 +1,15 @@
-import type { Bookmark, BookmarkInput, BookmarkView, Tag } from '@shared/api/types';
+import type { Bookmark, BookmarkInput, BookmarkView, Category, Tag } from '@shared/api/types';
 
 import {
   Archive,
   ArrowDownUp,
   Bookmark as BookmarkIcon,
+  FolderTree,
   Inbox,
   Menu,
   Plus,
   Search,
+  Settings2,
   Star,
   Tag as TagIcon,
   Trash2,
@@ -22,9 +24,11 @@ import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
+import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
 import { useTheme } from '@nav/hooks/useTheme';
+import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
 const BookmarkForm = lazy(() =>
   import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
@@ -41,6 +45,11 @@ const SettingsPanel = lazy(() =>
     default: module.SettingsPanel,
   })),
 );
+const CategoryManager = lazy(() =>
+  import('@nav/features/categories/CategoryManager').then((module) => ({
+    default: module.CategoryManager,
+  })),
+);
 
 type View = Exclude<BookmarkView, 'all'>;
 
@@ -49,13 +58,16 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const searchRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>('active');
   const [pinnedOnly, setPinnedOnly] = useState(true);
+  const [category, setCategory] = useState<string>();
   const [tag, setTag] = useState<string>();
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [tagQuery, setTagQuery] = useState('');
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -69,8 +81,9 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
 
   const page = useBookmarkPage({
     view,
+    category,
     tag,
-    pinned: view === 'active' && pinnedOnly && !tag,
+    pinned: view === 'active' && pinnedOnly && !tag && !category,
     query,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
@@ -84,8 +97,20 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     }
   }
 
+  async function loadCategories(): Promise<Category[] | null> {
+    try {
+      const result = await api.getCategories();
+      setCategories(result);
+      return result;
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : '分类加载失败');
+      return null;
+    }
+  }
+
   useEffect(() => {
     void loadTags();
+    void loadCategories();
   }, []);
 
   useEffect(() => {
@@ -104,10 +129,29 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  function selectView(next: View, options?: { pinned?: boolean; tag?: string }) {
+  function selectView(next: View, options?: { pinned?: boolean }) {
     setView(next);
     setPinnedOnly(options?.pinned ?? false);
-    setTag(options?.tag);
+    setCategory(undefined);
+    setTag(undefined);
+    setQuery('');
+    setNavOpen(false);
+  }
+
+  /** 选择分类筛选：保留已选标签，二者可叠加。 */
+  function selectCategory(slug: string) {
+    setView('active');
+    setCategory(slug);
+    setPinnedOnly(false);
+    setQuery('');
+    setNavOpen(false);
+  }
+
+  /** 选择标签筛选：保留已选分类，二者可叠加。 */
+  function selectTag(slug: string) {
+    setView('active');
+    setTag(slug);
+    setPinnedOnly(false);
     setQuery('');
     setNavOpen(false);
   }
@@ -116,12 +160,18 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     item.name.toLocaleLowerCase().includes(tagQuery.trim().toLocaleLowerCase()),
   );
   const selectedTagName = tag ? (tags.find((item) => item.slug === tag)?.name ?? tag) : null;
+  const selectedCategoryName = category
+    ? category === UNCATEGORIZED_SLUG
+      ? '未分类'
+      : (categories.find((item) => item.slug === category)?.name ?? category)
+    : null;
 
   async function mutate(action: () => Promise<unknown>, message: string) {
     try {
       await action();
       page.refresh();
       await loadTags();
+      await loadCategories();
       pushToast(message, 'success');
     } catch (error) {
       reportError(error instanceof Error ? error.message : '操作失败');
@@ -132,11 +182,13 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     view === 'active'
       ? query
         ? `搜索 “${query}”`
-        : tag
-          ? (selectedTagName ?? tag)
-          : pinnedOnly
-            ? '常用入口'
-            : '所有书签'
+        : category
+          ? (selectedCategoryName ?? category)
+          : tag
+            ? (selectedTagName ?? tag)
+            : pinnedOnly
+              ? '常用入口'
+              : '所有书签'
       : view === 'archive'
         ? '归档'
         : '回收站';
@@ -198,14 +250,20 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       <nav className="grid gap-1">
         <button
           onClick={() => selectView('active')}
-          className={cn('nav-item', view === 'active' && !pinnedOnly && !tag && 'nav-item-active')}
+          className={cn(
+            'nav-item',
+            view === 'active' && !pinnedOnly && !tag && !category && 'nav-item-active',
+          )}
         >
           <Inbox />
           所有书签
         </button>
         <button
           onClick={() => selectView('active', { pinned: true })}
-          className={cn('nav-item', view === 'active' && pinnedOnly && !tag && 'nav-item-active')}
+          className={cn(
+            'nav-item',
+            view === 'active' && pinnedOnly && !tag && !category && 'nav-item-active',
+          )}
         >
           <Star />
           常用入口
@@ -225,6 +283,28 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           回收站
         </button>
       </nav>
+      <div className="border-t border-border/80 pt-5">
+        <div className="mb-3 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+          <FolderTree className="size-3.5" />
+          分类
+          <span className="ml-auto font-mono text-[10px] font-normal tracking-normal">
+            {categories.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCategoryManagerOpen(true)}
+            className="grid size-6 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label="管理分类"
+          >
+            <Settings2 className="size-3.5" />
+          </button>
+        </div>
+        <CategorySidebar
+          categories={categories}
+          selectedSlug={category}
+          onSelect={selectCategory}
+        />
+      </div>
       <div className="border-t border-border/80 pt-5">
         <div className="mb-3 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
           <TagIcon className="size-3.5" />
@@ -259,7 +339,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           {visibleTags.map((item) => (
             <button
               key={item.slug}
-              onClick={() => selectView('active', { tag: item.slug })}
+              onClick={() => selectTag(item.slug)}
               className={cn(
                 'nav-item rounded-xl px-3 py-2.5',
                 tag === item.slug && 'nav-item-active',
@@ -370,10 +450,9 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
                     onPermanentDelete={(id) =>
                       void mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
                     }
-                    onSelectTag={
-                      view === 'active'
-                        ? (nextTag) => selectView('active', { tag: nextTag })
-                        : undefined
+                    onSelectTag={view === 'active' ? (nextTag) => selectTag(nextTag) : undefined}
+                    onSelectCategory={
+                      view === 'active' ? (nextCategory) => selectCategory(nextCategory) : undefined
                     }
                   />
                 ))}
@@ -400,6 +479,12 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
             open
             bookmark={editor === 'new' ? undefined : editor}
             availableTags={tags}
+            availableCategories={categories}
+            defaultCategoryId={
+              editor === 'new' && category && category !== UNCATEGORIZED_SLUG
+                ? (categories.find((item) => item.slug === category)?.id ?? null)
+                : null
+            }
             onClose={() => setEditor(null)}
             onSubmit={async (input: BookmarkInput) => {
               if (editor !== 'new' && editor !== null)
@@ -408,6 +493,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
               setEditor(null);
               page.refresh();
               await loadTags();
+              await loadCategories();
               pushToast(editor === 'new' ? '书签已创建' : '书签已更新', 'success');
             }}
           />
@@ -419,10 +505,31 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
             onImported={async () => {
               page.refresh();
               await loadTags();
+              await loadCategories();
             }}
           />
         ) : null}
         {settingsOpen ? <SettingsPanel open onClose={() => setSettingsOpen(false)} /> : null}
+        {categoryManagerOpen ? (
+          <CategoryManager
+            open
+            categories={categories}
+            onClose={() => setCategoryManagerOpen(false)}
+            onChanged={async () => {
+              const next = await loadCategories();
+              page.refresh();
+              // 若当前按分类筛选时该分类被删除，清空筛选避免空结果。
+              if (
+                category &&
+                category !== UNCATEGORIZED_SLUG &&
+                next !== null &&
+                !next.some((item) => item.slug === category)
+              ) {
+                setCategory(undefined);
+              }
+            }}
+          />
+        ) : null}
       </Suspense>
     </>
   );

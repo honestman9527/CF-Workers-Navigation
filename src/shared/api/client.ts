@@ -5,6 +5,8 @@ import type {
   BookmarkInput,
   BookmarkListOptions,
   BookmarkPage,
+  Category,
+  CategoryInput,
   FaviconPreview,
   MetadataPreview,
   Settings,
@@ -76,6 +78,11 @@ export interface ApiClient {
     signal?: AbortSignal,
   ): Promise<BookmarkPage>;
   getTags(token?: string, signal?: AbortSignal): Promise<Tag[]>;
+  getCategories(token?: string, signal?: AbortSignal): Promise<Category[]>;
+  createCategory(token: string, input: CategoryInput): Promise<Category>;
+  updateCategory(token: string, id: number, input: Partial<CategoryInput>): Promise<Category>;
+  deleteCategory(token: string, id: number): Promise<void>;
+  reorderCategories(token: string, ids: number[]): Promise<void>;
   getMetadata(
     token: string | undefined,
     url: string,
@@ -119,6 +126,36 @@ export function createApiClient(options: ClientOptions): ApiClient {
     },
     getTags(token, signal) {
       return request<Tag[]>(options, ENDPOINTS.bookmarksTags, { signal }, token);
+    },
+    getCategories(token, signal) {
+      return request<Category[]>(options, ENDPOINTS.categories, { signal }, token);
+    },
+    createCategory(token, input) {
+      return request<Category>(
+        options,
+        ENDPOINTS.categories,
+        { method: 'POST', body: JSON.stringify(input) },
+        token,
+      );
+    },
+    updateCategory(token, id, input) {
+      return request<Category>(
+        options,
+        `${ENDPOINTS.categories}/${id}`,
+        { method: 'PUT', body: JSON.stringify(input) },
+        token,
+      );
+    },
+    deleteCategory(token, id) {
+      return request<void>(options, `${ENDPOINTS.categories}/${id}`, { method: 'DELETE' }, token);
+    },
+    reorderCategories(token, ids) {
+      return request<void>(
+        options,
+        ENDPOINTS.categoriesReorder,
+        { method: 'POST', body: JSON.stringify({ ids }) },
+        token,
+      );
     },
     getMetadata(token, url, signal) {
       return request<MetadataPreview>(

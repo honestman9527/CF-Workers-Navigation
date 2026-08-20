@@ -20,16 +20,26 @@ describe('database schema', () => {
     ]);
   });
 
-  it('does not keep categories, manual sorting, or public visibility columns', async () => {
+  it('keeps categories with bookmark lookup columns but no manual sorting or visibility', async () => {
     const columns = await env.DB.prepare(`PRAGMA table_info(bookmarks)`).all<{ name: string }>();
-    expect(columns.results.some((column) => column.name === 'category_id')).toBe(false);
+    expect(columns.results.some((column) => column.name === 'category_id')).toBe(true);
     expect(columns.results.some((column) => column.name === 'sort_order')).toBe(false);
     expect(columns.results.some((column) => column.name === 'is_public')).toBe(false);
 
-    const categories = await env.DB.prepare(
+    const categoriesTable = await env.DB.prepare(
       `SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'categories'`,
     ).all<{ name: string }>();
-    expect(categories.results).toEqual([]);
+    expect(categoriesTable.results).toEqual([{ name: 'categories' }]);
+
+    const categoryIndex = await env.DB.prepare(
+      `SELECT name FROM sqlite_schema WHERE type = 'index' AND name IN (?, ?) ORDER BY name`,
+    )
+      .bind('categories_slug_idx', 'categories_parent_sort_idx')
+      .all<{ name: string }>();
+    expect(categoryIndex.results.map((row) => row.name)).toEqual([
+      'categories_parent_sort_idx',
+      'categories_slug_idx',
+    ]);
   });
 
   it('installs the FTS table and content synchronization triggers', async () => {

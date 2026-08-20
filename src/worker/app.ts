@@ -9,6 +9,7 @@ import { getDb } from './db';
 import { jsonError, zodErrorMessage } from './errors';
 import authRoutes from './routes/auth';
 import bookmarksRoutes from './routes/bookmarks';
+import categoriesRoutes from './routes/categories';
 import settingsRoutes from './routes/settings';
 import transferRoutes from './routes/transfer';
 
@@ -17,6 +18,7 @@ const app = new Hono<AppEnv>();
 const api = new Hono<AppEnv>();
 api.route('/auth', authRoutes);
 api.route('/bookmarks', bookmarksRoutes);
+api.route('/categories', categoriesRoutes);
 api.route('/settings', settingsRoutes);
 api.route('/transfer', transferRoutes);
 

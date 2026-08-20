@@ -4,6 +4,7 @@ import {
   Archive,
   ArchiveRestore,
   ExternalLink,
+  Folder,
   Pencil,
   Star,
   Trash2,
@@ -33,6 +34,7 @@ export function BookmarkCard({
   onRestore,
   onPermanentDelete,
   onSelectTag,
+  onSelectCategory,
 }: {
   bookmark: Bookmark;
   viewMode?: 'grid' | 'list';
@@ -43,6 +45,7 @@ export function BookmarkCard({
   onRestore: (id: number) => void;
   onPermanentDelete: (id: number) => void;
   onSelectTag?: (tag: string) => void;
+  onSelectCategory?: (slug: string) => void;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [bookmark.iconUrl]);
@@ -137,6 +140,24 @@ export function BookmarkCard({
         #{item}
       </span>
     );
+  const categoryChip =
+    bookmark.categoryName && bookmark.categorySlug ? (
+      onSelectCategory ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition hover:border-primary/45 hover:text-primary"
+          onClick={() => onSelectCategory(bookmark.categorySlug!)}
+        >
+          <Folder className="size-3" />
+          {bookmark.categoryName}
+        </button>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+          <Folder className="size-3" />
+          {bookmark.categoryName}
+        </span>
+      )
+    ) : null;
   return (
     <article
       className={cn(
@@ -173,11 +194,13 @@ export function BookmarkCard({
             {bookmark.description || '没有描述'}
           </p>
           <div className="relative z-20 mt-auto flex flex-wrap gap-1.5">
+            {categoryChip}
             {bookmark.tags.map(tagButton)}
           </div>
         </>
       ) : (
         <div className="relative z-20 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
+          {categoryChip}
           {bookmark.tags.slice(0, 3).map(tagButton)}
         </div>
       )}

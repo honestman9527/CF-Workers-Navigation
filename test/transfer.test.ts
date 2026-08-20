@@ -62,7 +62,7 @@ describe('transfer api', () => {
       categories?: unknown;
     };
     expect(data.version).toBe(1);
-    expect(data.categories).toBeUndefined();
+    expect(data.categories).toEqual([]);
     expect(data.bookmarks.find((bookmark) => bookmark.url.includes('tagged'))?.tags).toEqual([
       '开发',
       '常用',
@@ -139,6 +139,75 @@ describe('transfer api', () => {
       bookmarksSkipped: 0,
       bookmarksUpdated: 0,
     });
+  });
+
+  it('exports categories and bookmark category slugs', async () => {
+    const categoryResponse = await exports.default.fetch('https://example.com/api/v1/categories', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: '备份分类' }),
+    });
+    const category = await categoryResponse.json<{ id: number; slug: string }>();
+    await createBookmark({
+      title: 'Categorized export',
+      url: 'https://categorized-export.example.com',
+      categoryId: category.id,
+    });
+
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: { Authorization: 'Bearer dev-password' } },
+    );
+    const data = (await response.json()) as {
+      categories: Array<{ name: string; slug: string }>;
+      bookmarks: Array<{ url: string; categorySlug?: string }>;
+    };
+    expect(data.categories.some((item) => item.slug === category.slug)).toBe(true);
+    expect(
+      data.bookmarks.find((bookmark) => bookmark.url.includes('categorized-export'))?.categorySlug,
+    ).toBe(category.slug);
+  });
+
+  it('imports a category tree and restores bookmark assignment', async () => {
+    const payload = JSON.stringify({
+      version: 1,
+      categories: [
+        { name: '导入根', slug: 'import-root', parentSlug: null },
+        { name: '导入子', slug: 'import-child', parentSlug: 'import-root' },
+      ],
+      bookmarks: [
+        {
+          title: 'In child',
+          url: 'https://import-child.example.com',
+          categorySlug: 'import-child',
+        },
+      ],
+    });
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
+      { method: 'POST', headers: adminHeaders, body: payload },
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).bookmarksCreated).toBe(1);
+
+    const catsResponse = await exports.default.fetch('https://example.com/api/v1/categories', {
+      headers: { Authorization: 'Bearer dev-password' },
+    });
+    const cats = (await catsResponse.json()) as Array<{
+      name: string;
+      slug: string;
+      parentId: number | null;
+    }>;
+    const root = cats.find((item) => item.slug === 'import-root');
+    const child = cats.find((item) => item.slug === 'import-child');
+    expect(child?.parentId).toBe(root?.id);
+
+    const page = await exports.default.fetch(
+      'https://example.com/api/v1/bookmarks?category=import-root',
+      { headers: { Authorization: 'Bearer dev-password' } },
+    );
+    const { items } = (await page.json()) as { items: Array<{ url: string }> };
+    expect(items.some((bookmark) => bookmark.url.includes('import-child.example.com'))).toBe(true);
   });
 });
 

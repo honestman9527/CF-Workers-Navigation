@@ -1,10 +1,42 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  AnySQLiteColumn,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
+
+export const categories = sqliteTable(
+  'categories',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id, {
+      onDelete: 'cascade',
+    }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    icon: text('icon'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex('categories_slug_idx').on(table.slug),
+    index('categories_parent_sort_idx').on(table.parentId, table.sortOrder),
+  ],
+);
 
 export const bookmarks = sqliteTable(
   'bookmarks',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
+    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     url: text('url').notNull(),
     description: text('description'),
@@ -21,6 +53,7 @@ export const bookmarks = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
+    index('bookmarks_category_idx').on(table.categoryId),
     index('bookmarks_status_created_idx').on(
       table.deletedAt,
       table.archivedAt,
@@ -79,5 +112,7 @@ export const settings = sqliteTable('settings', {
 
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type NewBookmark = typeof bookmarks.$inferInsert;
+export type Category = typeof categories.$inferSelect;
+export type NewCategory = typeof categories.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type Setting = typeof settings.$inferSelect;

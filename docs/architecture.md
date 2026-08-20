@@ -25,7 +25,7 @@ Worker 内部按「薄路由 + 服务」分层：`routes/` 只做 HTTP 层工作
 
 每个 API 请求只创建一次 Drizzle 客户端并通过 Hono 上下文传给路由和服务。书签列表、状态、标签、置顶和搜索都在 D1 中筛选与分页；查询用 SQL 聚合标签，避免先取书签再逐条读取关联。写入批量复用标签，导入按块插入或更新，减少 D1 往返。
 
-书签按 `created_at + id` 使用不透明游标分页；全文搜索按 FTS5 `rank + id` 分页。数据库只保留 `bookmarks`、`tags`、`bookmark_tags`、`settings` 和 FTS5 结构，不保留分类或手动排序字段。
+书签按 `created_at + id` 使用不透明游标分页；全文搜索按 FTS5 `rank + id` 分页。数据库保留 `bookmarks`、`categories`、`tags`、`bookmark_tags`、`settings` 和 FTS5 结构；分类是一棵通过 `parent_id` 自引用的树，书签经 `category_id` 归属单个分类（删除分类时书签变为未分类、不误删书签），不做手动排序字段。
 
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 

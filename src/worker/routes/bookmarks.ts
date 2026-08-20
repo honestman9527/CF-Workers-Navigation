@@ -33,6 +33,7 @@ const bookmarkInputSchema = z.object({
   description: z.string().nullable().optional(),
   iconUrl: z.string().trim().url().nullable().optional(),
   isPinned: z.boolean().optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
 });
 
@@ -50,6 +51,7 @@ const metadataQuerySchema = z
   }, 'URL must use http or https');
 
 const viewSchema = z.enum(['active', 'archive', 'trash', 'all']).default('active');
+const slugQuerySchema = z.string().trim().min(1).max(64).optional();
 const bookmarksRoutes = new Hono<AppEnv>();
 
 bookmarksRoutes.get('/search', async (c) => {
@@ -57,7 +59,8 @@ bookmarksRoutes.get('/search', async (c) => {
     const query = z.string().trim().min(1).max(100).parse(c.req.query('q'));
     const page = await searchBookmarks(c.get('db'), query, {
       view: viewSchema.parse(c.req.query('view')),
-      tag: c.req.query('tag'),
+      category: slugQuerySchema.parse(c.req.query('category')),
+      tag: slugQuerySchema.parse(c.req.query('tag')),
       pinned: parseBooleanQuery(c.req.query('pinned')),
       cursor: cursorSchema.parse(c.req.query('cursor')),
       limit: limitSchema.parse(c.req.query('limit')),
@@ -91,7 +94,8 @@ bookmarksRoutes.get('/', async (c) => {
     return c.json(
       await listBookmarks(c.get('db'), {
         view: viewSchema.parse(c.req.query('view')),
-        tag: c.req.query('tag'),
+        category: slugQuerySchema.parse(c.req.query('category')),
+        tag: slugQuerySchema.parse(c.req.query('tag')),
         pinned: parseBooleanQuery(c.req.query('pinned')),
         cursor: cursorSchema.parse(c.req.query('cursor')),
         limit: limitSchema.parse(c.req.query('limit')),
