@@ -60,7 +60,7 @@ export function BookmarkCard({
     );
   const active = !bookmark.deletedAt && !bookmark.archivedAt;
   const actions = (
-    <div className="relative z-10 flex items-center gap-0.5">
+    <div className="pointer-events-auto relative z-20 flex items-center gap-0.5">
       {active ? (
         <>
           <Button
@@ -140,8 +140,10 @@ export function BookmarkCard({
   return (
     <article
       className={cn(
-        'group relative flex min-w-0 gap-3 border border-border bg-card p-4 transition hover:border-primary/45 hover:shadow-soft',
-        viewMode === 'grid' ? 'min-h-36 flex-col rounded-2xl' : 'items-center rounded-xl py-3',
+        'group relative flex min-w-0 touch-manipulation gap-3 border border-border/80 bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-soft',
+        viewMode === 'grid'
+          ? 'min-h-36 flex-col rounded-[1.1rem]'
+          : 'items-center rounded-[1rem] py-3',
       )}
     >
       {active ? (
@@ -149,13 +151,13 @@ export function BookmarkCard({
           href={bookmark.url}
           target="_blank"
           rel="noreferrer"
-          className="absolute inset-0 z-0 rounded-[inherit]"
+          className="absolute inset-0 z-0 cursor-pointer rounded-[inherit] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
           aria-label={`打开 ${bookmark.title}`}
         />
       ) : null}
-      <div className="relative z-10 flex min-w-0 items-start justify-between gap-3">
+      <div className="pointer-events-none relative z-10 flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-muted">
+          <div className="grid size-10 shrink-0 place-items-center rounded-[0.85rem] border border-border/70 bg-muted">
             {icon}
           </div>
           <div className="min-w-0">
@@ -167,15 +169,15 @@ export function BookmarkCard({
       </div>
       {viewMode === 'grid' ? (
         <>
-          <p className="relative z-10 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">
+          <p className="pointer-events-none relative z-10 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">
             {bookmark.description || '没有描述'}
           </p>
-          <div className="relative z-10 mt-auto flex flex-wrap gap-1.5">
+          <div className="relative z-20 mt-auto flex flex-wrap gap-1.5">
             {bookmark.tags.map(tagButton)}
           </div>
         </>
       ) : (
-        <div className="relative z-10 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
+        <div className="relative z-20 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
           {bookmark.tags.slice(0, 3).map(tagButton)}
         </div>
       )}

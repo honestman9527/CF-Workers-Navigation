@@ -20,24 +20,25 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
-      <header className="sticky top-0 z-40 w-full max-w-full border-b border-border bg-background/90 pt-[var(--safe-t)] backdrop-blur-md">
+      <header className="sticky top-0 z-40 w-full max-w-full border-b border-border/60 bg-background/80 pt-[var(--safe-t)] backdrop-blur-xl">
         {header}
       </header>
 
-      <SidebarProvider>
+      <SidebarProvider className="min-h-[calc(100dvh-var(--header-h)-var(--safe-t))]">
         {/* 桌面端（lg+）由 Sidebar 原语渲染常驻索引栏；`hidden lg:contents` 同时屏蔽原语
             自带的内部状态抽屉（openMobile），避免与下方受 navOpen 控制的抽屉重复。 */}
         <div className="hidden lg:contents">
           <Sidebar
             collapsible="none"
-            className="top-[calc(var(--header-h)+var(--safe-t))] h-[calc(100dvh-var(--header-h)-var(--safe-t))] w-[15.5rem] xl:w-[16.5rem]"
+            variant="floating"
+            className="top-[calc(var(--header-h)+var(--safe-t)+1rem)] m-4 h-[calc(100dvh-var(--header-h)-var(--safe-t)-2rem)] w-[15rem] xl:w-[16rem]"
           >
-            <SidebarContent className="p-3">{sidebar}</SidebarContent>
+            <SidebarContent className="p-4">{sidebar}</SidebarContent>
           </Sidebar>
         </div>
 
         <SidebarInset className="overflow-x-clip">
-          <div className="w-full max-w-[1100px] px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+          <div className="w-full max-w-[1100px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             {children}
           </div>
         </SidebarInset>
@@ -68,7 +69,7 @@ export function AppShell({
           inert={!navOpen}
           aria-label="标签索引"
         >
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">{sidebar}</div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{sidebar}</div>
         </aside>
       </div>
     </div>

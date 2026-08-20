@@ -4,7 +4,6 @@ import {
   Archive,
   ArrowDownUp,
   Bookmark as BookmarkIcon,
-  Hash,
   Inbox,
   Menu,
   Plus,
@@ -53,6 +52,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const [tag, setTag] = useState<string>();
   const [query, setQuery] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
+  const [tagQuery, setTagQuery] = useState('');
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -112,6 +112,11 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     setNavOpen(false);
   }
 
+  const visibleTags = tags.filter((item) =>
+    item.name.toLocaleLowerCase().includes(tagQuery.trim().toLocaleLowerCase()),
+  );
+  const selectedTagName = tag ? (tags.find((item) => item.slug === tag)?.name ?? tag) : null;
+
   async function mutate(action: () => Promise<unknown>, message: string) {
     try {
       await action();
@@ -128,7 +133,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       ? query
         ? `搜索 “${query}”`
         : tag
-          ? `#${tag}`
+          ? (selectedTagName ?? tag)
           : pinnedOnly
             ? '常用入口'
             : '所有书签'
@@ -140,7 +145,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     <div className="flex h-[var(--header-h)] items-center justify-between gap-4 px-4 sm:px-8">
       <div className="flex items-center gap-2">
         <button
-          className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
+          className="grid size-9 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
           onClick={() => setNavOpen(true)}
           aria-label="打开索引"
         >
@@ -150,7 +155,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           className="flex items-center gap-3"
           onClick={() => selectView('active', { pinned: true })}
         >
-          <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground">
+          <span className="grid size-9 place-items-center rounded-[0.9rem] bg-primary text-primary-foreground shadow-sm">
             <BookmarkIcon />
           </span>
           <span className="text-left">
@@ -183,9 +188,9 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   );
 
   const sidebar = (
-    <div className="flex h-full flex-col gap-5">
+    <div className="flex h-full flex-col gap-6">
       <div className="flex items-center justify-between lg:hidden">
-        <span className="font-display text-lg">索引</span>
+        <span className="font-display text-lg font-semibold">索引</span>
         <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(false)}>
           <X />
         </Button>
@@ -220,26 +225,54 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           回收站
         </button>
       </nav>
-      <div className="border-t border-border pt-4">
-        <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-          <TagIcon />
+      <div className="border-t border-border/80 pt-5">
+        <div className="mb-3 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+          <TagIcon className="size-3.5" />
           标签
           <span className="ml-auto font-mono text-[10px] font-normal tracking-normal">
             {tags.length}
           </span>
         </div>
+        {tags.length > 0 ? (
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={tagQuery}
+              onChange={(event) => setTagQuery(event.target.value)}
+              placeholder="搜索标签"
+              aria-label="搜索标签"
+              className="h-9 w-full rounded-xl border border-transparent bg-background/70 pr-3 pl-9 text-xs transition outline-none placeholder:text-muted-foreground/80 focus:border-primary/35 focus:bg-card"
+            />
+            {tagQuery ? (
+              <button
+                type="button"
+                onClick={() => setTagQuery('')}
+                className="absolute top-1/2 right-2 grid size-6 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="清除标签搜索"
+              >
+                <X className="size-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="grid max-h-[min(44vh,28rem)] gap-0.5 overflow-y-auto pr-1">
-          {tags.map((item) => (
+          {visibleTags.map((item) => (
             <button
               key={item.slug}
               onClick={() => selectView('active', { tag: item.slug })}
-              className={cn('nav-item', tag === item.slug && 'nav-item-active')}
+              className={cn(
+                'nav-item rounded-xl px-3 py-2.5',
+                tag === item.slug && 'nav-item-active',
+              )}
             >
               <span className="truncate">{item.name}</span>
-              <span>{item.bookmarkCount}</span>
+              <span className="font-mono text-[10px] opacity-70">{item.bookmarkCount}</span>
             </button>
           ))}
         </div>
+        {tags.length > 0 && visibleTags.length === 0 ? (
+          <p className="px-2 text-xs text-muted-foreground">没有匹配的标签</p>
+        ) : null}
         {tags.length === 0 ? (
           <p className="px-2 text-xs text-muted-foreground">保存书签时添加标签</p>
         ) : null}
@@ -259,83 +292,34 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         onCloseNav={() => setNavOpen(false)}
       >
         <div className="mx-auto w-full max-w-6xl space-y-7 px-1 sm:px-2">
-          <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 focus-within:border-primary/60">
-            <Search />
+          <div className="flex items-center gap-3 rounded-[1.1rem] border border-border/70 bg-card px-4 py-3.5 shadow-sm transition focus-within:border-primary/50 focus-within:shadow-md">
+            <Search className="size-4.5 text-muted-foreground" />
             <input
               ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索标题、网址或描述"
+              aria-label="搜索书签"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setQuery('');
+              }}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {query ? (
-              <button onClick={() => setQuery('')} aria-label="清除搜索">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setQuery('')}
+                aria-label="清除搜索"
+              >
                 <X />
-              </button>
+              </Button>
             ) : (
-              <kbd className="hidden text-[10px] text-muted-foreground sm:block">/</kbd>
+              <kbd className="hidden rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+                /
+              </kbd>
             )}
           </div>
-          {view === 'active' ? (
-            <section className="border-b border-border pb-4">
-              <div className="mb-2 flex items-center gap-2">
-                <Hash className="size-4 text-primary" />
-                <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-                  标签索引
-                </span>
-                <span className="font-mono text-[10px] text-muted-foreground">{tags.length}</span>
-              </div>
-              {tags.length > 0 ? (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <button
-                    type="button"
-                    onClick={() => selectView('active', { pinned: true })}
-                    className={cn(
-                      'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition',
-                      pinnedOnly && !tag
-                        ? 'border-primary/35 bg-primary/10 font-medium text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
-                    )}
-                  >
-                    <Star className="size-3.5" />
-                    常用
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectView('active')}
-                    className={cn(
-                      'shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium transition',
-                      !tag && !pinnedOnly
-                        ? 'border-primary/35 bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
-                    )}
-                  >
-                    全部
-                  </button>
-                  {tags.map((item) => (
-                    <button
-                      key={item.slug}
-                      type="button"
-                      onClick={() => selectView('active', { tag: item.slug })}
-                      className={cn(
-                        'flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition',
-                        tag === item.slug
-                          ? 'border-primary/35 bg-primary/10 font-medium text-primary'
-                          : 'border-border text-muted-foreground hover:border-primary/35 hover:text-foreground',
-                      )}
-                    >
-                      <span className="max-w-32 truncate">{item.name}</span>
-                      <span className="font-mono text-[10px] opacity-70">{item.bookmarkCount}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  给书签加上标签，之后可以在这里一键筛选。
-                </p>
-              )}
-            </section>
-          ) : null}
           <div>
             <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
               {view === 'active' ? '你的网络入口' : view === 'archive' ? '暂时收起' : '可恢复项目'}
