@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { pushToast } from '@nav/components/Toast';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
 import { buildCategoryTree, flattenCategoryTree, type CategoryNode } from '../categories/tree';
@@ -88,6 +89,7 @@ function subtreeIds(categories: Category[], rootId: number): number[] {
 }
 
 export function CategoriesTab() {
+  const auth = useAuthContext();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [create, setCreate] = useState<CreateTarget | null>(null);
@@ -113,7 +115,11 @@ export function CategoriesTab() {
         if (alive) setCategories(next);
       })
       .catch((caught) => {
-        if (alive) setError(caught instanceof ApiError ? caught.message : '分类加载失败');
+        if (caught instanceof ApiError && caught.status === 401) {
+          void auth.logout();
+        } else if (alive) {
+          setError(caught instanceof ApiError ? caught.message : '分类加载失败');
+        }
       })
       .finally(() => {
         if (alive) setLoaded(true);
@@ -131,7 +137,11 @@ export function CategoriesTab() {
       await refresh();
       if (message) pushToast(message, 'success');
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
+      if (caught instanceof ApiError && caught.status === 401) {
+        void auth.logout();
+      } else {
+        setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
+      }
     } finally {
       setBusy(false);
     }

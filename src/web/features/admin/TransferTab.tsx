@@ -35,7 +35,7 @@ import {
 import { downloadBlob } from '@/lib/download';
 import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
-import { DialogPanel } from '@nav/components/DialogPanel';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 type Stage = 'idle' | 'reading' | 'uploading' | 'processing' | 'done';
 
@@ -75,15 +75,8 @@ function friendlyError(error: unknown): string {
   return '导入失败，请重试';
 }
 
-export function ImportExportPanel({
-  open,
-  onClose,
-  onImported,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onImported: () => Promise<void>;
-}) {
+export function TransferTab() {
+  const auth = useAuthContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -104,6 +97,14 @@ export function ImportExportPanel({
     importState.stage === 'reading' ||
     exporting;
 
+  function handleUnauthorized(caught: unknown): boolean {
+    if (caught instanceof ApiError && caught.status === 401) {
+      void auth.logout();
+      return true;
+    }
+    return false;
+  }
+
   async function handleExport(format: TransferFormat) {
     setExporting(true);
     setExportError(null);
@@ -111,6 +112,7 @@ export function ImportExportPanel({
       const result = await api.exportData(format);
       downloadBlob(result.blob, result.filename);
     } catch (caught) {
+      if (handleUnauthorized(caught)) return;
       setExportError(caught instanceof ApiError ? friendlyError(caught) : '导出失败');
     } finally {
       setExporting(false);
@@ -145,8 +147,8 @@ export function ImportExportPanel({
 
       const result = await promise;
       setImportState({ stage: 'done', progress: 1, summary: result, error: null });
-      await onImported();
     } catch (caught) {
+      if (handleUnauthorized(caught)) return;
       setImportState({ ...INITIAL_IMPORT, error: friendlyError(caught) });
     } finally {
       abortRef.current = null;
@@ -181,23 +183,16 @@ export function ImportExportPanel({
   };
 
   return (
-    <DialogPanel
-      open={open}
-      onClose={busy ? () => undefined : onClose}
-      dismissible={!busy}
-      size="xl"
-      labelledBy="transfer-title"
-    >
-      <div className="flex flex-col gap-1.5 pr-6">
-        <h2 id="transfer-title" className="text-lg font-semibold tracking-tight text-foreground">
-          导入 / 导出
-        </h2>
-        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
-          支持 HTML 书签与 JSON 备份，导入时自动识别格式。
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1.5">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">导入 / 导出</h1>
+        <p className="text-sm leading-6 text-muted-foreground">
+          支持 HTML 书签与 JSON
+          备份，导入时自动识别格式。导出在工作区不可用，请在这里完成数据备份与恢复。
         </p>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <section className="rounded-lg border border-border bg-muted p-3.5">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
             <Download size={16} />
@@ -315,7 +310,7 @@ export function ImportExportPanel({
 
       {selectedFile &&
       (importState.stage !== 'idle' || importState.error || importState.summary) ? (
-        <div className="mt-4 rounded-lg border border-border bg-muted p-3.5">
+        <div className="rounded-lg border border-border bg-muted p-3.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-foreground">
               {importState.stage === 'done' ? (
@@ -388,7 +383,7 @@ export function ImportExportPanel({
       ) : null}
 
       {selectedFile && importState.stage !== 'done' ? (
-        <div className="mt-4 flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
           {importState.stage === 'uploading' || importState.stage === 'processing' ? (
             <Button
               variant="ghost"
@@ -401,8 +396,13 @@ export function ImportExportPanel({
             </Button>
           ) : (
             <>
-              <Button variant="ghost" onClick={onClose} disabled={busy} type="button">
-                关闭
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedFile(null)}
+                disabled={busy}
+                type="button"
+              >
+                移除文件
               </Button>
               <Button
                 onClick={() => void runImport()}
@@ -417,7 +417,7 @@ export function ImportExportPanel({
           )}
         </div>
       ) : null}
-    </DialogPanel>
+    </div>
   );
 }
 

@@ -1,12 +1,12 @@
 import type { AdminStats } from '@shared/api/types';
 
-import type { AdminTab } from './AdminPage';
-
+import { useNavigate } from '@tanstack/react-router';
 import { Archive, Bookmark, FolderTree, Inbox, Tags, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
-import { api } from '@nav/api/client';
+import { api, ApiError } from '@nav/api/client';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 type StatCard = {
   key: string;
@@ -14,7 +14,7 @@ type StatCard = {
   value: number;
   icon: typeof Bookmark;
   tone: 'primary' | 'muted' | 'accent' | 'warn';
-  navigate?: AdminTab;
+  to?: '/admin/categories' | '/admin/tags';
 };
 
 function StatCards({
@@ -22,7 +22,7 @@ function StatCards({
   onNavigate,
 }: {
   stats: AdminStats;
-  onNavigate: (tab: AdminTab) => void;
+  onNavigate: (to: '/admin/categories' | '/admin/tags') => void;
 }) {
   const cards: StatCard[] = [
     {
@@ -59,9 +59,9 @@ function StatCards({
       value: stats.categories,
       icon: FolderTree,
       tone: 'muted',
-      navigate: 'categories',
+      to: '/admin/categories',
     },
-    { key: 'tags', label: '标签', value: stats.tags, icon: Tags, tone: 'muted', navigate: 'tags' },
+    { key: 'tags', label: '标签', value: stats.tags, icon: Tags, tone: 'muted', to: '/admin/tags' },
   ];
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -72,18 +72,17 @@ function StatCards({
             key={card.key}
             className={cn(
               'flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm',
-              card.navigate &&
-                'cursor-pointer transition hover:border-primary/45 hover:shadow-soft',
+              card.to && 'cursor-pointer transition hover:border-primary/45 hover:shadow-soft',
             )}
-            role={card.navigate ? 'button' : undefined}
-            tabIndex={card.navigate ? 0 : undefined}
-            onClick={card.navigate ? () => onNavigate(card.navigate!) : undefined}
+            role={card.to ? 'button' : undefined}
+            tabIndex={card.to ? 0 : undefined}
+            onClick={card.to ? () => onNavigate(card.to!) : undefined}
             onKeyDown={
-              card.navigate
+              card.to
                 ? (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      onNavigate(card.navigate!);
+                      onNavigate(card.to!);
                     }
                   }
                 : undefined
@@ -111,7 +110,9 @@ function StatCards({
   );
 }
 
-export function OverviewTab({ onNavigate }: { onNavigate: (tab: AdminTab) => void }) {
+export function OverviewTab() {
+  const navigate = useNavigate();
+  const auth = useAuthContext();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,12 +124,21 @@ export function OverviewTab({ onNavigate }: { onNavigate: (tab: AdminTab) => voi
         if (alive) setStats(next);
       })
       .catch((caught) => {
-        if (alive) setError(caught instanceof Error ? caught.message : '统计加载失败');
+        if (!alive) return;
+        if (caught instanceof ApiError && caught.status === 401) {
+          void auth.logout();
+          return;
+        }
+        setError(caught instanceof Error ? caught.message : '统计加载失败');
       });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [auth]);
+
+  function go(to: '/admin/categories' | '/admin/tags') {
+    void navigate({ to });
+  }
 
   return (
     <div className="space-y-6">
@@ -148,13 +158,13 @@ export function OverviewTab({ onNavigate }: { onNavigate: (tab: AdminTab) => voi
           ))}
         </div>
       ) : (
-        <StatCards stats={stats} onNavigate={onNavigate} />
+        <StatCards stats={stats} onNavigate={go} />
       )}
 
       <section className="grid gap-3 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => onNavigate('categories')}
+          onClick={() => go('/admin/categories')}
           className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -169,7 +179,7 @@ export function OverviewTab({ onNavigate }: { onNavigate: (tab: AdminTab) => voi
         </button>
         <button
           type="button"
-          onClick={() => onNavigate('tags')}
+          onClick={() => go('/admin/tags')}
           className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">

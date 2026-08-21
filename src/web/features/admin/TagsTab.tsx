@@ -10,8 +10,10 @@ import { ApiError, api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { pushToast } from '@nav/components/Toast';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 export function TagsTab() {
+  const auth = useAuthContext();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('');
@@ -36,7 +38,11 @@ export function TagsTab() {
         if (alive) setTags(next);
       })
       .catch((caught) => {
-        if (alive) setError(caught instanceof ApiError ? caught.message : '标签加载失败');
+        if (caught instanceof ApiError && caught.status === 401) {
+          void auth.logout();
+        } else if (alive) {
+          setError(caught instanceof ApiError ? caught.message : '标签加载失败');
+        }
       })
       .finally(() => {
         if (alive) setLoaded(true);
@@ -54,7 +60,11 @@ export function TagsTab() {
       await refresh();
       if (message) pushToast(message, 'success');
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
+      if (caught instanceof ApiError && caught.status === 401) {
+        void auth.logout();
+      } else {
+        setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
+      }
     } finally {
       setBusy(false);
     }

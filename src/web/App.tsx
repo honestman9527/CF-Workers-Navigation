@@ -1,11 +1,28 @@
+import { RouterProvider } from '@tanstack/react-router';
+import { useEffect } from 'react';
+
 import { useAuth } from '@nav/features/auth/useAuth';
-import { WorkspacePage } from '@nav/features/workspace/WorkspacePage';
-import { LoginPage } from '@nav/pages/LoginPage';
+import { router } from '@nav/router';
 
 export default function App() {
-  const { authed, loading: authLoading, login, logout } = useAuth();
+  const auth = useAuth();
+  const { authed, loading } = auth;
 
-  if (authLoading) {
+  useEffect(() => {
+    router.update({ context: { auth } });
+  }, [auth]);
+
+  // 登录态即路由：退出/401 过期统一回登录页；登录成功进工作区。守卫负责兜底。
+  useEffect(() => {
+    const path = router.state.location.pathname;
+    if (!authed && path !== '/login') {
+      void router.navigate({ to: '/login' });
+    } else if (authed && path === '/login') {
+      void router.navigate({ to: '/' });
+    }
+  }, [authed]);
+
+  if (loading) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
         正在打开书签柜…
@@ -13,9 +30,5 @@ export default function App() {
     );
   }
 
-  if (!authed) {
-    return <LoginPage onSubmit={login} />;
-  }
-
-  return <WorkspacePage authed={authed} logout={logout} />;
+  return <RouterProvider router={router} />;
 }

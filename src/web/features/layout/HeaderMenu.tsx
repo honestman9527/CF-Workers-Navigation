@@ -1,11 +1,6 @@
-import type { TransferFormat } from '@shared/api/types';
-
 import {
   Archive,
-  ArrowDownToLine,
   ChevronDown,
-  FileCode,
-  FileJson2,
   LayoutDashboard,
   LayoutGrid,
   List,
@@ -36,8 +31,6 @@ export function HeaderMenu({
   onViewModeChange,
   onOpenArchive,
   onOpenTrash,
-  onExport,
-  onOpenImport,
   onOpenAdmin,
   onLogout,
 }: {
@@ -47,8 +40,6 @@ export function HeaderMenu({
   onViewModeChange: (mode: 'grid' | 'list') => void;
   onOpenArchive: () => void;
   onOpenTrash: () => void;
-  onExport: (format: TransferFormat) => void;
-  onOpenImport: () => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
@@ -104,24 +95,6 @@ export function HeaderMenu({
           <Trash2 className="size-4" />
           回收站
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-xs text-muted-foreground">数据</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => onExport('json')}>
-            <FileJson2 className="size-4 text-primary" />
-            导出 JSON
-            <span className="ml-auto text-[10px] text-muted-foreground">完整备份</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onExport('html')}>
-            <FileCode className="size-4 text-primary" />
-            导出 HTML
-            <span className="ml-auto text-[10px] text-muted-foreground">浏览器书签</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onOpenImport}>
-            <ArrowDownToLine className="size-4 text-primary" />
-            导入…
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}

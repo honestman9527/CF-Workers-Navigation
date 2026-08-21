@@ -1,13 +1,6 @@
-import type { AdminTab } from '@nav/features/admin/AdminPage';
-import type {
-  Bookmark,
-  BookmarkInput,
-  BookmarkView,
-  Category,
-  Tag,
-  TransferFormat,
-} from '@shared/api/types';
+import type { Bookmark, BookmarkInput, Category, Tag } from '@shared/api/types';
 
+import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import {
   Bookmark as BookmarkIcon,
   FolderPlus,
@@ -24,11 +17,11 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
-import { downloadBlob } from '@/lib/download';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { pushToast } from '@nav/components/Toast';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
 import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
@@ -40,38 +33,32 @@ import { TagFilterBar } from '@nav/features/tags/TagFilterBar';
 import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
+import { resolveWorkspaceSearch, type WorkspaceView } from './search';
+
+const routeApi = getRouteApi('/');
+
 const BookmarkForm = lazy(() =>
   import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
     default: module.BookmarkForm,
   })),
 );
-const ImportExportPanel = lazy(() =>
-  import('@nav/features/import-export/ImportExportPanel').then((module) => ({
-    default: module.ImportExportPanel,
-  })),
-);
-const AdminPage = lazy(() =>
-  import('@nav/features/admin/AdminPage').then((module) => ({
-    default: module.AdminPage,
-  })),
-);
 
-type View = Exclude<BookmarkView, 'all'>;
+const VIEW_MODE_KEY = 'nav-view-mode';
 
-export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promise<void> }) {
+type View = WorkspaceView;
+
+export function WorkspacePage() {
+  const auth = useAuthContext();
   const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<View>('active');
-  const [pinnedOnly, setPinnedOnly] = useState(true);
-  const [category, setCategory] = useState<string>();
-  const [tag, setTag] = useState<string>();
-  const [query, setQuery] = useState('');
+  const search = routeApi.useSearch();
+  const { view, pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [adminTab, setAdminTab] = useState<AdminTab>('overview');
   const [confirmState, setConfirmState] = useState<{
     title: string;
     description?: string;
@@ -80,25 +67,57 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     onConfirm: () => void;
   } | null>(null);
   const [navOpen, setNavOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return window.localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(VIEW_MODE_KEY, viewMode);
+    } catch {
+      /* ignore */
+    }
+  }, [viewMode]);
+
+  /** 本地搜索草稿：输入即时响应，250ms 后同步到 URL（replace），后退/前进再回填。 */
+  const [queryDraft, setQueryDraft] = useState(search.q ?? '');
+  useEffect(() => {
+    setQueryDraft(search.q ?? '');
+  }, [search.q]);
+  useEffect(() => {
+    const draft = queryDraft.trim();
+    if (draft === (search.q ?? '')) return;
+    const timer = window.setTimeout(() => {
+      void navigate({
+        to: '/',
+        search: (prev) => ({ ...prev, q: draft || undefined }),
+        replace: true,
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [navigate, queryDraft, search.q]);
 
   function reportError(message: string) {
     pushToast(message, 'error');
   }
 
   function handleUnauthorized() {
-    void logout();
+    void auth.logout();
   }
 
   /** 落地视图：活动书签、无任何筛选 —— 全部网站按分类分组展示。 */
-  const landing = view === 'active' && !pinnedOnly && !tag && !category && !query;
+  const landing = view === 'active' && !pinned && !tag && !category && !query;
 
   const page = useBookmarkPage({
     view,
     category,
     tag,
-    pinned: view === 'active' && pinnedOnly && !tag && !category,
-    query,
+    pinned: view === 'active' && pinned && !tag && !category,
+    query: query ?? '',
     fetchAll: landing,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
@@ -120,6 +139,8 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     } catch (error) {
       reportError(error instanceof Error ? error.message : '分类加载失败');
       return null;
+    } finally {
+      setCategoriesLoaded(true);
     }
   }
 
@@ -144,31 +165,73 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  /** 管理后台删除了当前筛选的分类时，清理该参数避免空结果。 */
+  useEffect(() => {
+    if (
+      categoriesLoaded &&
+      category &&
+      category !== UNCATEGORIZED_SLUG &&
+      !categories.some((item) => item.slug === category)
+    ) {
+      void navigate({
+        to: '/',
+        search: (prev) => ({ ...prev, category: undefined }),
+        replace: true,
+      });
+    }
+  }, [categories, categoriesLoaded, category, navigate]);
+
   function selectView(next: View, options?: { pinned?: boolean }) {
-    setView(next);
-    setPinnedOnly(options?.pinned ?? false);
-    setCategory(undefined);
-    setTag(undefined);
-    setQuery('');
     setNavOpen(false);
+    void navigate({
+      to: '/',
+      search: {
+        view: next === 'active' ? undefined : next,
+        pinned: next === 'active' && options?.pinned === false ? false : undefined,
+        category: undefined,
+        tag: undefined,
+        q: undefined,
+      },
+    });
   }
 
   /** 选择分类筛选：保留已选标签，二者可叠加；再点当前分类则取消筛选回到全部。 */
   function selectCategory(slug: string) {
-    setView('active');
-    setCategory((current) => (current === slug ? undefined : slug));
-    setPinnedOnly(false);
-    setQuery('');
     setNavOpen(false);
+    void navigate({
+      to: '/',
+      search: (prev) => ({
+        ...prev,
+        view: undefined,
+        pinned: false,
+        category: prev.category === slug ? undefined : slug,
+        q: undefined,
+      }),
+    });
   }
 
   /** 选择/清除标签筛选：保留已选分类，二者可叠加。 */
   function selectTagFilter(next: string | undefined) {
-    setView('active');
-    setTag(next);
-    setPinnedOnly(false);
-    setQuery('');
     setNavOpen(false);
+    void navigate({
+      to: '/',
+      search: (prev) => ({
+        ...prev,
+        view: undefined,
+        pinned: false,
+        tag: next,
+        q: undefined,
+      }),
+    });
+  }
+
+  function clearSearch() {
+    setQueryDraft('');
+    void navigate({
+      to: '/',
+      search: (prev) => ({ ...prev, q: undefined }),
+      replace: true,
+    });
   }
 
   const selectedTagName = tag ? (tags.find((item) => item.slug === tag)?.name ?? tag) : null;
@@ -242,38 +305,6 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     }
   }
 
-  async function handleExport(format: TransferFormat) {
-    try {
-      const result = await api.exportData(format);
-      downloadBlob(result.blob, result.filename);
-      pushToast(format === 'json' ? 'JSON 完整备份已导出' : 'HTML 书签已导出', 'success');
-    } catch (error) {
-      reportError(error instanceof Error ? error.message : '导出失败');
-    }
-  }
-
-  function openAdmin(tab: AdminTab) {
-    setAdminTab(tab);
-    setAdminOpen(true);
-    setNavOpen(false);
-  }
-
-  /** 退出后台后刷新工作区数据；若当前按分类筛选时该分类被删除，清空筛选避免空结果。 */
-  async function handleExitAdmin() {
-    setAdminOpen(false);
-    await loadTags();
-    const next = await loadCategories();
-    page.refresh();
-    if (
-      next !== null &&
-      category &&
-      category !== UNCATEGORIZED_SLUG &&
-      !next.some((item) => item.slug === category)
-    ) {
-      setCategory(undefined);
-    }
-  }
-
   function askConfirm(state: {
     title: string;
     description?: string;
@@ -292,7 +323,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           ? (selectedCategoryName ?? category)
           : tag
             ? (selectedTagName ?? tag)
-            : pinnedOnly
+            : pinned
               ? '常用入口'
               : '全部网站'
       : view === 'archive'
@@ -382,10 +413,8 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           onViewModeChange={setViewMode}
           onOpenArchive={() => selectView('archive')}
           onOpenTrash={() => selectView('trash')}
-          onExport={(format) => void handleExport(format)}
-          onOpenImport={() => setTransferOpen(true)}
-          onOpenAdmin={() => openAdmin('overview')}
-          onLogout={() => void logout()}
+          onOpenAdmin={() => void navigate({ to: '/admin' })}
+          onLogout={() => void auth.logout()}
         />
       </div>
     </div>
@@ -404,7 +433,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           onClick={() => selectView('active')}
           className={cn(
             'nav-item',
-            view === 'active' && !pinnedOnly && !tag && !category && 'nav-item-active',
+            view === 'active' && !pinned && !tag && !category && 'nav-item-active',
           )}
         >
           <Inbox />
@@ -414,7 +443,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           onClick={() => selectView('active', { pinned: true })}
           className={cn(
             'nav-item',
-            view === 'active' && pinnedOnly && !tag && !category && 'nav-item-active',
+            view === 'active' && pinned && !tag && !category && 'nav-item-active',
           )}
         >
           <Star />
@@ -430,7 +459,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           </span>
           <button
             type="button"
-            onClick={() => openAdmin('categories')}
+            onClick={() => void navigate({ to: '/admin/categories' })}
             className="grid size-6 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             aria-label="管理分类"
           >
@@ -449,17 +478,6 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     </div>
   );
 
-  if (adminOpen) {
-    return (
-      <>
-        <Suspense fallback={null}>
-          <AdminPage initialTab={adminTab} onExit={() => void handleExitAdmin()} />
-        </Suspense>
-        <Toaster />
-      </>
-    );
-  }
-
   return (
     <>
       <AppShell
@@ -473,22 +491,17 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
             <Search className="size-4.5 text-muted-foreground" />
             <input
               ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={queryDraft}
+              onChange={(event) => setQueryDraft(event.target.value)}
               placeholder="搜索标题、网址或描述"
               aria-label="搜索书签"
               onKeyDown={(event) => {
-                if (event.key === 'Escape') setQuery('');
+                if (event.key === 'Escape') clearSearch();
               }}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            {query ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setQuery('')}
-                aria-label="清除搜索"
-              >
+            {queryDraft ? (
+              <Button variant="ghost" size="icon-sm" onClick={clearSearch} aria-label="清除搜索">
                 <X />
               </Button>
             ) : (
@@ -603,17 +616,6 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
               await loadTags();
               await loadCategories();
               pushToast(editor === 'new' ? '书签已创建' : '书签已更新', 'success');
-            }}
-          />
-        ) : null}
-        {transferOpen ? (
-          <ImportExportPanel
-            open
-            onClose={() => setTransferOpen(false)}
-            onImported={async () => {
-              page.refresh();
-              await loadTags();
-              await loadCategories();
             }}
           />
         ) : null}

@@ -1,3 +1,5 @@
+import type { AuthContext } from '@nav/features/auth/context';
+
 import { Check, Settings, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -7,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 const PRESETS: { id: string; label: string; url: string }[] = [
   {
@@ -22,7 +25,16 @@ const PRESETS: { id: string; label: string; url: string }[] = [
   { id: 'icon-horse', label: 'Icon Horse', url: 'https://icon.horse/icon/{domain}' },
 ];
 
+function handleUnauthorized(auth: AuthContext, caught: unknown): boolean {
+  if (caught instanceof ApiError && caught.status === 401) {
+    void auth.logout();
+    return true;
+  }
+  return false;
+}
+
 export function SettingsTab() {
+  const auth = useAuthContext();
   const [faviconProxyUrl, setFaviconProxyUrl] = useState('');
   const [faviconProxyEnabled, setFaviconProxyEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -40,6 +52,7 @@ export function SettingsTab() {
         setFaviconProxyEnabled(data.faviconProxyEnabled);
       })
       .catch((caught) => {
+        if (handleUnauthorized(auth, caught)) return;
         if (alive) setError(caught instanceof ApiError ? caught.message : '加载设置失败');
       })
       .finally(() => {
@@ -60,6 +73,7 @@ export function SettingsTab() {
       });
       pushToast('设置已保存', 'success');
     } catch (caught) {
+      if (handleUnauthorized(auth, caught)) return;
       setError(caught instanceof ApiError ? caught.message : '保存失败');
     } finally {
       setSaving(false);
@@ -160,6 +174,7 @@ export function SettingsTab() {
                   setFaviconProxyUrl(data.faviconProxyUrl);
                   setFaviconProxyEnabled(data.faviconProxyEnabled);
                 } catch (caught) {
+                  if (handleUnauthorized(auth, caught)) return;
                   setError(caught instanceof ApiError ? caught.message : '重置失败');
                 }
               }}

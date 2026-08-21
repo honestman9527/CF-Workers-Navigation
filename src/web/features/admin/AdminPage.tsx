@@ -1,32 +1,38 @@
-import { ArrowLeft, FolderTree, LayoutDashboard, Settings, Tags } from 'lucide-react';
-import { useState } from 'react';
+import { Link, Outlet } from '@tanstack/react-router';
+import {
+  ArrowDownToLine,
+  ArrowLeft,
+  FolderTree,
+  LayoutDashboard,
+  Settings,
+  Tags,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { CategoriesTab } from './CategoriesTab';
-import { OverviewTab } from './OverviewTab';
-import { SettingsTab } from './SettingsTab';
-import { TagsTab } from './TagsTab';
-
-export type AdminTab = 'overview' | 'categories' | 'tags' | 'settings';
-
-const TABS: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
-  { id: 'overview', label: '概览', icon: LayoutDashboard },
-  { id: 'categories', label: '分类', icon: FolderTree },
-  { id: 'tags', label: '标签', icon: Tags },
-  { id: 'settings', label: '设置', icon: Settings },
+const TABS: Array<{
+  to: '/admin' | '/admin/categories' | '/admin/tags' | '/admin/settings' | '/admin/data';
+  label: string;
+  icon: typeof LayoutDashboard;
+  end?: boolean;
+}> = [
+  { to: '/admin', label: '概览', icon: LayoutDashboard, end: true },
+  { to: '/admin/categories', label: '分类', icon: FolderTree },
+  { to: '/admin/tags', label: '标签', icon: Tags },
+  { to: '/admin/settings', label: '设置', icon: Settings },
+  { to: '/admin/data', label: '导入/导出', icon: ArrowDownToLine },
 ];
 
-export function AdminPage({
-  initialTab = 'overview',
-  onExit,
-}: {
-  initialTab?: AdminTab;
-  onExit: () => void;
-}) {
-  const [tab, setTab] = useState<AdminTab>(initialTab);
+function tabClass(active: boolean) {
+  return cn(
+    'flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm text-muted-foreground transition hover:text-foreground',
+    active ? 'border-primary font-medium text-primary' : 'border-transparent hover:border-border',
+  );
+}
 
+/** 管理后台布局：tab 导航由 URL 驱动，各 tab 内容经 Outlet 渲染（独立懒加载 chunk）。 */
+export function AdminPage() {
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
       <header className="sticky top-0 z-40 w-full max-w-full border-b border-border/60 bg-background/80 pt-[var(--safe-t)] backdrop-blur-xl">
@@ -35,7 +41,7 @@ export function AdminPage({
             variant="ghost"
             size="sm"
             className="shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
-            onClick={onExit}
+            render={<Link to="/" />}
             aria-label="返回书签柜"
           >
             <ArrowLeft className="size-4" />
@@ -53,23 +59,17 @@ export function AdminPage({
           <div className="flex gap-1">
             {TABS.map((item) => {
               const Icon = item.icon;
-              const active = tab === item.id;
               return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setTab(item.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={cn(
-                    'flex h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm text-muted-foreground transition hover:text-foreground',
-                    active
-                      ? 'border-primary font-medium text-primary'
-                      : 'border-transparent hover:border-border',
-                  )}
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={tabClass(false)}
+                  activeProps={{ className: tabClass(true) }}
+                  activeOptions={item.end ? { exact: true } : undefined}
                 >
                   <Icon className="size-4" />
                   {item.label}
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -77,10 +77,7 @@ export function AdminPage({
       </nav>
 
       <main className="mx-auto w-full max-w-[70rem] px-4 py-6 sm:px-6 sm:py-8">
-        {tab === 'overview' ? <OverviewTab onNavigate={setTab} /> : null}
-        {tab === 'categories' ? <CategoriesTab /> : null}
-        {tab === 'tags' ? <TagsTab /> : null}
-        {tab === 'settings' ? <SettingsTab /> : null}
+        <Outlet />
       </main>
     </div>
   );

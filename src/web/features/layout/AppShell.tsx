@@ -9,14 +9,12 @@ export function AppShell({
   navOpen,
   onCloseNav,
   children,
-  fab,
 }: {
   header: ReactNode;
   sidebar: ReactNode;
   navOpen: boolean;
   onCloseNav: () => void;
   children: ReactNode;
-  fab?: ReactNode;
 }) {
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
@@ -43,8 +41,6 @@ export function AppShell({
           </div>
         </SidebarInset>
       </SidebarProvider>
-
-      {fab}
 
       {/* 移动端抽屉：受 navOpen/onCloseNav 控制；常驻挂载以保留滑入滑出过渡，
           关闭时用 inert 阻止焦点与读屏进入，替代原 AnimatePresence 卸载。 */}

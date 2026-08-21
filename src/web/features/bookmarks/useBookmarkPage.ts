@@ -18,6 +18,7 @@ export function useBookmarkPage({
   category?: string;
   tag?: string;
   pinned: boolean;
+  /** 搜索关键词（已由 URL 层防抖，此处直接使用）。 */
   query: string;
   /** 全量拉取模式：游标循环取完当前视图所有书签，用于落地页按分类分组的展示。 */
   fetchAll?: boolean;
@@ -29,12 +30,6 @@ export function useBookmarkPage({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [debouncedQuery, setDebouncedQuery] = useState(query);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,10 +56,10 @@ export function useBookmarkPage({
           } while (cursor && !controller.signal.aborted);
           return { items, nextCursor: null as string | null };
         })()
-      : debouncedQuery
+      : query
         ? api.searchBookmarks(
             undefined,
-            debouncedQuery,
+            query,
             {
               view,
               category,
@@ -99,14 +94,14 @@ export function useBookmarkPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, debouncedQuery, fetchAll, pinned, refreshKey, tag, view]);
+  }, [category, fetchAll, pinned, query, refreshKey, tag, view]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const page = debouncedQuery
-        ? await api.searchBookmarks(undefined, debouncedQuery, {
+      const page = query
+        ? await api.searchBookmarks(undefined, query, {
             view,
             category,
             tag,
