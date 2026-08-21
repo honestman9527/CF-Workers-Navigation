@@ -1,4 +1,5 @@
 import {
+  Archive,
   ChevronDown,
   LayoutGrid,
   List,
@@ -6,6 +7,7 @@ import {
   Moon,
   Settings,
   Sun,
+  Trash2,
   UserRound,
 } from 'lucide-react';
 
@@ -27,6 +29,8 @@ export function HeaderMenu({
   viewMode,
   onThemeChange,
   onViewModeChange,
+  onOpenArchive,
+  onOpenTrash,
   onOpenSettings,
   onLogout,
 }: {
@@ -34,6 +38,8 @@ export function HeaderMenu({
   viewMode: 'grid' | 'list';
   onThemeChange: (theme: 'dark' | 'light') => void;
   onViewModeChange: (mode: 'grid' | 'list') => void;
+  onOpenArchive: () => void;
+  onOpenTrash: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
 }) {
@@ -80,6 +86,15 @@ export function HeaderMenu({
             列表
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onOpenArchive}>
+          <Archive className="size-4" />
+          归档
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenTrash}>
+          <Trash2 className="size-4" />
+          回收站
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}

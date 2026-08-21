@@ -67,7 +67,7 @@ export function AppShell({
           )}
           onClick={(event) => event.stopPropagation()}
           inert={!navOpen}
-          aria-label="标签索引"
+          aria-label="导航索引"
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{sidebar}</div>
         </aside>

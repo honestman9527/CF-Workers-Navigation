@@ -10,6 +10,7 @@ export function useBookmarkPage({
   tag,
   pinned,
   query,
+  fetchAll,
   onUnauthorized,
   onError,
 }: {
@@ -18,6 +19,8 @@ export function useBookmarkPage({
   tag?: string;
   pinned: boolean;
   query: string;
+  /** 全量拉取模式：游标循环取完当前视图所有书签，用于落地页按分类分组的展示。 */
+  fetchAll?: boolean;
   onUnauthorized: () => void;
   onError: (message: string) => void;
 }) {
@@ -36,30 +39,52 @@ export function useBookmarkPage({
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    const request = debouncedQuery
-      ? api.searchBookmarks(
-          undefined,
-          debouncedQuery,
-          {
-            view,
-            category,
-            tag,
-            pinned: pinned || undefined,
-            limit: 24,
-          },
-          controller.signal,
-        )
-      : api.getBookmarks(
-          undefined,
-          {
-            view,
-            category,
-            tag,
-            pinned: pinned || undefined,
-            limit: 24,
-          },
-          controller.signal,
-        );
+    const request = fetchAll
+      ? (async () => {
+          const items: Bookmark[] = [];
+          let cursor: string | null = null;
+          do {
+            const page = await api.getBookmarks(
+              undefined,
+              {
+                view,
+                category,
+                tag,
+                pinned: pinned || undefined,
+                cursor: cursor ?? undefined,
+                limit: 100,
+              },
+              controller.signal,
+            );
+            items.push(...page.items);
+            cursor = page.nextCursor;
+          } while (cursor && !controller.signal.aborted);
+          return { items, nextCursor: null as string | null };
+        })()
+      : debouncedQuery
+        ? api.searchBookmarks(
+            undefined,
+            debouncedQuery,
+            {
+              view,
+              category,
+              tag,
+              pinned: pinned || undefined,
+              limit: 24,
+            },
+            controller.signal,
+          )
+        : api.getBookmarks(
+            undefined,
+            {
+              view,
+              category,
+              tag,
+              pinned: pinned || undefined,
+              limit: 24,
+            },
+            controller.signal,
+          );
     void request
       .then((page) => {
         setItems(page.items);
@@ -74,7 +99,7 @@ export function useBookmarkPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, debouncedQuery, pinned, refreshKey, tag, view]);
+  }, [category, debouncedQuery, fetchAll, pinned, refreshKey, tag, view]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) return;
