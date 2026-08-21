@@ -97,6 +97,18 @@ function TreeNode({
       >
         <button
           type="button"
+          onClick={() => onSelect(node.slug)}
+          className={cn(
+            'nav-item min-w-0 flex-1 rounded-xl px-2 py-2.5',
+            isSelected && 'nav-item-active',
+          )}
+        >
+          <Icon className={cn('size-3.5', isSelected ? 'text-primary' : 'text-muted-foreground')} />
+          <span className="min-w-0 truncate">{node.name}</span>
+          <span className="shrink-0 font-mono text-[10px] opacity-70">{node.bookmarkCount}</span>
+        </button>
+        <button
+          type="button"
           aria-label={isExpanded ? '收起分类' : '展开分类'}
           aria-expanded={hasChildren ? isExpanded : undefined}
           disabled={!hasChildren}
@@ -106,15 +118,6 @@ function TreeNode({
           <ChevronRight
             className={cn('size-3.5 transition-transform', isExpanded && 'rotate-90')}
           />
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelect(node.slug)}
-          className={cn('nav-item rounded-xl px-2 py-2.5', isSelected && 'nav-item-active')}
-        >
-          <Icon className={cn('size-3.5', isSelected ? 'text-primary' : 'text-muted-foreground')} />
-          <span className="min-w-0 truncate">{node.name}</span>
-          <span className="shrink-0 font-mono text-[10px] opacity-70">{node.bookmarkCount}</span>
         </button>
       </div>
       {hasChildren && isExpanded

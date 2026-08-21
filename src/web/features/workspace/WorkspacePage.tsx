@@ -5,6 +5,7 @@ import {
   Bookmark as BookmarkIcon,
   FolderPlus,
   FolderTree,
+  Inbox,
   Menu,
   Plus,
   Search,
@@ -57,7 +58,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const { theme, setTheme } = useTheme();
   const searchRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>('active');
-  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pinnedOnly, setPinnedOnly] = useState(true);
   const [category, setCategory] = useState<string>();
   const [tag, setTag] = useState<string>();
   const [query, setQuery] = useState('');
@@ -281,7 +282,10 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         >
           <Menu />
         </button>
-        <button className="flex items-center gap-3" onClick={() => selectView('active')}>
+        <button
+          className="flex items-center gap-3"
+          onClick={() => selectView('active', { pinned: true })}
+        >
           <span className="grid size-9 place-items-center rounded-[0.9rem] bg-primary text-primary-foreground shadow-sm">
             <BookmarkIcon />
           </span>
@@ -325,6 +329,16 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         </Button>
       </div>
       <div className="grid gap-1">
+        <button
+          onClick={() => selectView('active')}
+          className={cn(
+            'nav-item',
+            view === 'active' && !pinnedOnly && !tag && !category && 'nav-item-active',
+          )}
+        >
+          <Inbox />
+          全部
+        </button>
         <button
           onClick={() => selectView('active', { pinned: true })}
           className={cn(
@@ -372,7 +386,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         navOpen={navOpen}
         onCloseNav={() => setNavOpen(false)}
       >
-        <div className="mx-auto w-full max-w-6xl space-y-7 px-1 sm:px-2">
+        <div className="mx-auto w-full space-y-7 px-1 sm:px-2">
           <div className="flex items-center gap-3 rounded-[1.1rem] border border-border/70 bg-card px-4 py-3.5 shadow-sm transition focus-within:border-primary/50 focus-within:shadow-md">
             <Search className="size-4.5 text-muted-foreground" />
             <input
