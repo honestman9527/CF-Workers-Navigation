@@ -12,6 +12,9 @@ export const ENDPOINTS = {
   categories: `${API_V1_PREFIX}/categories`,
   categoriesReorder: `${API_V1_PREFIX}/categories/reorder`,
   settings: `${API_V1_PREFIX}/settings`,
+  tags: `${API_V1_PREFIX}/tags`,
+  tagsMerge: (id: number) => `${API_V1_PREFIX}/tags/${id}/merge`,
+  adminStats: `${API_V1_PREFIX}/admin/stats`,
   transferExport: `${API_V1_PREFIX}/transfer/export`,
   transferImport: `${API_V1_PREFIX}/transfer/import`,
 } as const;

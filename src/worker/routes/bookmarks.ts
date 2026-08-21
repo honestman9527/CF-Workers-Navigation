@@ -19,12 +19,12 @@ import {
   deleteBookmark,
   getBookmark,
   listBookmarks,
-  listTags,
   permanentlyDeleteBookmark,
   restoreBookmark,
   searchBookmarks,
   updateBookmark,
 } from '../services/bookmarks';
+import { listTags } from '../services/tags';
 import { getSettings } from '../settings';
 
 const bookmarkInputSchema = z.object({

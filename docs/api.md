@@ -57,9 +57,34 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
 ## 搜索与标签
 
 - `GET /api/v1/bookmarks/search?q=&category=&view=&tag=&pinned=&limit=&cursor=`：FTS5 搜索标题、网址和描述，支持与列表相同的筛选，响应同样为游标页。
-- `GET /api/v1/bookmarks/tags`：返回标签及活动书签数量。
+- `GET /api/v1/tags`：返回标签及活动书签数量（标签的规范列表接口）。
+- `GET /api/v1/bookmarks/tags`：过时别名，行为与 `GET /api/v1/tags` 相同，仅用于向后兼容。
 
 搜索默认只返回活动书签。扩展搜索限制为 8 条；Web 每次请求 24 条并通过“加载更多”继续读取。
+
+## 标签管理
+
+标签由书签编辑时按名称自动创建与复用，管理后台负责整理（重命名、合并、删除）：
+
+- `GET /api/v1/tags`：列出全部标签及活动书签计数。
+- `POST /api/v1/tags`：`{ "name" }` 创建标签，slug 由名称生成；同名（同 slug）返回 `409`。
+- `PUT /api/v1/tags/:id`：`{ "name" }` 重命名并同步 slug；与已有标签 slug 冲突返回 `409`，改用「合并」。
+- `POST /api/v1/tags/:id/merge`：`{ "targetId" }` 把源标签合并进目标，源标签的书签关联改指目标（去重）后删除源标签；自合并返回 `400`，任一标签缺失返回 `404`。
+- `DELETE /api/v1/tags/:id`：删除标签并清理其 `bookmark_tags` 关联，不删除书签。
+
+## 管理后台概览
+
+- `GET /api/v1/admin/stats`：返回书签四态计数与分类、标签总数：
+
+```json
+{
+  "bookmarks": { "total": 10, "active": 7, "archived": 2, "trash": 1 },
+  "categories": 3,
+  "tags": 5
+}
+```
+
+统计口径与列表视图一致：`trash` 计已删除记录，`archive` 计未删除但已归档记录。
 
 ## 分类
 

@@ -1,7 +1,14 @@
-import type { Bookmark, BookmarkInput, BookmarkView, Category, Tag } from '@shared/api/types';
+import type { AdminTab } from '@nav/features/admin/AdminPage';
+import type {
+  Bookmark,
+  BookmarkInput,
+  BookmarkView,
+  Category,
+  Tag,
+  TransferFormat,
+} from '@shared/api/types';
 
 import {
-  ArrowDownUp,
   Bookmark as BookmarkIcon,
   FolderPlus,
   FolderTree,
@@ -17,8 +24,10 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
+import { downloadBlob } from '@/lib/download';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
+import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { pushToast } from '@nav/components/Toast';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
@@ -41,14 +50,9 @@ const ImportExportPanel = lazy(() =>
     default: module.ImportExportPanel,
   })),
 );
-const SettingsPanel = lazy(() =>
-  import('@nav/features/settings/SettingsPanel').then((module) => ({
-    default: module.SettingsPanel,
-  })),
-);
-const CategoryManager = lazy(() =>
-  import('@nav/features/categories/CategoryManager').then((module) => ({
-    default: module.CategoryManager,
+const AdminPage = lazy(() =>
+  import('@nav/features/admin/AdminPage').then((module) => ({
+    default: module.AdminPage,
   })),
 );
 
@@ -66,8 +70,15 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
   const [categories, setCategories] = useState<Category[]>([]);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminTab, setAdminTab] = useState<AdminTab>('overview');
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description?: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -231,6 +242,48 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
     }
   }
 
+  async function handleExport(format: TransferFormat) {
+    try {
+      const result = await api.exportData(format);
+      downloadBlob(result.blob, result.filename);
+      pushToast(format === 'json' ? 'JSON 完整备份已导出' : 'HTML 书签已导出', 'success');
+    } catch (error) {
+      reportError(error instanceof Error ? error.message : '导出失败');
+    }
+  }
+
+  function openAdmin(tab: AdminTab) {
+    setAdminTab(tab);
+    setAdminOpen(true);
+    setNavOpen(false);
+  }
+
+  /** 退出后台后刷新工作区数据；若当前按分类筛选时该分类被删除，清空筛选避免空结果。 */
+  async function handleExitAdmin() {
+    setAdminOpen(false);
+    await loadTags();
+    const next = await loadCategories();
+    page.refresh();
+    if (
+      next !== null &&
+      category &&
+      category !== UNCATEGORIZED_SLUG &&
+      !next.some((item) => item.slug === category)
+    ) {
+      setCategory(undefined);
+    }
+  }
+
+  function askConfirm(state: {
+    title: string;
+    description?: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    action: () => Promise<unknown>;
+  }) {
+    setConfirmState({ ...state, onConfirm: () => void state.action() });
+  }
+
   const title =
     view === 'active'
       ? query
@@ -253,17 +306,37 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       bookmark={bookmark}
       viewMode={viewMode}
       onEdit={setEditor}
-      onDelete={(id) => void mutate(() => api.deleteBookmark('', id), '已移入回收站')}
+      onDelete={(item) =>
+        askConfirm({
+          title: `移入回收站「${item.title}」？`,
+          description: '可以将书签移入回收站，之后仍可从回收站恢复。',
+          confirmLabel: '移入回收站',
+          action: () => api.deleteBookmark('', item.id),
+        })
+      }
       onTogglePin={(item) =>
         void mutate(
           () => api.updateBookmark('', item.id, { isPinned: !item.isPinned }),
           item.isPinned ? '已取消常用' : '已加入常用',
         )
       }
-      onArchive={(id) => void mutate(() => api.archiveBookmark('', id), '已归档')}
+      onArchive={(item) =>
+        askConfirm({
+          title: `归档「${item.title}」？`,
+          description: '归档后书签会收藏到「归档」视图，可随时取消归档恢复。',
+          confirmLabel: '归档',
+          destructive: false,
+          action: () => api.archiveBookmark('', item.id),
+        })
+      }
       onRestore={(id) => void mutate(() => api.restoreBookmark('', id), '已恢复')}
-      onPermanentDelete={(id) =>
-        void mutate(() => api.permanentDeleteBookmark('', id), '已永久删除')
+      onPermanentDelete={(item) =>
+        askConfirm({
+          title: `永久删除「${item.title}」？`,
+          description: '此操作不可撤销，记录将从回收站中彻底移除。',
+          confirmLabel: '永久删除',
+          action: () => api.permanentDeleteBookmark('', item.id),
+        })
       }
       onSelectTag={view === 'active' ? selectTagFilter : undefined}
       onSelectCategory={
@@ -298,10 +371,6 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
         </button>
       </div>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => setTransferOpen(true)}>
-          <ArrowDownUp />
-          <span className="hidden md:inline">导入 / 导出</span>
-        </Button>
         <Button size="sm" onClick={() => setEditor('new')}>
           <Plus />
           <span className="hidden sm:inline">添加书签</span>
@@ -313,7 +382,9 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           onViewModeChange={setViewMode}
           onOpenArchive={() => selectView('archive')}
           onOpenTrash={() => selectView('trash')}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onExport={(format) => void handleExport(format)}
+          onOpenImport={() => setTransferOpen(true)}
+          onOpenAdmin={() => openAdmin('overview')}
           onLogout={() => void logout()}
         />
       </div>
@@ -359,7 +430,7 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
           </span>
           <button
             type="button"
-            onClick={() => setCategoryManagerOpen(true)}
+            onClick={() => openAdmin('categories')}
             className="grid size-6 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             aria-label="管理分类"
           >
@@ -377,6 +448,17 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
       </div>
     </div>
   );
+
+  if (adminOpen) {
+    return (
+      <>
+        <Suspense fallback={null}>
+          <AdminPage initialTab={adminTab} onExit={() => void handleExitAdmin()} />
+        </Suspense>
+        <Toaster />
+      </>
+    );
+  }
 
   return (
     <>
@@ -535,28 +617,22 @@ export function WorkspacePage({ logout }: { authed: boolean; logout: () => Promi
             }}
           />
         ) : null}
-        {settingsOpen ? <SettingsPanel open onClose={() => setSettingsOpen(false)} /> : null}
-        {categoryManagerOpen ? (
-          <CategoryManager
-            open
-            categories={categories}
-            onClose={() => setCategoryManagerOpen(false)}
-            onChanged={async () => {
-              const next = await loadCategories();
-              page.refresh();
-              // 若当前按分类筛选时该分类被删除，清空筛选避免空结果。
-              if (
-                category &&
-                category !== UNCATEGORIZED_SLUG &&
-                next !== null &&
-                !next.some((item) => item.slug === category)
-              ) {
-                setCategory(undefined);
-              }
-            }}
-          />
-        ) : null}
       </Suspense>
+      <ConfirmDialog
+        open={confirmState !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setConfirmState(null);
+        }}
+        title={confirmState?.title ?? ''}
+        description={confirmState?.description}
+        confirmLabel={confirmState?.confirmLabel ?? '确认'}
+        destructive={confirmState?.destructive ?? true}
+        onConfirm={() => {
+          const action = confirmState?.onConfirm;
+          setConfirmState(null);
+          action?.();
+        }}
+      />
     </>
   );
 }

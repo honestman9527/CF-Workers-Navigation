@@ -39,11 +39,11 @@ export function BookmarkCard({
   bookmark: Bookmark;
   viewMode?: 'grid' | 'list';
   onEdit: (bookmark: Bookmark) => void;
-  onDelete: (id: number) => void;
+  onDelete: (bookmark: Bookmark) => void;
   onTogglePin: (bookmark: Bookmark) => void;
-  onArchive: (id: number) => void;
+  onArchive: (bookmark: Bookmark) => void;
   onRestore: (id: number) => void;
-  onPermanentDelete: (id: number) => void;
+  onPermanentDelete: (bookmark: Bookmark) => void;
   onSelectTag?: (tag: string) => void;
   onSelectCategory?: (slug: string) => void;
 }) {
@@ -77,7 +77,7 @@ export function BookmarkCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => onArchive(bookmark.id)}
+            onClick={() => onArchive(bookmark)}
             aria-label="归档"
           >
             <Archive className="size-4" />
@@ -88,7 +88,7 @@ export function BookmarkCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => onDelete(bookmark.id)}
+            onClick={() => onDelete(bookmark)}
             aria-label="移入回收站"
           >
             <Trash2 className="size-4" />
@@ -107,7 +107,7 @@ export function BookmarkCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => onPermanentDelete(bookmark.id)}
+            onClick={() => onPermanentDelete(bookmark)}
             aria-label="永久删除"
           >
             <X className="size-4" />

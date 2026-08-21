@@ -7,19 +7,23 @@ import { API_V1_PREFIX } from '../shared/api/endpoints';
 import { authContext, requireAuth } from './auth';
 import { getDb } from './db';
 import { jsonError, zodErrorMessage } from './errors';
+import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
 import bookmarksRoutes from './routes/bookmarks';
 import categoriesRoutes from './routes/categories';
 import settingsRoutes from './routes/settings';
+import tagsRoutes from './routes/tags';
 import transferRoutes from './routes/transfer';
 
 const app = new Hono<AppEnv>();
 
 const api = new Hono<AppEnv>();
+api.route('/admin', adminRoutes);
 api.route('/auth', authRoutes);
 api.route('/bookmarks', bookmarksRoutes);
 api.route('/categories', categoriesRoutes);
 api.route('/settings', settingsRoutes);
+api.route('/tags', tagsRoutes);
 api.route('/transfer', transferRoutes);
 
 app.use(`${API_V1_PREFIX}/*`, authContext);

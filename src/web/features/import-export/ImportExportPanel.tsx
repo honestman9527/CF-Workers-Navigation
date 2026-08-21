@@ -32,6 +32,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { downloadBlob } from '@/lib/download';
 import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
@@ -49,17 +50,6 @@ const INITIAL_IMPORT: ImportState = { stage: 'idle', progress: 0, summary: null,
 
 function summaryText(summary: ImportSummary) {
   return `新建 ${summary.bookmarksCreated} 个书签，跳过 ${summary.bookmarksSkipped} 个重复，更新 ${summary.bookmarksUpdated} 个书签。`;
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function formatBytes(bytes: number): string {

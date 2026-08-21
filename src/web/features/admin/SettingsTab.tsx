@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError, api } from '@nav/api/client';
-import { DialogPanel } from '@nav/components/DialogPanel';
+import { pushToast } from '@nav/components/Toast';
 
 const PRESETS: { id: string; label: string; url: string }[] = [
   {
@@ -22,40 +22,33 @@ const PRESETS: { id: string; label: string; url: string }[] = [
   { id: 'icon-horse', label: 'Icon Horse', url: 'https://icon.horse/icon/{domain}' },
 ];
 
-export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function SettingsTab() {
   const [faviconProxyUrl, setFaviconProxyUrl] = useState('');
   const [faviconProxyEnabled, setFaviconProxyEnabled] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const selectedProvider = PRESETS.find((preset) => preset.url === faviconProxyUrl)?.id ?? 'custom';
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
+    let alive = true;
     api
       .getSettings()
       .then((data) => {
+        if (!alive) return;
         setFaviconProxyUrl(data.faviconProxyUrl);
         setFaviconProxyEnabled(data.faviconProxyEnabled);
       })
       .catch((caught) => {
-        setError(caught instanceof ApiError ? caught.message : '加载设置失败');
+        if (alive) setError(caught instanceof ApiError ? caught.message : '加载设置失败');
       })
-      .finally(() => setLoading(false));
-  }, [open]);
-
-  useEffect(() => {
-    if (!saved) {
-      return;
-    }
-    const timer = window.setTimeout(() => setSaved(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [saved]);
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -65,7 +58,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         faviconProxyUrl,
         faviconProxyEnabled,
       });
-      setSaved(true);
+      pushToast('设置已保存', 'success');
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : '保存失败');
     } finally {
@@ -74,23 +67,21 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
-    <DialogPanel open={open} onClose={onClose} size="lg" labelledBy="settings-title" title="设置">
-      <div className="flex flex-col gap-1.5 pr-6">
-        <h2 id="settings-title" className="text-lg font-semibold tracking-tight">
-          设置
-        </h2>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1.5">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">设置</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           选择自动获取 favicon 的工具；元数据抓取仍会独立工作。
         </p>
       </div>
 
       {loading ? (
-        <div className="mt-6 flex items-center justify-center py-10 text-sm text-muted-foreground">
+        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
           加载中…
         </div>
       ) : (
-        <div className="mt-5 flex flex-col gap-4">
-          <section className="rounded-lg border border-border bg-muted/40 p-3.5">
+        <div className="max-w-2xl space-y-4">
+          <section className="rounded-lg border border-border bg-muted/40 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
               <Settings className="size-4" />
               Favicon 自动获取
@@ -158,16 +149,23 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           ) : null}
 
-          {saved ? (
-            <div className="flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--verdigris)_25%,transparent)] bg-[color-mix(in_srgb,var(--verdigris)_10%,transparent)] px-3 py-2 text-xs">
-              <Check className="size-3.5 text-[var(--verdigris)]" />
-              设置已保存
-            </div>
-          ) : null}
-
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" onClick={onClose} variant="ghost">
-              取消
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                setError(null);
+                try {
+                  const data = await api.getSettings();
+                  setFaviconProxyUrl(data.faviconProxyUrl);
+                  setFaviconProxyEnabled(data.faviconProxyEnabled);
+                } catch (caught) {
+                  setError(caught instanceof ApiError ? caught.message : '重置失败');
+                }
+              }}
+            >
+              <Check className="size-4" />
+              恢复默认
             </Button>
             <Button
               type="button"
@@ -180,6 +178,6 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         </div>
       )}
-    </DialogPanel>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { ApiErrorShape } from '../errors';
 
 import type {
+  AdminStats,
   Bookmark,
   BookmarkInput,
   BookmarkListOptions,
@@ -97,6 +98,11 @@ export interface ApiClient {
   archiveBookmark(token: string, id: number): Promise<Bookmark>;
   restoreBookmark(token: string, id: number): Promise<Bookmark>;
   permanentDeleteBookmark(token: string, id: number): Promise<void>;
+  createTag(token: string, name: string): Promise<Tag>;
+  updateTag(token: string, id: number, name: string): Promise<Tag>;
+  deleteTag(token: string, id: number): Promise<void>;
+  mergeTag(token: string, id: number, targetId: number): Promise<Tag>;
+  getAdminStats(token?: string, signal?: AbortSignal): Promise<AdminStats>;
 }
 
 export function createApiClient(options: ClientOptions): ApiClient {
@@ -125,7 +131,7 @@ export function createApiClient(options: ClientOptions): ApiClient {
       return request<BookmarkPage>(options, path, { signal }, token);
     },
     getTags(token, signal) {
-      return request<Tag[]>(options, ENDPOINTS.bookmarksTags, { signal }, token);
+      return request<Tag[]>(options, ENDPOINTS.tags, { signal }, token);
     },
     getCategories(token, signal) {
       return request<Category[]>(options, ENDPOINTS.categories, { signal }, token);
@@ -226,6 +232,36 @@ export function createApiClient(options: ClientOptions): ApiClient {
         { method: 'DELETE' },
         token,
       );
+    },
+    createTag(token, name) {
+      return request<Tag>(
+        options,
+        ENDPOINTS.tags,
+        { method: 'POST', body: JSON.stringify({ name }) },
+        token,
+      );
+    },
+    updateTag(token, id, name) {
+      return request<Tag>(
+        options,
+        `${ENDPOINTS.tags}/${id}`,
+        { method: 'PUT', body: JSON.stringify({ name }) },
+        token,
+      );
+    },
+    deleteTag(token, id) {
+      return request<void>(options, `${ENDPOINTS.tags}/${id}`, { method: 'DELETE' }, token);
+    },
+    mergeTag(token, id, targetId) {
+      return request<Tag>(
+        options,
+        ENDPOINTS.tagsMerge(id),
+        { method: 'POST', body: JSON.stringify({ targetId }) },
+        token,
+      );
+    },
+    getAdminStats(token, signal) {
+      return request<AdminStats>(options, ENDPOINTS.adminStats, { signal }, token);
     },
   };
 }

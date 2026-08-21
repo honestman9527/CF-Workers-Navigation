@@ -3,7 +3,6 @@ import type {
   BookmarkListOptions,
   BookmarkPage,
   BookmarkView,
-  Tag as TagDto,
 } from '../../shared/api/types';
 import type { Db } from '../types';
 
@@ -265,19 +264,6 @@ export async function getBookmark(db: Db, id: number): Promise<BookmarkDto> {
   const [row] = await queryRows(db, { view: 'all', id });
   if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
   return toDto(row);
-}
-
-export async function listTags(db: Db): Promise<TagDto[]> {
-  const rows = await db.all<{ id: number; name: string; slug: string; bookmark_count: number }>(sql`
-    SELECT t.id, t.name, t.slug,
-      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count
-    FROM tags t
-    LEFT JOIN bookmark_tags bt ON bt.tag_id = t.id
-    LEFT JOIN bookmarks b ON b.id = bt.bookmark_id
-    GROUP BY t.id
-    ORDER BY t.name COLLATE NOCASE
-  `);
-  return rows.map((row) => ({ ...row, bookmarkCount: Number(row.bookmark_count) }));
 }
 
 async function assertNotDuplicate(db: Db, url: string, excludeId?: number) {

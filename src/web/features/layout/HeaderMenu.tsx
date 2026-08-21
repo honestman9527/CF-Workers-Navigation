@@ -1,11 +1,16 @@
+import type { TransferFormat } from '@shared/api/types';
+
 import {
   Archive,
+  ArrowDownToLine,
   ChevronDown,
+  FileCode,
+  FileJson2,
+  LayoutDashboard,
   LayoutGrid,
   List,
   LogOut,
   Moon,
-  Settings,
   Sun,
   Trash2,
   UserRound,
@@ -31,7 +36,9 @@ export function HeaderMenu({
   onViewModeChange,
   onOpenArchive,
   onOpenTrash,
-  onOpenSettings,
+  onExport,
+  onOpenImport,
+  onOpenAdmin,
   onLogout,
 }: {
   theme: 'dark' | 'light';
@@ -40,7 +47,9 @@ export function HeaderMenu({
   onViewModeChange: (mode: 'grid' | 'list') => void;
   onOpenArchive: () => void;
   onOpenTrash: () => void;
-  onOpenSettings: () => void;
+  onExport: (format: TransferFormat) => void;
+  onOpenImport: () => void;
+  onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -58,7 +67,7 @@ export function HeaderMenu({
         <UserRound className="size-4 text-primary" />
         <ChevronDown className="size-3 opacity-70" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5">
@@ -96,13 +105,31 @@ export function HeaderMenu({
           回收站
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">数据</DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => onExport('json')}>
+            <FileJson2 className="size-4 text-primary" />
+            导出 JSON
+            <span className="ml-auto text-[10px] text-muted-foreground">完整备份</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onExport('html')}>
+            <FileCode className="size-4 text-primary" />
+            导出 HTML
+            <span className="ml-auto text-[10px] text-muted-foreground">浏览器书签</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onOpenImport}>
+            <ArrowDownToLine className="size-4 text-primary" />
+            导入…
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {theme === 'dark' ? '切换为亮色' : '切换为暗色'}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenSettings}>
-          <Settings className="size-4" />
-          Favicon 设置
+        <DropdownMenuItem onClick={onOpenAdmin}>
+          <LayoutDashboard className="size-4 text-primary" />
+          管理后台
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={onLogout}>

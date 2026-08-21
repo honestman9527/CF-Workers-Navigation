@@ -93,6 +93,18 @@ export type Settings = {
   faviconProxyEnabled: boolean;
 };
 
+/** 管理后台概览统计。 */
+export type AdminStats = {
+  bookmarks: {
+    total: number;
+    active: number;
+    archived: number;
+    trash: number;
+  };
+  categories: number;
+  tags: number;
+};
+
 export type TransferFormat = 'html' | 'json';
 export type ImportStrategy = 'skip' | 'create' | 'update';
 
