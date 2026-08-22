@@ -9,7 +9,6 @@ import {
   Menu,
   Plus,
   Search,
-  Settings2,
   Star,
   X,
 } from 'lucide-react';
@@ -430,7 +429,7 @@ export function WorkspacePage() {
       </div>
       <div className="grid gap-1">
         <button
-          onClick={() => selectView('active')}
+          onClick={() => selectView('active', { pinned: false })}
           className={cn(
             'nav-item',
             view === 'active' && !pinned && !tag && !category && 'nav-item-active',
@@ -457,14 +456,6 @@ export function WorkspacePage() {
           <span className="ml-auto font-mono text-[10px] font-normal tracking-normal">
             {categories.length}
           </span>
-          <button
-            type="button"
-            onClick={() => void navigate({ to: '/admin/categories' })}
-            className="grid size-6 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            aria-label="管理分类"
-          >
-            <Settings2 className="size-3.5" />
-          </button>
         </div>
         <CategorySidebar
           categories={categories}
