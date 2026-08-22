@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { TagChip } from '@nav/features/tags/TagChip';
 
 function domainOf(url: string) {
   try {
@@ -125,20 +126,11 @@ export function BookmarkCard({
       )}
     </div>
   );
-  const tagButton = (item: string) =>
+  const tagChip = (item: string) =>
     onSelectTag ? (
-      <button
-        key={item}
-        type="button"
-        className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] text-primary transition hover:bg-primary/20"
-        onClick={() => onSelectTag(item)}
-      >
-        #{item}
-      </button>
+      <TagChip key={item} name={item} onClick={() => onSelectTag(item)} />
     ) : (
-      <span key={item} className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-        #{item}
-      </span>
+      <TagChip key={item} name={item} />
     );
   const categoryChip =
     bookmark.categoryName && bookmark.categorySlug ? (
@@ -195,13 +187,13 @@ export function BookmarkCard({
           </p>
           <div className="relative z-20 mt-auto flex flex-wrap gap-1.5">
             {categoryChip}
-            {bookmark.tags.map(tagButton)}
+            {bookmark.tags.map(tagChip)}
           </div>
         </>
       ) : (
         <div className="relative z-20 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
           {categoryChip}
-          {bookmark.tags.slice(0, 3).map(tagButton)}
+          {bookmark.tags.slice(0, 3).map(tagChip)}
         </div>
       )}
       {active ? (

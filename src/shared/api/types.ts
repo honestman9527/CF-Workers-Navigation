@@ -97,6 +97,10 @@ export type Settings = {
   searchEngines: SearchEngine[];
   /** 默认搜索引擎 id，须存在于 searchEngines。 */
   defaultEngineId: string;
+  /** 启动台与工作区背景图片（空串表示不启用）。 */
+  backgroundImageUrl: string;
+  /** 是否启用背景图片。 */
+  backgroundImageEnabled: boolean;
 };
 
 /** 管理后台概览统计。 */

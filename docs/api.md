@@ -134,11 +134,15 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
       "builtin": true
     }
   ],
-  "defaultEngineId": "google"
+  "defaultEngineId": "google",
+  "backgroundImageUrl": "",
+  "backgroundImageEnabled": false
 }
 ```
 
 `searchEngines` 是完整替换的引擎列表（1..20 个）：`id` 唯一、`url` 必须含 `{query}` 占位符、`builtin` 标记内置项。内置项不可删除——缺失时服务端写入前自动补回默认内置引擎。`defaultEngineId` 必须存在于列表中，否则返回 `400`。Web 启动台与扩展共用 `SearchEngine` 契约（见 `src/shared/search.ts`）；扩展端仍在 chrome.storage 维护本地引擎配置，可覆盖服务端默认。
+
+背景图片：`backgroundImageUrl` 为空串表示不启用；非空时须为合法 `http(s)` 网址（否则返回 `400`）。`backgroundImageEnabled` 控制是否启用，Web 启动台与工作区共用该背景。
 
 JSON 备份是版本化的扁平书签数组，额外包含 `categories`（扁平分类定义，`parentSlug` 指向父分类），书签经 `categorySlug` 恢复归属；导入时按 slug 补齐缺失分类并重建层级。旧分类树 JSON（含嵌套 `children`/`bookmarks` 的节点）仍明确拒绝导入。HTML 导入把浏览器文件夹路径转换为标签，不映射分类；完整往返优先使用 JSON。
 

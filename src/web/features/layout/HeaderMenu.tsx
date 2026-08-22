@@ -1,11 +1,11 @@
 import {
   Archive,
+  Bookmark,
   ChevronDown,
   LayoutDashboard,
-  LayoutGrid,
-  List,
   LogOut,
   Moon,
+  Rocket,
   Sun,
   Trash2,
   UserRound,
@@ -18,30 +18,27 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+/** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。 */
 export function HeaderMenu({
   theme,
-  viewMode,
   onThemeChange,
-  onViewModeChange,
+  onOpenLauncher,
+  onOpenWorkspace,
   onOpenArchive,
   onOpenTrash,
-  onOpenLauncher,
   onOpenAdmin,
   onLogout,
 }: {
   theme: 'dark' | 'light';
-  viewMode: 'grid' | 'list';
   onThemeChange: (theme: 'dark' | 'light') => void;
-  onViewModeChange: (mode: 'grid' | 'list') => void;
-  onOpenArchive: () => void;
-  onOpenTrash: () => void;
-  onOpenLauncher: () => void;
+  onOpenLauncher?: () => void;
+  onOpenWorkspace?: () => void;
+  onOpenArchive?: () => void;
+  onOpenTrash?: () => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
@@ -70,37 +67,30 @@ export function HeaderMenu({
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup
-          value={viewMode}
-          onValueChange={(value: string) => {
-            if (value === 'grid' || value === 'list') {
-              onViewModeChange(value);
-            }
-          }}
-        >
-          <DropdownMenuLabel className="text-xs text-muted-foreground">视图</DropdownMenuLabel>
-          <DropdownMenuRadioItem value="grid">
-            <LayoutGrid className="size-4" />
-            网格
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="list">
-            <List className="size-4" />
-            列表
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onOpenLauncher}>
-          <LayoutGrid className="size-4" />
-          启动台
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenArchive}>
-          <Archive className="size-4" />
-          归档
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenTrash}>
-          <Trash2 className="size-4" />
-          回收站
-        </DropdownMenuItem>
+        {onOpenWorkspace ? (
+          <DropdownMenuItem onClick={onOpenWorkspace}>
+            <Bookmark className="size-4" />
+            书签柜
+          </DropdownMenuItem>
+        ) : null}
+        {onOpenLauncher ? (
+          <DropdownMenuItem onClick={onOpenLauncher}>
+            <Rocket className="size-4" />
+            启动台
+          </DropdownMenuItem>
+        ) : null}
+        {onOpenArchive ? (
+          <DropdownMenuItem onClick={onOpenArchive}>
+            <Archive className="size-4" />
+            归档
+          </DropdownMenuItem>
+        ) : null}
+        {onOpenTrash ? (
+          <DropdownMenuItem onClick={onOpenTrash}>
+            <Trash2 className="size-4" />
+            回收站
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}

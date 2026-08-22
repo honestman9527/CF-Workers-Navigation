@@ -1,6 +1,6 @@
 import type { SearchEngine } from '@shared/search';
 
-import { Check, Pencil, Plus, Settings, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Image, Pencil, Plus, Settings, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -194,6 +194,8 @@ export function SettingsTab() {
   const auth = useAuthContext();
   const [faviconProxyUrl, setFaviconProxyUrl] = useState('');
   const [faviconProxyEnabled, setFaviconProxyEnabled] = useState(true);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [backgroundImageEnabled, setBackgroundImageEnabled] = useState(false);
   const [searchEngines, setSearchEngines] = useState<SearchEngine[]>(DEFAULT_SEARCH_ENGINES);
   const [defaultEngineId, setDefaultEngineId] = useState('google');
   const [engineDialog, setEngineDialog] = useState<{ engine?: SearchEngine } | null>(null);
@@ -210,6 +212,8 @@ export function SettingsTab() {
         if (!alive) return;
         setFaviconProxyUrl(data.faviconProxyUrl);
         setFaviconProxyEnabled(data.faviconProxyEnabled);
+        setBackgroundImageUrl(data.backgroundImageUrl);
+        setBackgroundImageEnabled(data.backgroundImageEnabled);
         setSearchEngines(
           data.searchEngines.length > 0 ? data.searchEngines : DEFAULT_SEARCH_ENGINES,
         );
@@ -237,6 +241,8 @@ export function SettingsTab() {
       await api.updateSettings('', {
         faviconProxyUrl,
         faviconProxyEnabled,
+        backgroundImageUrl,
+        backgroundImageEnabled,
         searchEngines,
         defaultEngineId,
       });
@@ -254,7 +260,7 @@ export function SettingsTab() {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-2xl font-semibold tracking-tight">设置</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          配置 favicon 获取工具与启动台使用的搜索引擎。
+          配置背景图片、favicon 获取工具与启动台使用的搜索引擎。
         </p>
       </div>
 
@@ -264,6 +270,56 @@ export function SettingsTab() {
         </div>
       ) : (
         <div className="max-w-2xl space-y-4">
+          <section className="rounded-lg border border-border bg-muted/40 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+              <Image className="size-4" />
+              背景图片
+            </div>
+            <p className="mb-3 text-xs leading-5 text-muted-foreground">
+              为启动台与书签柜设置一张背景图；留空则使用纯色纸面。
+            </p>
+
+            <label className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
+              <Checkbox
+                checked={backgroundImageEnabled}
+                onCheckedChange={(checked) => setBackgroundImageEnabled(checked === true)}
+              />
+              启用背景图片
+            </label>
+
+            <div className="mt-3 flex flex-col gap-2">
+              <Label htmlFor="background-url">图片网址</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="background-url"
+                  value={backgroundImageUrl}
+                  onChange={(event) => setBackgroundImageUrl(event.target.value)}
+                  placeholder="https://example.com/wallpaper.jpg"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!backgroundImageUrl}
+                  onClick={() => setBackgroundImageUrl('')}
+                >
+                  清除
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                填写 https 图片地址，建议宽图（如 1920×1080）以便铺满背景。
+              </p>
+            </div>
+
+            {backgroundImageUrl ? (
+              <div
+                aria-hidden
+                className="mt-3 h-28 rounded-md border border-border bg-cover bg-center"
+                style={{ backgroundImage: `url("${backgroundImageUrl}")` }}
+              />
+            ) : null}
+          </section>
+
           <section className="rounded-lg border border-border bg-muted/40 p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium">
               <Settings className="size-4" />
@@ -425,6 +481,8 @@ export function SettingsTab() {
                   if (handleUnauthorized(auth, caught)) return;
                   setError(caught instanceof ApiError ? caught.message : '重置失败');
                 }
+                setBackgroundImageUrl('');
+                setBackgroundImageEnabled(false);
                 setSearchEngines(DEFAULT_SEARCH_ENGINES);
                 setDefaultEngineId('google');
               }}

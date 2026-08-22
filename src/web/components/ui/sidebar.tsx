@@ -207,9 +207,11 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
       className={cn(
-        'sticky top-0 hidden h-dvh w-(--sidebar-width) shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex',
+        'sticky top-0 hidden h-dvh w-(--sidebar-width) shrink-0 flex-col text-sidebar-foreground lg:flex',
         variant === 'sidebar' &&
-          (side === 'left' ? 'border-r border-sidebar-border' : 'border-l border-sidebar-border'),
+          (side === 'left'
+            ? 'border-r border-sidebar-border bg-sidebar'
+            : 'border-l border-sidebar-border bg-sidebar'),
         variant === 'floating' || variant === 'inset' ? 'p-2' : '',
         collapsible === 'offcanvas' && state === 'collapsed' && 'hidden lg:hidden',
         className,

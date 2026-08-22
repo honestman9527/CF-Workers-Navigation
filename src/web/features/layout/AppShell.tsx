@@ -17,10 +17,8 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
-      <header className="sticky top-0 z-40 w-full max-w-full border-b border-border/60 bg-background/80 pt-[var(--safe-t)] backdrop-blur-xl">
-        {header}
-      </header>
+    <div className="app-root min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
+      {header}
 
       <SidebarProvider className="min-h-[calc(100dvh-var(--header-h)-var(--safe-t))]">
         {/* 桌面端（lg+）由 Sidebar 原语渲染常驻索引栏；`hidden lg:contents` 同时屏蔽原语
@@ -35,7 +33,7 @@ export function AppShell({
           </Sidebar>
         </div>
 
-        <SidebarInset className="overflow-x-clip">
+        <SidebarInset className="app-inset overflow-x-clip">
           <div className="mx-auto w-full max-w-[60rem] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             {children}
           </div>

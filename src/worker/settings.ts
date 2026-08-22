@@ -12,6 +12,8 @@ const DEFAULTS = {
   favicon_proxy_enabled: 'true',
   search_engines: JSON.stringify(DEFAULT_SEARCH_ENGINES),
   default_engine_id: 'google',
+  background_image_url: '',
+  background_image_enabled: 'false',
 } as const;
 
 export type SettingKey = keyof typeof DEFAULTS;
@@ -23,6 +25,10 @@ export type SettingsConfig = {
   searchEngines: SearchEngine[];
   /** 默认搜索引擎 id，须存在于 searchEngines。 */
   defaultEngineId: string;
+  /** 启动台与工作区背景图片（空串表示不启用）。 */
+  backgroundImageUrl: string;
+  /** 是否启用背景图片。 */
+  backgroundImageEnabled: boolean;
 };
 
 const KEY_MAP: Record<keyof SettingsConfig, SettingKey> = {
@@ -30,6 +36,8 @@ const KEY_MAP: Record<keyof SettingsConfig, SettingKey> = {
   faviconProxyEnabled: 'favicon_proxy_enabled',
   searchEngines: 'search_engines',
   defaultEngineId: 'default_engine_id',
+  backgroundImageUrl: 'background_image_url',
+  backgroundImageEnabled: 'background_image_enabled',
 };
 
 const REVERSE_MAP: Record<SettingKey, keyof SettingsConfig> = {
@@ -37,6 +45,8 @@ const REVERSE_MAP: Record<SettingKey, keyof SettingsConfig> = {
   favicon_proxy_enabled: 'faviconProxyEnabled',
   search_engines: 'searchEngines',
   default_engine_id: 'defaultEngineId',
+  background_image_url: 'backgroundImageUrl',
+  background_image_enabled: 'backgroundImageEnabled',
 };
 
 type SettingValue = string | boolean | SearchEngine[];
@@ -76,7 +86,9 @@ function withBuiltinEngines(engines: SearchEngine[]): SearchEngine[] {
 }
 
 function parseValue(key: SettingKey, raw: string): SettingValue {
-  if (key === 'favicon_proxy_enabled') return raw === 'true';
+  if (key === 'favicon_proxy_enabled' || key === 'background_image_enabled') {
+    return raw === 'true';
+  }
   if (key === 'search_engines') return parseSearchEngines(raw);
   return raw;
 }
@@ -140,5 +152,7 @@ export function defaultSettings(): SettingsConfig {
     faviconProxyEnabled: DEFAULTS.favicon_proxy_enabled === 'true',
     searchEngines: DEFAULT_SEARCH_ENGINES,
     defaultEngineId: DEFAULTS.default_engine_id,
+    backgroundImageUrl: DEFAULTS.background_image_url,
+    backgroundImageEnabled: String(DEFAULTS.background_image_enabled) === 'true',
   };
 }

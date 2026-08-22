@@ -15,12 +15,16 @@ describe('settings api', () => {
       faviconProxyEnabled: boolean;
       searchEngines: { id: string; builtin: boolean }[];
       defaultEngineId: string;
+      backgroundImageUrl: string;
+      backgroundImageEnabled: boolean;
     };
     expect(json.faviconProxyUrl).toContain('{domain}');
     expect(json.faviconProxyEnabled).toBe(true);
     expect(json.searchEngines.length).toBe(5);
     expect(json.searchEngines.every((engine) => engine.builtin)).toBe(true);
     expect(json.defaultEngineId).toBe('google');
+    expect(json.backgroundImageUrl).toBe('');
+    expect(json.backgroundImageEnabled).toBe(false);
   });
 
   it('updates favicon proxy settings as admin', async () => {
@@ -54,6 +58,75 @@ describe('settings api', () => {
     });
     const json = (await response.json()) as { faviconProxyEnabled: boolean };
     expect(json.faviconProxyEnabled).toBe(false);
+  });
+
+  it('persists background image settings', async () => {
+    const update = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        backgroundImageUrl: 'https://example.com/wallpaper.jpg',
+        backgroundImageEnabled: true,
+      }),
+    });
+
+    expect(update.status).toBe(200);
+
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      headers: adminHeaders,
+    });
+    const json = (await response.json()) as {
+      backgroundImageUrl: string;
+      backgroundImageEnabled: boolean;
+    };
+    expect(json.backgroundImageUrl).toBe('https://example.com/wallpaper.jpg');
+    expect(json.backgroundImageEnabled).toBe(true);
+  });
+
+  it('clears background image with an empty url', async () => {
+    const update = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        backgroundImageUrl: 'https://example.com/wallpaper.jpg',
+        backgroundImageEnabled: true,
+      }),
+    });
+    expect(update.status).toBe(200);
+
+    const clear = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ backgroundImageUrl: '', backgroundImageEnabled: false }),
+    });
+    expect(clear.status).toBe(200);
+
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      headers: adminHeaders,
+    });
+    const json = (await response.json()) as {
+      backgroundImageUrl: string;
+      backgroundImageEnabled: boolean;
+    };
+    expect(json.backgroundImageUrl).toBe('');
+    expect(json.backgroundImageEnabled).toBe(false);
+  });
+
+  it('rejects invalid background image url', async () => {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ backgroundImageUrl: 'not-a-url' }),
+    });
+
+    expect(response.status).toBe(400);
+
+    const notHttps = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ backgroundImageUrl: 'ftp://example.com/wallpaper.jpg' }),
+    });
+    expect(notHttps.status).toBe(400);
   });
 
   it('persists search engines and default engine', async () => {

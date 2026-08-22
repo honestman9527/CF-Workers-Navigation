@@ -29,6 +29,27 @@ const settingsUpdateSchema = z
     faviconProxyEnabled: z.boolean().optional(),
     searchEngines: z.array(engineSchema).min(1).max(20).optional(),
     defaultEngineId: z.string().trim().min(1).max(32).optional(),
+    backgroundImageUrl: z
+      .string()
+      .trim()
+      .max(2048)
+      .optional()
+      .superRefine((value, ctx) => {
+        if (value === undefined || value === '') return;
+        try {
+          const url = new URL(value);
+          if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error('unsupported protocol');
+          }
+        } catch {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['backgroundImageUrl'],
+            message: 'Background image URL must be a valid http(s) URL',
+          });
+        }
+      }),
+    backgroundImageEnabled: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field is required',

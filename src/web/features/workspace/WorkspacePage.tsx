@@ -6,13 +6,15 @@ import {
   FolderPlus,
   FolderTree,
   Inbox,
+  LayoutGrid,
+  List,
   Menu,
   Plus,
   Search,
   Star,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
@@ -26,9 +28,13 @@ import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
 import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
 import { categoryIcon } from '@nav/features/categories/icons';
 import { buildCategoryTree } from '@nav/features/categories/tree';
+import { AppHeader } from '@nav/features/layout/AppHeader';
 import { AppShell } from '@nav/features/layout/AppShell';
+import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
-import { TagFilterBar } from '@nav/features/tags/TagFilterBar';
+import { TagFilter } from '@nav/features/tags/TagFilter';
+import { useBackground } from '@nav/hooks/useBackground';
+import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
@@ -53,6 +59,14 @@ export function WorkspacePage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
   const { view, pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
+
+  const handleUnauthorized = useCallback(() => {
+    void auth.logout();
+  }, [auth]);
+
+  // 服务端设置仅用于背景图片；401 时登出
+  const settings = useSettings(handleUnauthorized);
+  useBackground(settings);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -102,10 +116,6 @@ export function WorkspacePage() {
 
   function reportError(message: string) {
     pushToast(message, 'error');
-  }
-
-  function handleUnauthorized() {
-    void auth.logout();
   }
 
   /** 落地视图：活动书签、无任何筛选 —— 全部网站按分类分组展示。 */
@@ -376,8 +386,8 @@ export function WorkspacePage() {
   );
 
   const header = (
-    <div className="flex h-[var(--header-h)] items-center justify-between gap-4 px-4 sm:px-8">
-      <div className="flex items-center gap-2">
+    <AppHeader
+      navButton={
         <button
           className="grid size-9 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
           onClick={() => setNavOpen(true)}
@@ -385,39 +395,26 @@ export function WorkspacePage() {
         >
           <Menu />
         </button>
-        <button
-          className="flex items-center gap-3"
-          onClick={() => selectView('active', { pinned: true })}
-        >
-          <span className="grid size-9 place-items-center rounded-[0.9rem] bg-primary text-primary-foreground shadow-sm">
-            <BookmarkIcon />
-          </span>
-          <span className="text-left">
-            <strong className="block font-display text-base">书签柜</strong>
-            <span className="hidden text-[10px] tracking-[0.2em] text-muted-foreground uppercase sm:block">
-              personal index
-            </span>
-          </span>
-        </button>
-      </div>
-      <div className="flex items-center gap-2">
+      }
+      brand={<Brand onClick={() => selectView('active', { pinned: true })} />}
+      actions={
         <Button size="sm" onClick={() => setEditor('new')}>
           <Plus />
           <span className="hidden sm:inline">添加书签</span>
         </Button>
+      }
+      menu={
         <HeaderMenu
           theme={theme}
-          viewMode={viewMode}
           onThemeChange={setTheme}
-          onViewModeChange={setViewMode}
+          onOpenLauncher={() => void navigate({ to: '/' })}
           onOpenArchive={() => selectView('archive')}
           onOpenTrash={() => selectView('trash')}
-          onOpenLauncher={() => void navigate({ to: '/' })}
           onOpenAdmin={() => void navigate({ to: '/admin' })}
           onLogout={() => void auth.logout()}
         />
-      </div>
-    </div>
+      }
+    />
   );
 
   const sidebar = (
@@ -503,18 +500,50 @@ export function WorkspacePage() {
             )}
           </div>
           {view === 'active' ? (
-            <TagFilterBar tags={tags} selected={tag} onSelect={selectTagFilter} />
+            <TagFilter tags={tags} selected={tag} onSelect={selectTagFilter} />
           ) : null}
-          <div>
-            <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
-              {view === 'active' ? '你的网络入口' : view === 'archive' ? '暂时收起' : '可恢复项目'}
-            </p>
-            <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-              {title}
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {page.loading ? '同步中…' : `已加载 ${page.items.length} 个书签`}
-            </p>
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
+                {view === 'active'
+                  ? '你的网络入口'
+                  : view === 'archive'
+                    ? '暂时收起'
+                    : '可恢复项目'}
+              </p>
+              <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                {title}
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {page.loading ? '同步中…' : `已加载 ${page.items.length} 个书签`}
+              </p>
+            </div>
+            <div
+              role="group"
+              aria-label="视图切换"
+              className="flex shrink-0 items-center rounded-lg border border-border/70 bg-card p-0.5 shadow-sm"
+            >
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                className="size-7 rounded-md"
+                onClick={() => setViewMode('grid')}
+                aria-pressed={viewMode === 'grid'}
+                aria-label="网格视图"
+              >
+                <LayoutGrid />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                className="size-7 rounded-md"
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                aria-label="列表视图"
+              >
+                <List />
+              </Button>
+            </div>
           </div>
           {page.loading ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

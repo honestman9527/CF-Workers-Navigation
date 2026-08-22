@@ -15,6 +15,7 @@
   --verdigris-soft: #a8c9bf;
   --destructive: #c0392b;
   --shift-track: var(--seal);
+  --bg-overlay: rgb(245 245 247 / 0.72);
 }
 
 .dark {
@@ -33,6 +34,7 @@
   --verdigris-soft: #4f806f;
   --destructive: #ff6961;
   --shift-track: var(--seal);
+  --bg-overlay: rgb(29 29 31 / 0.76);
 }
 
 @import '@fontsource-variable/geist';
@@ -258,6 +260,9 @@
   .animate-launcher-enter {
     animation: launcher-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  .animate-panel-enter {
+    animation: panel-enter 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
 }
 
 @keyframes load-slide {
@@ -278,6 +283,39 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 背景图片：由 useBackground 在 <html> 上加 has-background 并设置 --bg-image。
+   图片画在 html（画布最底层），叠加主题化的半透明 overlay 保证可读性；
+   页面根容器（.app-root）与 body 在启用时转为透明，让图片透出。 */
+html.has-background {
+  background-image: linear-gradient(var(--bg-overlay), var(--bg-overlay)), var(--bg-image);
+  background-size: cover;
+  background-position: center;
+}
+
+@media (min-width: 768px) {
+  html.has-background {
+    background-attachment: fixed;
+  }
+}
+
+html.has-background body,
+html.has-background #root,
+html.has-background .app-root,
+html.has-background .app-inset {
+  background-color: transparent;
 }
 
 @keyframes indeterminate-bar {
