@@ -34,7 +34,7 @@ import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
 import { resolveWorkspaceSearch, type WorkspaceView } from './search';
 
-const routeApi = getRouteApi('/');
+const routeApi = getRouteApi('/workspace');
 
 const BookmarkForm = lazy(() =>
   import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
@@ -92,7 +92,7 @@ export function WorkspacePage() {
     if (draft === (search.q ?? '')) return;
     const timer = window.setTimeout(() => {
       void navigate({
-        to: '/',
+        to: '/workspace',
         search: (prev) => ({ ...prev, q: draft || undefined }),
         replace: true,
       });
@@ -173,7 +173,7 @@ export function WorkspacePage() {
       !categories.some((item) => item.slug === category)
     ) {
       void navigate({
-        to: '/',
+        to: '/workspace',
         search: (prev) => ({ ...prev, category: undefined }),
         replace: true,
       });
@@ -183,7 +183,7 @@ export function WorkspacePage() {
   function selectView(next: View, options?: { pinned?: boolean }) {
     setNavOpen(false);
     void navigate({
-      to: '/',
+      to: '/workspace',
       search: {
         view: next === 'active' ? undefined : next,
         pinned: next === 'active' && options?.pinned === false ? false : undefined,
@@ -198,7 +198,7 @@ export function WorkspacePage() {
   function selectCategory(slug: string) {
     setNavOpen(false);
     void navigate({
-      to: '/',
+      to: '/workspace',
       search: (prev) => ({
         ...prev,
         view: undefined,
@@ -213,7 +213,7 @@ export function WorkspacePage() {
   function selectTagFilter(next: string | undefined) {
     setNavOpen(false);
     void navigate({
-      to: '/',
+      to: '/workspace',
       search: (prev) => ({
         ...prev,
         view: undefined,
@@ -227,7 +227,7 @@ export function WorkspacePage() {
   function clearSearch() {
     setQueryDraft('');
     void navigate({
-      to: '/',
+      to: '/workspace',
       search: (prev) => ({ ...prev, q: undefined }),
       replace: true,
     });
@@ -412,6 +412,7 @@ export function WorkspacePage() {
           onViewModeChange={setViewMode}
           onOpenArchive={() => selectView('archive')}
           onOpenTrash={() => selectView('trash')}
+          onOpenLauncher={() => void navigate({ to: '/' })}
           onOpenAdmin={() => void navigate({ to: '/admin' })}
           onLogout={() => void auth.logout()}
         />

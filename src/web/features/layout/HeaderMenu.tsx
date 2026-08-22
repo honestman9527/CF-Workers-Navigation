@@ -31,6 +31,7 @@ export function HeaderMenu({
   onViewModeChange,
   onOpenArchive,
   onOpenTrash,
+  onOpenLauncher,
   onOpenAdmin,
   onLogout,
 }: {
@@ -40,6 +41,7 @@ export function HeaderMenu({
   onViewModeChange: (mode: 'grid' | 'list') => void;
   onOpenArchive: () => void;
   onOpenTrash: () => void;
+  onOpenLauncher: () => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
@@ -87,6 +89,10 @@ export function HeaderMenu({
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onOpenLauncher}>
+          <LayoutGrid className="size-4" />
+          启动台
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={onOpenArchive}>
           <Archive className="size-4" />
           归档

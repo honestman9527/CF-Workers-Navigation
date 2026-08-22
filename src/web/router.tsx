@@ -9,11 +9,13 @@ import { adminDataRoute } from './routes/admin.data';
 import { adminOverviewRoute } from './routes/admin.overview';
 import { adminSettingsRoute } from './routes/admin.settings';
 import { adminTagsRoute } from './routes/admin.tags';
-import { indexRoute } from './routes/index';
+import { launcherRoute } from './routes/launcher';
 import { loginRoute } from './routes/login';
+import { workspaceRoute } from './routes/workspace';
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
+  launcherRoute,
+  workspaceRoute,
   loginRoute,
   adminRoute.addChildren([
     adminOverviewRoute,

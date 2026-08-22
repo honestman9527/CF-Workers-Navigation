@@ -41,7 +41,7 @@ export function AdminPage() {
             variant="ghost"
             size="sm"
             className="shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
-            render={<Link to="/" />}
+            render={<Link to="/workspace" />}
             aria-label="返回书签柜"
           >
             <ArrowLeft className="size-4" />
