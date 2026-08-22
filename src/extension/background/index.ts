@@ -4,11 +4,22 @@
  */
 import {
   getConfig,
-  notifyBookmarksChanged,
 } from "@ext/shared/storage";
 import { api, ApiError } from "@ext/shared/api/client";
 
 const BOOKMARK_ACTION = "nav-bookmark-page";
+
+/** 已随新标签页移除的 chrome.storage.local 遗留键，启动时一次性清理。 */
+const LEGACY_LOCAL_KEYS = [
+  "nav_ext_bg_image", // 新标签页背景图
+  "nav_ext_pinned_cache", // 新标签页 Dock 置顶缓存
+  "nav_ext_recent", // 新标签页最近打开
+  "nav_ext_last_engine", // 新标签页上次搜索引擎
+];
+
+function cleanupLegacyStorage() {
+  void chrome.storage.local.remove(LEGACY_LOCAL_KEYS);
+}
 
 function ensureContextMenu() {
   chrome.contextMenus.removeAll(() => {
@@ -54,8 +65,6 @@ async function handleContextMenuClick(
       iconUrl: metadata.iconUrl || null,
     });
 
-    notifyBookmarksChanged({ affectsPinned: false });
-
     const title = metadata.title || pageTitle || pageUrl;
     notify("已收藏", title);
   } catch (e) {
@@ -64,8 +73,14 @@ async function handleContextMenuClick(
   }
 }
 
-chrome.runtime.onInstalled.addListener(ensureContextMenu);
-chrome.runtime.onStartup.addListener(ensureContextMenu);
+chrome.runtime.onInstalled.addListener(() => {
+  cleanupLegacyStorage();
+  ensureContextMenu();
+});
+chrome.runtime.onStartup.addListener(() => {
+  cleanupLegacyStorage();
+  ensureContextMenu();
+});
 chrome.contextMenus.onClicked.addListener(handleContextMenuClick);
 
 console.log("[nav-ext] background service worker started");

@@ -7,15 +7,11 @@ import {
   Bookmark as BookmarkSimple,
   Check,
   Globe,
-  Pin as PushPin,
   RefreshCw as ArrowsClockwise,
   Settings as Gear,
   TriangleAlert as Warning,
 } from "lucide-react";
-import {
-  getConfig,
-  notifyBookmarksChanged,
-} from "@ext/shared/storage";
+import { getConfig } from "@ext/shared/storage";
 import { hasHostPermission, ensureHostPermission } from "@ext/shared/permissions";
 import { api, ApiError } from "@ext/shared/api/client";
 import { faviconFor, domainOf, type ExtConfig } from "@ext/shared/config";
@@ -61,7 +57,6 @@ export default function App() {
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [isPinned, setIsPinned] = useState(false);
   const configRef = useRef<ExtConfig | null>(null);
 
   const init = useCallback(async () => {
@@ -118,7 +113,6 @@ export default function App() {
       setTabTitle(titleFromTab);
       setTitle(meta?.title || titleFromTab || domainOf(url));
       setDescription(meta?.description || "");
-      setIsPinned(false);
 
       setState("ready");
     } catch (e) {
@@ -154,16 +148,14 @@ export default function App() {
         url: tabUrl,
         description: description.trim() || null,
         iconUrl,
-        isPinned,
         tags: tags.split(",").map((item) => item.trim()).filter(Boolean),
       });
-      notifyBookmarksChanged({ affectsPinned: isPinned });
       setState("success");
     } catch (e) {
       setErrorMsg(e instanceof ApiError ? e.message : "创建失败");
       setState("create-error");
     }
-  }, [title, description, tabUrl, tabTitle, metadata, isPinned, tags]);
+  }, [title, description, tabUrl, tabTitle, metadata, tags]);
 
   const handleReset = useCallback(() => {
     setState("ready");
@@ -362,19 +354,6 @@ export default function App() {
         </div>
 
         <div><label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]" htmlFor="popup-tags">标签</label><input id="popup-tags" className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="开发, 阅读, 工具" /></div>
-
-        <label className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border-color)] bg-[var(--bg-muted)]/60 px-3 py-2.5 transition-colors hover:bg-[var(--bg-muted)]">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 accent-[rgb(var(--accent))]"
-            checked={isPinned}
-            onChange={(e) => setIsPinned(e.target.checked)}
-          />
-          <PushPin
-            className={`h-4 w-4 ${isPinned ? "fill-current text-amber-500" : "text-[var(--text-secondary)]"}`}
-          />
-          <span className="text-sm text-[var(--text-primary)]">置顶到新标签页 Dock</span>
-        </label>
 
         <button
           type="button"

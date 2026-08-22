@@ -1,44 +1,34 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "./config";
-import { isCacheFresh, mergeConfig, mergeRecentItems } from "./storage";
+import { mergeConfig } from "./storage";
 
 describe("extension storage rules", () => {
-  it("merges a partial config without dropping nested defaults", () => {
-    const merged = mergeConfig(DEFAULT_CONFIG, { openInNewTab: true });
+  it("merges a partial config without dropping defaults", () => {
+    const merged = mergeConfig(DEFAULT_CONFIG, { apiBaseUrl: "https://nav.example.com" });
 
-    expect(merged.openInNewTab).toBe(true);
-    expect(merged.background).toEqual(DEFAULT_CONFIG.background);
-    expect(merged.searchEngines).toEqual(DEFAULT_CONFIG.searchEngines);
+    expect(merged.apiBaseUrl).toBe("https://nav.example.com");
+    expect(merged.theme).toBe(DEFAULT_CONFIG.theme);
+    expect(merged.adminToken).toBe(DEFAULT_CONFIG.adminToken);
   });
 
-  it("reuses cache only for the same API and token within the freshness window", () => {
-    const cache = {
-      data: [],
-      ts: 1_000,
+  it("ignores unknown fields from older stored configs", () => {
+    const stored = mergeConfig(DEFAULT_CONFIG, {
       apiBaseUrl: "https://nav.example.com",
-      authToken: "secret",
-    };
+      // @ts-expect-error 旧版新标签页字段，现已被移除，不应进入结果
+      searchEngines: [{ id: "google", name: "Google", url: "https://www.google.com/search?q={query}", builtin: true }],
+    });
 
-    expect(isCacheFresh(cache, "https://nav.example.com", "secret", 60_999)).toBe(true);
-    expect(isCacheFresh(cache, "https://nav.example.com", "secret", 61_000)).toBe(false);
-    expect(isCacheFresh(cache, "https://nav.example.com", "changed", 1_001)).toBe(false);
-    expect(isCacheFresh(cache, "https://other.example.com", "secret", 1_001)).toBe(false);
+    expect(stored).toEqual({
+      apiBaseUrl: "https://nav.example.com",
+      adminToken: "",
+      theme: "dark",
+    });
   });
 
-  it("deduplicates recent links and pins the newest entry", () => {
-    const result = mergeRecentItems(
-      [
-        { title: "Old", url: "https://example.com", ts: 1 },
-        { title: "Other", url: "https://other.example.com", ts: 2 },
-      ],
-      { title: "New", url: "https://example.com" },
-      3,
-    );
+  it("keeps the base theme when the patch theme is invalid", () => {
+    const merged = mergeConfig(DEFAULT_CONFIG, { theme: "sepia" as "light" | "dark" });
 
-    expect(result).toEqual([
-      { title: "New", url: "https://example.com", iconUrl: null, ts: 3, id: undefined },
-      { title: "Other", url: "https://other.example.com", ts: 2 },
-    ]);
+    expect(merged.theme).toBe(DEFAULT_CONFIG.theme);
   });
 });

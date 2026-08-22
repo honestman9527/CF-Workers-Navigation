@@ -35,13 +35,3 @@ export async function ensureHostPermission(origin: string): Promise<boolean> {
     return false;
   }
 }
-
-/** 移除 origin 的 host 权限（换 API 地址时清理旧的）。 */
-export async function removeHostPermission(origin: string): Promise<void> {
-  if (!origin) return;
-  try {
-    await chrome.permissions.remove({ origins: [toPattern(origin)] });
-  } catch {
-    /* ignore */
-  }
-}

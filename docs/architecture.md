@@ -13,7 +13,7 @@ src/
 │   ├── components/ # 功能无关的通用组件；ui/ 是项目本地 shadcn/base-nova 组件
 │   ├── pages/      # 整页入口（登录页）
 │   └── hooks/ lib/ api/ utils/   # 跨功能复用的基础代码
-├── extension/  # Chrome MV3 新标签页、popup、选项页与后台脚本
+├── extension/  # Chrome MV3 popup、选项页与后台脚本
 └── shared/     # API DTO、端点、fetch client、错误与偏好契约
 public/icons/   # 两个 Vite 构建目标共用的图标
 migrations/     # D1 初始基线迁移
@@ -71,6 +71,6 @@ Worker 不能混入 DOM，扩展不能混入 Worker 类型，Web 与扩展还需
 - Web 用 HttpOnly session cookie 登录；扩展配置与管理员密码保存在 Chrome storage，请求带 Bearer。
 - Web 通过同源请求访问 API；扩展通过配置的 Worker origin 跨源访问相同 API。
 
-Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（上限 100）；工作区只请求当前 24 条书签和标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。扩展新标签页只缓存置顶 Dock 作为离线兜底，搜索直接调用远端 FTS，不下载全量书签索引。
+Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（上限 100）；工作区只请求当前 24 条书签和标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。扩展只通过 popup / 右键菜单创建书签，不下载或缓存书签数据。
 
 `pnpm dev` 先生成 `dist/web`，再并行启动 Wrangler 和 Web watch。扩展不进入该开发进程，使用 `pnpm watch:extension` 独立联调。

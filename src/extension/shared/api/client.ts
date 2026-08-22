@@ -8,15 +8,7 @@ import {
   ApiError,
   type ApiClient,
 } from "@shared/api/client";
-import type {
-  Bookmark,
-  BookmarkInput,
-  BookmarkListOptions,
-  BookmarkPage,
-  MetadataPreview,
-  Settings,
-  Tag,
-} from "@shared/api/types";
+import type { BookmarkInput, BookmarkListOptions } from "@shared/api/types";
 
 export { ApiError };
 
@@ -29,34 +21,10 @@ export const api = {
   getBookmarks(baseUrl: string, token: string | undefined, options?: BookmarkListOptions) {
     return withBaseUrl(baseUrl, token).getBookmarks(token, options);
   },
-  searchBookmarks(
-    baseUrl: string,
-    token: string | undefined,
-    query: string,
-    options?: BookmarkListOptions,
-  ) {
-    return withBaseUrl(baseUrl, token).searchBookmarks(token, query, options);
-  },
   getMetadata(baseUrl: string, token: string, url: string) {
     return withBaseUrl(baseUrl, token).getMetadata(token, url);
-  },
-  getFavicon(baseUrl: string, token: string, url: string) {
-    return withBaseUrl(baseUrl, token).getFavicon(token, url);
-  },
-  getSettings(baseUrl: string, token?: string) {
-    return withBaseUrl(baseUrl, token).getSettings(token);
   },
   createBookmark(baseUrl: string, token: string, input: BookmarkInput) {
     return withBaseUrl(baseUrl, token).createBookmark(token, input);
   },
-};
-
-export type {
-  Bookmark,
-  BookmarkInput,
-  BookmarkListOptions,
-  BookmarkPage,
-  MetadataPreview,
-  Settings,
-  Tag,
 };
