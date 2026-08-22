@@ -1,5 +1,7 @@
 /** 跨端 API DTO：Worker、Web、extension 的唯一契约。 */
 
+import type { SearchEngine } from '../search';
+
 /** 保留的「未分类」筛选值：任何分类 slug 不得与之相同。 */
 export const UNCATEGORIZED_SLUG = 'uncategorized';
 
@@ -91,6 +93,10 @@ export type FaviconPreview = {
 export type Settings = {
   faviconProxyUrl: string;
   faviconProxyEnabled: boolean;
+  /** 搜索引擎列表（Web 启动台 / 扩展共用契约）。 */
+  searchEngines: SearchEngine[];
+  /** 默认搜索引擎 id，须存在于 searchEngines。 */
+  defaultEngineId: string;
 };
 
 /** 管理后台概览统计。 */

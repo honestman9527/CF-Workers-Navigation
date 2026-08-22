@@ -1,18 +1,37 @@
 /**
  * 扩展配置类型与默认值。
  * 类型放在这里、默认值也放在这里，storage.ts / api client / UI 共用。
+ *
+ * SearchEngine 与搜索引擎纯函数来自共享契约 `@shared/search`，
+ * 此处 re-export 保持历史导入路径 `@ext/shared/config` 不变。
  */
 
-/** 搜索引擎定义。url 中 {query} 为占位符。 */
-export type SearchEngine = {
-  id: string;
-  name: string;
-  /** 搜索 URL，含 {query} 占位符。 */
-  url: string;
-  /** 用于 UI 展示的图标 URL（可选，缺省取 favicon）。 */
-  iconUrl?: string;
-  /** 是否为内置（内置项不可删除，仅可禁用/编辑）。 */
-  builtin: boolean;
+import {
+  type SearchEngine,
+  DEFAULT_SEARCH_ENGINES,
+  ENGINE_BANG_ALIASES,
+  buildSearchUrl,
+  faviconFor,
+  domainOf,
+  resolveBookmarkIcon,
+  looksLikeUrl,
+  normalizeNavigateUrl,
+  type BangParseResult,
+  parseBangQuery,
+} from "@shared/search";
+
+export {
+  type SearchEngine,
+  DEFAULT_SEARCH_ENGINES,
+  ENGINE_BANG_ALIASES,
+  buildSearchUrl,
+  faviconFor,
+  domainOf,
+  resolveBookmarkIcon,
+  looksLikeUrl,
+  normalizeNavigateUrl,
+  type BangParseResult,
+  parseBangQuery,
 };
 
 /** 背景图配置（小体积偏好，写入 chrome.storage.sync）。 */
@@ -40,7 +59,7 @@ export type ExtConfig = {
   /** 管理员密码（Bearer token）。 */
   adminToken: string;
   /** 界面主题。 */
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   /** 搜索引擎列表。 */
   searchEngines: SearchEngine[];
   /** 默认搜索引擎 id。 */
@@ -65,14 +84,6 @@ export type ExtConfig = {
   clockDensity: ClockDensity;
 };
 
-export const DEFAULT_SEARCH_ENGINES: SearchEngine[] = [
-  { id: "google", name: "Google", url: "https://www.google.com/search?q={query}", builtin: true },
-  { id: "bing", name: "Bing", url: "https://www.bing.com/search?q={query}", builtin: true },
-  { id: "baidu", name: "百度", url: "https://www.baidu.com/s?wd={query}", builtin: true },
-  { id: "duckduckgo", name: "DuckDuckGo", url: "https://duckduckgo.com/?q={query}", builtin: true },
-  { id: "github", name: "GitHub", url: "https://github.com/search?q={query}", builtin: true },
-];
-
 export const DEFAULT_BACKGROUND: BackgroundConfig = {
   type: "none",
   url: "",
@@ -92,102 +103,3 @@ export const DEFAULT_CONFIG: ExtConfig = {
   rememberLastEngine: true,
   clockDensity: "full",
 };
-
-/** 内置 bang 别名 → 引擎 id。 */
-export const ENGINE_BANG_ALIASES: Record<string, string> = {
-  g: "google",
-  google: "google",
-  b: "bing",
-  bing: "bing",
-  bd: "baidu",
-  baidu: "baidu",
-  d: "duckduckgo",
-  ddg: "duckduckgo",
-  duck: "duckduckgo",
-  duckduckgo: "duckduckgo",
-  gh: "github",
-  github: "github",
-};
-
-/** 构造搜索 URL。 */
-export function buildSearchUrl(engine: SearchEngine, query: string): string {
-  return engine.url.replace("{query}", encodeURIComponent(query));
-}
-
-/** 根据 origin 拼接 favicon 代理 URL（与后端默认代理一致）。 */
-export function faviconFor(domain: string): string {
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-}
-
-/** 从 URL 提取域名。 */
-export function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-/** 优先书签自带 iconUrl，否则回退域名 favicon。 */
-export function resolveBookmarkIcon(iconUrl: string | null | undefined, pageUrl: string): string {
-  const trimmed = iconUrl?.trim();
-  if (trimmed) return trimmed;
-  return faviconFor(domainOf(pageUrl));
-}
-
-/**
- * 判断输入是否像可直接导航的 URL / 域名。
- * 含空格则否；支持 http(s)、localhost、IPv4、domain.tld[/path]。
- */
-export function looksLikeUrl(input: string): boolean {
-  const q = input.trim();
-  if (!q || /\s/.test(q)) return false;
-  if (/^https?:\/\//i.test(q)) return true;
-  if (/^localhost(:\d+)?(\/.*)?$/i.test(q)) return true;
-  if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/.*)?$/.test(q)) return true;
-  // 至少一段点分域名，TLD ≥ 2
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(:\d+)?(\/[^\s]*)?$/i.test(q);
-}
-
-/** 补全协议，供地址栏式直达。 */
-export function normalizeNavigateUrl(input: string): string {
-  const q = input.trim();
-  if (/^[a-z][a-z0-9+.-]*:/i.test(q)) return q;
-  return `https://${q}`;
-}
-
-export type BangParseResult = {
-  /** 去掉 bang 后的查询（可为空）。 */
-  query: string;
-  /** 解析到的引擎 id。 */
-  engineId?: string;
-  /** 原始 bang token（小写）。 */
-  bang?: string;
-};
-
-/**
- * 解析 `!g 关键词` 形式的 bang。
- * 未匹配时返回原 query，不改引擎。
- */
-export function parseBangQuery(raw: string, engines: SearchEngine[]): BangParseResult {
-  const trimmed = raw.trim();
-  const m = trimmed.match(/^!([a-zA-Z0-9_-]+)(?:\s+(.*))?$/s);
-  if (!m) return { query: trimmed };
-
-  const token = m[1].toLowerCase();
-  const rest = (m[2] ?? "").trim();
-
-  const byAlias = ENGINE_BANG_ALIASES[token];
-  if (byAlias && engines.some((e) => e.id === byAlias)) {
-    return { query: rest, engineId: byAlias, bang: token };
-  }
-
-  const byId = engines.find((e) => e.id.toLowerCase() === token);
-  if (byId) return { query: rest, engineId: byId.id, bang: token };
-
-  const byName = engines.find((e) => e.name.toLowerCase() === token);
-  if (byName) return { query: rest, engineId: byName.id, bang: token };
-
-  // 未知 bang：当作普通查询（保留 !）
-  return { query: trimmed };
-}

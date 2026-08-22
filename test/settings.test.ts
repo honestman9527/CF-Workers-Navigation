@@ -13,9 +13,14 @@ describe('settings api', () => {
     const json = (await response.json()) as {
       faviconProxyUrl: string;
       faviconProxyEnabled: boolean;
+      searchEngines: { id: string; builtin: boolean }[];
+      defaultEngineId: string;
     };
     expect(json.faviconProxyUrl).toContain('{domain}');
     expect(json.faviconProxyEnabled).toBe(true);
+    expect(json.searchEngines.length).toBe(5);
+    expect(json.searchEngines.every((engine) => engine.builtin)).toBe(true);
+    expect(json.defaultEngineId).toBe('google');
   });
 
   it('updates favicon proxy settings as admin', async () => {
@@ -49,6 +54,77 @@ describe('settings api', () => {
     });
     const json = (await response.json()) as { faviconProxyEnabled: boolean };
     expect(json.faviconProxyEnabled).toBe(false);
+  });
+
+  it('persists search engines and default engine', async () => {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        searchEngines: [
+          {
+            id: 'google',
+            name: 'Google',
+            url: 'https://www.google.com/search?q={query}',
+            builtin: true,
+          },
+          {
+            id: 'zhihu',
+            name: '知乎',
+            url: 'https://www.zhihu.com/search?type=content&q={query}',
+            builtin: false,
+          },
+        ],
+        defaultEngineId: 'zhihu',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      searchEngines: { id: string; builtin: boolean }[];
+      defaultEngineId: string;
+    };
+    expect(json.defaultEngineId).toBe('zhihu');
+
+    const idSet = new Set(json.searchEngines.map((engine) => engine.id));
+    expect(idSet.has('zhihu')).toBe(true);
+    // 内置引擎不可删除：提交 google+zhihu 后，其余 4 个内置项被补回（5 内置 + 1 自定义）
+    expect(json.searchEngines.length).toBe(6);
+  });
+
+  it('rejects invalid default engine id', async () => {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        searchEngines: [
+          {
+            id: 'google',
+            name: 'Google',
+            url: 'https://www.google.com/search?q={query}',
+            builtin: true,
+          },
+        ],
+        defaultEngineId: 'missing',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects search engine url without {query} placeholder', async () => {
+    const response = await exports.default.fetch('https://example.com/api/v1/settings', {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        searchEngines: [
+          { id: 'google', name: 'Google', url: 'https://www.google.com/', builtin: true },
+        ],
+        defaultEngineId: 'google',
+      }),
+    });
+
+    expect(response.status).toBe(400);
   });
 
   it('uses the configured tool for standalone favicon requests', async () => {
