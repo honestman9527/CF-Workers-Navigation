@@ -1,6 +1,6 @@
 # CF Workers Navigation
 
-部署在 Cloudflare Workers 上的个人书签柜：标签组织书签，首页展示常用入口，Web 必须登录，Chrome 扩展继续作为启动页使用。
+部署在 Cloudflare Workers 上的个人书签柜：标签组织书签，启动台首页支持搜索与常用网站，Web 必须登录，Chrome 扩展继续作为启动页使用。
 
 ## 要求
 
