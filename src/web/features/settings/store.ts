@@ -9,6 +9,31 @@ import { ApiError, api } from '@nav/api/client';
 /** 旧主题存储 key：首次以新 key 写入时迁移，随后清理。 */
 const LEGACY_THEME_STORAGE_KEY = 'nav-theme';
 
+/** 前台视图偏好（启动台 / 或书签柜工作区 /workspace）存储 Key */
+export const FRONT_VIEW_STORAGE_KEY = 'nav-front-view';
+export type FrontViewMode = 'launcher' | 'workspace';
+
+export function getPreferredFrontView(): FrontViewMode {
+  try {
+    const value = window.localStorage.getItem(FRONT_VIEW_STORAGE_KEY);
+    return value === 'workspace' ? 'workspace' : 'launcher';
+  } catch {
+    return 'launcher';
+  }
+}
+
+export function setPreferredFrontView(mode: FrontViewMode): void {
+  try {
+    window.localStorage.setItem(FRONT_VIEW_STORAGE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPreferredFrontRoute(): '/' | '/workspace' {
+  return getPreferredFrontView() === 'workspace' ? '/workspace' : '/';
+}
+
 const themeStorage = {
   getItem: (key: string): Theme => {
     const current = window.localStorage.getItem(key);

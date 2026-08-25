@@ -9,6 +9,7 @@ import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { AppHeader } from '@nav/features/layout/AppHeader';
 import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
+import { setPreferredFrontView } from '@nav/features/settings/store';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
@@ -79,6 +80,7 @@ export function LauncherPage() {
 
   useEffect(() => {
     document.title = '启动台 · 书签柜';
+    setPreferredFrontView('launcher');
   }, []);
 
   return (

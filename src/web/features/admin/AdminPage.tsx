@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { getPreferredFrontRoute, getPreferredFrontView } from '@nav/features/settings/store';
 
 const NAV: Array<{
   to:
@@ -63,6 +64,9 @@ function AdminNavItem({ to, label, icon: Icon, end }: (typeof NAV)[number]) {
 /** 管理后台布局：侧边栏导航（桌面常驻浮动栏 + 移动端抽屉）+ 路由内容区。 */
 export function AdminPage() {
   const auth = useAuthContext();
+  const frontRoute = getPreferredFrontRoute();
+  const frontViewMode = getPreferredFrontView();
+  const returnLabel = frontViewMode === 'workspace' ? '返回书签柜' : '返回启动台';
 
   return (
     <div className="app-root min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
@@ -96,9 +100,9 @@ export function AdminPage() {
             </nav>
 
             <div className="mt-auto grid gap-1 border-t border-border/80 pt-3">
-              <Link to="/workspace" className="nav-item rounded-xl px-3 py-2.5">
+              <Link to={frontRoute} className="nav-item rounded-xl px-3 py-2.5">
                 <ArrowLeft className="size-4" />
-                返回书签柜
+                {returnLabel}
               </Link>
               <button
                 type="button"

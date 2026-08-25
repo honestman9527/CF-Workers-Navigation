@@ -5,11 +5,13 @@ export function TagChip({
   name,
   count,
   active = false,
+  className,
   onClick,
 }: {
   name: string;
   count?: number;
   active?: boolean;
+  className?: string;
   onClick?: () => void;
 }) {
   const inner = (
@@ -28,7 +30,11 @@ export function TagChip({
         type="button"
         aria-pressed={active}
         onClick={onClick}
-        className={cn(base, active && 'border-transparent bg-primary/10 font-medium text-primary')}
+        className={cn(
+          base,
+          active && 'border-transparent bg-primary/10 font-medium text-primary',
+          className,
+        )}
       >
         {inner}
       </button>
@@ -36,7 +42,11 @@ export function TagChip({
   }
   return (
     <span
-      className={cn(base, active && 'border-transparent bg-primary/10 font-medium text-primary')}
+      className={cn(
+        base,
+        active && 'border-transparent bg-primary/10 font-medium text-primary',
+        className,
+      )}
     >
       {inner}
     </span>

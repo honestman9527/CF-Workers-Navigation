@@ -33,6 +33,7 @@ import { AppHeader } from '@nav/features/layout/AppHeader';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
+import { setPreferredFrontView } from '@nav/features/settings/store';
 import { TagFilter } from '@nav/features/tags/TagFilter';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
@@ -150,6 +151,7 @@ export function WorkspacePage() {
   useEffect(() => {
     void loadTags();
     void loadCategories();
+    setPreferredFrontView('workspace');
   }, []);
 
   useEffect(() => {

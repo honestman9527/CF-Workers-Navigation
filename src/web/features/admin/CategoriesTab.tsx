@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Folder,
   FolderInput,
+  FolderPlus,
   Pencil,
   Plus,
   Trash2,
@@ -198,10 +199,13 @@ export function CategoriesTab() {
   const createRow = (parentId: number | 'root', depth: number) => (
     <div
       key="create"
-      className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2"
-      style={{ marginLeft: depth > 0 ? `${depth * 0.9}rem` : undefined }}
+      className={cn(
+        'flex items-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-2 transition-all',
+        depth > 0 &&
+          'relative ml-6 before:absolute before:top-1/2 before:-left-3.5 before:h-px before:w-3 before:bg-border/80',
+      )}
     >
-      <Folder className="size-4 shrink-0 text-primary" />
+      <FolderPlus className="size-4 shrink-0 text-primary" />
       <Input
         autoFocus
         value={createName}
@@ -215,29 +219,30 @@ export function CategoriesTab() {
             setCreateName('');
           }
         }}
-        placeholder={parentId === 'root' ? '新分类名称' : '子分类名称'}
-        className="h-8"
+        placeholder={parentId === 'root' ? '新一级分类名称' : '子分类名称'}
+        className="h-8 bg-card text-xs"
         aria-label="分类名称"
       />
       <Button
-        variant="ghost"
-        size="icon-sm"
+        variant="default"
+        size="xs"
         disabled={busy || !createName.trim()}
         onClick={() => void commitCreate()}
         aria-label="确认创建"
       >
-        <Check className="size-4" />
+        <Check className="size-3.5" />
+        创建
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-xs"
         onClick={() => {
           setCreate(null);
           setCreateName('');
         }}
         aria-label="取消"
       >
-        <X className="size-4" />
+        <X className="size-3.5" />
       </Button>
     </div>
   );
@@ -246,45 +251,51 @@ export function CategoriesTab() {
     const Icon = categoryIcon(node.icon);
     const isEditing = editing?.id === node.id;
     const totalCount = totals.get(node.id) ?? node.bookmarkCount;
+    const isRoot = depth === 0;
+
     const actions = (
-      <div className="flex shrink-0 flex-wrap items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-foreground"
           disabled={busy}
           onClick={() => startCreate(node.id)}
           aria-label={`在 ${node.name} 下新建子分类`}
+          title="新建子分类"
         >
           <Plus className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-foreground"
           disabled={busy}
           onClick={() => move(node, -1)}
           aria-label="上移"
+          title="上移"
         >
           <ChevronUp className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-foreground"
           disabled={busy}
           onClick={() => move(node, 1)}
           aria-label="下移"
+          title="下移"
         >
           <ChevronDown className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-foreground"
           disabled={busy}
           onClick={() => setEditing({ id: node.id, name: node.name })}
           aria-label="重命名"
+          title="重命名"
         >
           <Pencil className="size-3.5" />
         </Button>
@@ -293,10 +304,11 @@ export function CategoriesTab() {
             render={
               <Button
                 variant="ghost"
-                size="icon-sm"
-                className="size-6"
+                size="icon-xs"
+                className="size-6 text-muted-foreground hover:text-foreground"
                 disabled={busy}
                 aria-label={`移动 ${node.name}`}
+                title="调整层级 / 移动到…"
               />
             }
           >
@@ -304,7 +316,7 @@ export function CategoriesTab() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>移动到…</DropdownMenuLabel>
+              <DropdownMenuLabel>移动到父级分类</DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             {moveTargets(node).map((target) => (
@@ -319,39 +331,51 @@ export function CategoriesTab() {
         </DropdownMenu>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6 text-destructive hover:text-destructive"
+          size="icon-xs"
+          className="size-6 text-muted-foreground hover:text-destructive"
           disabled={busy}
           onClick={() => setConfirmDelete(node)}
           aria-label="删除"
+          title="删除分类"
         >
           <Trash2 className="size-3.5" />
         </Button>
       </div>
     );
+
     return (
-      <div key={node.id}>
+      <div key={node.id} className="group/node relative">
+        {/* 节点行 */}
         <div
-          className="group flex flex-wrap items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-muted/60"
-          style={{ marginLeft: depth > 0 ? `${depth * 0.9}rem` : undefined }}
+          className={cn(
+            'group flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors',
+            isRoot
+              ? 'border border-border/70 bg-card shadow-xs hover:border-primary/40'
+              : 'hover:bg-muted/60',
+          )}
         >
+          {/* 图标选择触发器 */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
+                <button
+                  type="button"
                   disabled={busy}
                   aria-label="选择图标"
-                  className="size-7"
+                  className={cn(
+                    'grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg border transition',
+                    isRoot
+                      ? 'border-primary/20 bg-primary/10 text-primary'
+                      : 'border-border/70 bg-muted text-muted-foreground hover:text-primary',
+                  )}
                 />
               }
             >
-              <Icon className="size-4 text-primary" />
+              <Icon className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuGroup>
-                <DropdownMenuLabel>图标</DropdownMenuLabel>
+                <DropdownMenuLabel>选择分类图标</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <div className="grid grid-cols-5 gap-1 p-1.5">
@@ -375,6 +399,8 @@ export function CategoriesTab() {
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* 分类名称 */}
           {isEditing ? (
             <Input
               autoFocus
@@ -388,25 +414,42 @@ export function CategoriesTab() {
                   setEditing(null);
                 }
               }}
-              className="h-8"
+              className="h-7 min-w-0 flex-1 text-xs"
               aria-label="重命名分类"
             />
           ) : (
-            <span className="min-w-0 flex-1 truncate text-sm">{node.name}</span>
+            <div className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span
+                className={cn(
+                  'truncate',
+                  isRoot ? 'text-xs font-semibold text-foreground' : 'text-xs text-foreground/90',
+                )}
+              >
+                {node.name}
+              </span>
+              <span className="truncate font-mono text-[10px] text-muted-foreground/60">
+                /{node.slug}
+              </span>
+            </div>
           )}
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-            {node.bookmarkCount}
-            <span className="text-muted-foreground/60">/{totalCount}</span>
+
+          {/* 书签统计徽章 */}
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums">
+            <span className="font-medium text-foreground">{node.bookmarkCount}</span>
+            <span className="text-muted-foreground/50">/</span>
+            <span>{totalCount}</span>
           </span>
+
+          {/* 操作按钮组 */}
           {actions}
         </div>
-        {node.children.length > 0 ? (
-          <div className="mt-0.5 space-y-0.5">
+
+        {/* 子分类容器（带树形导轨连线） */}
+        {node.children.length > 0 || create?.parentId === node.id ? (
+          <div className="relative mt-1 ml-5 space-y-1 border-l-2 border-border/60 pl-3.5">
             {node.children.map((child) => renderNode(child, depth + 1))}
             {create?.parentId === node.id ? createRow(node.id, depth + 1) : null}
           </div>
-        ) : create?.parentId === node.id ? (
-          createRow(node.id, depth + 1)
         ) : null}
       </div>
     );
@@ -414,38 +457,43 @@ export function CategoriesTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">分类管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          分类是书签的粗粒度归属，可嵌套。删除分类后子分类上移一级，内含书签变为未分类。书签数显示为「直属/含子类」。
+          分类是书签的树形归属。删除分类后子分类自动上移一级，内含书签转为未分类。书签数统计为「直属
+          / 含子类总数」。
         </p>
       </div>
 
       <div className="flex items-center justify-between gap-3">
         <Button size="sm" disabled={busy} onClick={() => startCreate('root')}>
-          <Plus />
-          新建分类
+          <Plus className="size-4" />
+          新建一级分类
         </Button>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
       {loading ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        <div className="h-44 animate-pulse rounded-xl bg-muted/60" />
       ) : (
-        <div className="grid gap-1 rounded-xl border border-border/70 bg-card p-3">
+        <div className="space-y-3">
           {create?.parentId === 'root' ? createRow('root', 0) : null}
           {tree.length > 0 ? (
-            <div className="grid gap-0.5">{tree.map((node) => renderNode(node, 0))}</div>
+            <div className="space-y-2.5">{tree.map((node) => renderNode(node, 0))}</div>
           ) : create === null ? (
-            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-              还没有分类，先新建一个吧
-            </p>
+            <div className="rounded-xl border border-dashed border-border p-12 text-center">
+              <Folder className="mx-auto size-8 text-muted-foreground/40" />
+              <p className="mt-3 text-sm font-medium">还没有分类</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                点击上方「新建一级分类」开启整理。
+              </p>
+            </div>
           ) : null}
         </div>
       )}
 
-      <p className="text-[11px] leading-5 text-muted-foreground">
-        小技巧：先在上方「新建分类」，再把已有分类「移动到…」其下，即可搭建层级。
+      <p className="text-xs leading-5 text-muted-foreground">
+        小提示：点击图标可自定义图标；点击右侧文件夹图标「调整层级」可自由把分类移入其他父分类下，或移动到根目录。
       </p>
 
       <ConfirmDialog
