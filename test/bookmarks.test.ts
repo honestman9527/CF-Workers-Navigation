@@ -211,6 +211,56 @@ describe('bookmark pagination and filters', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'validation_error' } });
   });
 
+  it('paginates with offset + total without duplicates', async () => {
+    const created = await Promise.all(
+      Array.from({ length: 5 }, (_, index) =>
+        createBookmark({
+          title: `Offset ${index}`,
+          url: `https://offset-${index}.example.com`,
+          tags: ['OffsetPagination'],
+        }),
+      ),
+    );
+
+    const first = await listBookmarks('?limit=2&offset=0&tag=offsetpagination');
+    expect(first.response.status).toBe(200);
+    expect(first.page.items).toHaveLength(2);
+    expect(first.page.total).toBe(5);
+    expect(first.page.nextCursor).toBeNull();
+
+    const second = await listBookmarks('?limit=2&offset=2&tag=offsetpagination');
+    expect(second.page.items).toHaveLength(2);
+    expect(second.page.total).toBe(5);
+
+    const third = await listBookmarks('?limit=2&offset=4&tag=offsetpagination');
+    expect(third.page.items).toHaveLength(1);
+    expect(third.page.total).toBe(5);
+
+    const ids = [...first.page.items, ...second.page.items, ...third.page.items].map(
+      ({ id }) => id,
+    );
+    expect(new Set(ids).size).toBe(5);
+    expect(ids.sort()).toEqual(created.map(({ id }) => id).sort());
+
+    // 超出范围的 offset：空页但总数不变。
+    const empty = await listBookmarks('?limit=2&offset=99&tag=offsetpagination');
+    expect(empty.page.items).toEqual([]);
+    expect(empty.page.total).toBe(5);
+    expect(empty.page.nextCursor).toBeNull();
+  });
+
+  it('ignores offset in cursor mode absent an offset parameter', async () => {
+    await createBookmark({
+      title: 'No offset mode',
+      url: 'https://no-offset.example.com',
+      tags: ['OffsetMark'],
+    });
+    const page = await listBookmarks('?tag=offsetmark&limit=10');
+    expect(page.page.items).toHaveLength(1);
+    // 未携带 offset 时不返回 total，保持游标契约。
+    expect(page.page.total).toBeUndefined();
+  });
+
   it('combines tag, pinned, and status filters', async () => {
     const pinned = await createBookmark({
       title: 'Pinned React',
@@ -343,6 +393,28 @@ describe('bookmark search', () => {
     });
     expect(second.page?.items).toHaveLength(1);
     expect(second.page?.nextCursor).toBeNull();
+    const ids = [...first.page!.items, ...second.page!.items].map(({ id }) => id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it('paginates search results with offset + total', async () => {
+    await Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        createBookmark({
+          title: `Search Offset Unique ${index}`,
+          url: `https://search-offset-${index}.example.com`,
+        }),
+      ),
+    );
+
+    const first = await searchBookmarks('unique', { limit: '2', offset: '0' });
+    expect(first.page?.items).toHaveLength(2);
+    expect(first.page?.total).toBe(3);
+    expect(first.page?.nextCursor).toBeNull();
+    // 搜索分页的总数只统计同一查询。
+    const second = await searchBookmarks('unique', { limit: '2', offset: '2' });
+    expect(second.page?.items).toHaveLength(1);
+    expect(second.page?.total).toBe(3);
     const ids = [...first.page!.items, ...second.page!.items].map(({ id }) => id);
     expect(new Set(ids).size).toBe(3);
   });

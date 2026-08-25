@@ -21,6 +21,9 @@ export const api = {
   getBookmarks(baseUrl: string, token: string | undefined, options?: BookmarkListOptions) {
     return withBaseUrl(baseUrl, token).getBookmarks(token, options);
   },
+  getCategories(baseUrl: string, token: string | undefined) {
+    return withBaseUrl(baseUrl, token).getCategories(token);
+  },
   getMetadata(baseUrl: string, token: string, url: string) {
     return withBaseUrl(baseUrl, token).getMetadata(token, url);
   },

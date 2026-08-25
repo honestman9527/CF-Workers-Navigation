@@ -41,11 +41,15 @@ export type BookmarkListOptions = {
   pinned?: boolean;
   cursor?: string;
   limit?: number;
+  /** 分页模式：提供 offset 时按「页码 + 总数」返回（total 字段），否则维持游标分页。 */
+  offset?: number;
 };
 
 export type BookmarkPage = {
   items: Bookmark[];
   nextCursor: string | null;
+  /** 仅分页模式（携带 offset）返回：符合当前筛选条件的记录总数。 */
+  total?: number;
 };
 
 export type Tag = { id: number; name: string; slug: string; bookmarkCount: number };

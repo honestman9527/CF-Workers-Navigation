@@ -4,7 +4,7 @@ export type WorkspaceView = 'active' | 'archive' | 'trash';
 
 /**
  * URL 中的工作区筛选状态（最小形式：省略字段表示默认值，从而保持 URL 精简）。
- * `view` 省略 = active；`pinned` 省略 = true（仅对 active 有意义）。
+ * `view` 省略 = active；`pinned` 省略（或 false）= 全部网站，只有「常用入口」显式写 `pinned=true`。
  */
 export type WorkspaceSearch = {
   view?: WorkspaceView;
@@ -71,7 +71,8 @@ export function resolveWorkspaceSearch(search: WorkspaceSearch): ResolvedWorkspa
   const view = search.view ?? 'active';
   return {
     view,
-    pinned: view === 'active' ? (search.pinned ?? true) : false,
+    // 只有「常用入口」显式 pinned=true；省略或 false 一律视为「全部网站」。
+    pinned: view === 'active' && search.pinned === true,
     category: search.category,
     tag: search.tag,
     q: search.q,

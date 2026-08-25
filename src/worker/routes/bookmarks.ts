@@ -8,6 +8,7 @@ import {
   handleServiceError,
   idParamSchema,
   limitSchema,
+  offsetSchema,
   parseBooleanQuery,
   parseJson,
   cursorSchema,
@@ -64,6 +65,7 @@ bookmarksRoutes.get('/search', async (c) => {
       pinned: parseBooleanQuery(c.req.query('pinned')),
       cursor: cursorSchema.parse(c.req.query('cursor')),
       limit: limitSchema.parse(c.req.query('limit')),
+      offset: offsetSchema.parse(c.req.query('offset')),
     });
     return c.json(page);
   } catch (error) {
@@ -99,6 +101,7 @@ bookmarksRoutes.get('/', async (c) => {
         pinned: parseBooleanQuery(c.req.query('pinned')),
         cursor: cursorSchema.parse(c.req.query('cursor')),
         limit: limitSchema.parse(c.req.query('limit')),
+        offset: offsetSchema.parse(c.req.query('offset')),
       }),
     );
   } catch (error) {

@@ -17,14 +17,15 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
 
 `GET /api/v1/bookmarks` 支持以下查询参数：
 
-| 参数       | 值                                  | 说明                                                           |
-| ---------- | ----------------------------------- | -------------------------------------------------------------- |
-| `view`     | `active`、`archive`、`trash`、`all` | 默认 `active`                                                  |
-| `category` | 分类 slug 或保留字 `uncategorized`  | 规范化后筛选，包含该分类整棵子树；`uncategorized` 筛未分类书签 |
-| `tag`      | 标签 slug 或名称                    | 规范化后筛选（与分类叠加）                                     |
-| `pinned`   | `1`、`0`、`true`、`false`           | 置顶筛选                                                       |
-| `limit`    | `1..100`                            | 默认 24                                                        |
-| `cursor`   | 上次响应返回的游标                  | 获取下一页                                                     |
+| 参数       | 值                                  | 说明                                                              |
+| ---------- | ----------------------------------- | ----------------------------------------------------------------- |
+| `view`     | `active`、`archive`、`trash`、`all` | 默认 `active`                                                     |
+| `category` | 分类 slug 或保留字 `uncategorized`  | 规范化后筛选，包含该分类整棵子树；`uncategorized` 筛未分类书签    |
+| `tag`      | 标签 slug 或名称                    | 规范化后筛选（与分类叠加）                                        |
+| `pinned`   | `1`、`0`、`true`、`false`           | 置顶筛选                                                          |
+| `limit`    | `1..100`                            | 默认 24                                                           |
+| `cursor`   | 上次响应返回的游标                  | 获取下一页                                                        |
+| `offset`   | `0..` 非负整数                      | 进入页码分页：跳过前 N 条并返回 `total`，`nextCursor` 恒为 `null` |
 
 响应统一为：
 
@@ -48,15 +49,16 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
       "updatedAt": "2026-08-19 00:00:00"
     }
   ],
-  "nextCursor": null
+  "nextCursor": null,
+  "total": 12
 }
 ```
 
-游标是不透明值，客户端只应原样回传。不要解析、修改或跨不同筛选条件复用。
+`total` 仅在携带 `offset` 的分页模式下返回，表示当前筛选条件下的记录总数；游标模式不返回该字段。游标是不透明值，客户端只应原样回传；不要解析、修改或跨不同筛选条件复用，也不要与 `offset` 同时使用。
 
 ## 搜索与标签
 
-- `GET /api/v1/bookmarks/search?q=&category=&view=&tag=&pinned=&limit=&cursor=`：FTS5 搜索标题、网址和描述，支持与列表相同的筛选，响应同样为游标页。
+- `GET /api/v1/bookmarks/search?q=&category=&view=&tag=&pinned=&limit=&cursor=&offset=`：FTS5 搜索标题、网址和描述，支持与列表相同的筛选，响应同样为游标页（携带 `offset` 时为页码分页并返回 `total`）。
 - `GET /api/v1/tags`：返回标签及活动书签数量（标签的规范列表接口）。
 - `GET /api/v1/bookmarks/tags`：过时别名，行为与 `GET /api/v1/tags` 相同，仅用于向后兼容。
 

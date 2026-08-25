@@ -192,7 +192,8 @@ export function WorkspacePage() {
       to: '/workspace',
       search: {
         view: next === 'active' ? undefined : next,
-        pinned: next === 'active' && options?.pinned === false ? false : undefined,
+        // 仅「常用入口」显式 pinned=true；默认（全部网站）不再写 pinned=false。
+        pinned: next === 'active' && options?.pinned === true ? true : undefined,
         category: undefined,
         tag: undefined,
         q: undefined,
@@ -208,7 +209,8 @@ export function WorkspacePage() {
       search: (prev) => ({
         ...prev,
         view: undefined,
-        pinned: false,
+        // 进入分类筛选即离开「常用入口」，清除 pinned（写 undefined 表示省略，不产生 pinned=false）。
+        pinned: undefined,
         category: prev.category === slug ? undefined : slug,
         q: undefined,
       }),
@@ -223,7 +225,7 @@ export function WorkspacePage() {
       search: (prev) => ({
         ...prev,
         view: undefined,
-        pinned: false,
+        pinned: undefined,
         tag: next,
         q: undefined,
       }),
@@ -408,7 +410,7 @@ export function WorkspacePage() {
       </div>
       <div className="grid gap-1">
         <button
-          onClick={() => selectView('active', { pinned: false })}
+          onClick={() => selectView('active')}
           className={cn(
             'nav-item',
             view === 'active' && !pinned && !tag && !category && 'nav-item-active',

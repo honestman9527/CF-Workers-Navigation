@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { parseWorkspaceSearch, resolveWorkspaceSearch } from './search';
 
 describe('parseWorkspaceSearch', () => {
-  it('空参数 → 空对象，resolve 后为默认常用入口', () => {
+  it('空参数 → 空对象，resolve 后为默认全部网站（无 pinned）', () => {
     expect(parseWorkspaceSearch({})).toEqual({});
     expect(resolveWorkspaceSearch(parseWorkspaceSearch({}))).toEqual({
       view: 'active',
-      pinned: true,
+      pinned: false,
     });
   });
 
@@ -22,6 +22,13 @@ describe('parseWorkspaceSearch', () => {
     expect(parseWorkspaceSearch({ pinned: false }).pinned).toBe(false);
     expect(parseWorkspaceSearch({ pinned: 0 }).pinned).toBe(false);
     expect(parseWorkspaceSearch({ pinned: 1 }).pinned).toBe(true);
+  });
+
+  it('只有显式 pinned=true 才解析为常用入口，其余均为全部网站', () => {
+    expect(resolveWorkspaceSearch(parseWorkspaceSearch({ pinned: '1' })).pinned).toBe(true);
+    expect(resolveWorkspaceSearch(parseWorkspaceSearch({ pinned: '0' })).pinned).toBe(false);
+    expect(resolveWorkspaceSearch(parseWorkspaceSearch({ pinned: false })).pinned).toBe(false);
+    expect(resolveWorkspaceSearch(parseWorkspaceSearch({ view: 'active' })).pinned).toBe(false);
   });
 
   it('archive/trash 视图忽略 pinned（无意义）', () => {

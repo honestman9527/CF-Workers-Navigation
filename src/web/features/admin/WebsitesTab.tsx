@@ -3,8 +3,9 @@ import type { Bookmark, BookmarkInput, BookmarkView } from '@shared/api/types';
 import {
   Archive,
   ArchiveRestore,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
-  Folder,
   Globe,
   Pencil,
   Plus,
@@ -33,9 +34,8 @@ import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
-import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
-import { buildCategoryTree, flattenCategoryTree } from '@nav/features/categories/tree';
-import { TagChip } from '@nav/features/tags/TagChip';
+import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
+import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
 import { useApiData } from '@nav/hooks/useApiData';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
@@ -86,7 +86,7 @@ function BookmarkRowIcon({ bookmark }: { bookmark: Bookmark }) {
 
 /**
  * 后台专用的网站（书签）轻量化表格管理：
- * 结构化呈现网站、网址、分类标签、状态与快捷操作。
+ * 固定宽度紧凑表格（标题 + 网址），页码分页（10/20/50/100），分类筛选为可折叠树。
  */
 export function WebsitesTab() {
   const auth = useAuthContext();
@@ -99,6 +99,7 @@ export function WebsitesTab() {
   const [categorySlug, setCategorySlug] = useState<string | undefined>(undefined);
   const [tagSlug, setTagSlug] = useState<string | undefined>(undefined);
   const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(20);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
 
   // 搜索防抖：250ms 后同步到查询条件。
@@ -109,12 +110,13 @@ export function WebsitesTab() {
     return () => window.clearTimeout(timer);
   }, [queryDraft, query]);
 
-  const page = useBookmarkPage({
+  const page = usePagedBookmarks({
     view,
     category: categorySlug,
     tag: tagSlug,
     pinned: pinnedOnly,
     query,
+    pageSize,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
   });
@@ -138,18 +140,6 @@ export function WebsitesTab() {
     onError: reportError,
   });
 
-  const categoryOptions = useMemo(() => {
-    const flat = flattenCategoryTree(buildCategoryTree(categories ?? []));
-    return [
-      { value: '', label: '全部分类' },
-      { value: UNCATEGORIZED_SLUG, label: '未分类' },
-      ...flat.map((item) => ({
-        value: item.slug,
-        label: `${'　'.repeat(Math.max(item.depth, 0))}${item.name}`,
-      })),
-    ];
-  }, [categories]);
-
   const tagOptions = useMemo(
     () => [
       { value: '', label: '全部标签' },
@@ -168,7 +158,7 @@ export function WebsitesTab() {
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold tracking-tight">网站管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          以紧凑表格统一查看与整理全部书签（含归档与回收站），支持批量搜索与状态操作。
+          以紧凑表格统一查看与整理全部书签（含归档与回收站），支持页码分页与分类/标签筛选。
         </p>
       </div>
 
@@ -220,18 +210,11 @@ export function WebsitesTab() {
           ) : null}
         </div>
 
-        <select
-          value={categorySlug ?? ''}
-          onChange={(event) => setCategorySlug(event.target.value || undefined)}
-          aria-label="按分类筛选"
-          className="h-9 rounded-lg border border-border/70 bg-card px-2.5 text-xs outline-none focus-visible:border-primary/50"
-        >
-          {categoryOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <CategoryFilter
+          categories={categories ?? []}
+          selectedSlug={categorySlug}
+          onSelect={setCategorySlug}
+        />
 
         <select
           value={tagSlug ?? ''}
@@ -263,8 +246,7 @@ export function WebsitesTab() {
       </div>
 
       <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
-        <span>{page.loading ? '同步中…' : `当前筛选结果 ${page.items.length} 条`}</span>
-        {page.hasMore ? <span>向下滚动加载更多</span> : null}
+        <span>{page.loading ? '同步中…' : `共 ${page.total} 条书签`}</span>
       </div>
 
       {page.loading ? (
@@ -281,28 +263,24 @@ export function WebsitesTab() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
-          <Table>
+          {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
+          <Table className="table-fixed">
             <TableHeader className="bg-muted/30">
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead className="w-[32%] min-w-[14rem] text-xs font-semibold">网站</TableHead>
-                <TableHead className="w-[26%] min-w-[10rem] text-xs font-semibold">网址</TableHead>
-                <TableHead className="w-[22%] min-w-[8rem] text-xs font-semibold">
-                  分类与标签
-                </TableHead>
-                <TableHead className="w-[8%] text-center text-xs font-semibold">状态</TableHead>
-                <TableHead className="w-[12%] min-w-[7rem] pr-4 text-right text-xs font-semibold">
+                <TableHead className="text-xs font-semibold">网站</TableHead>
+                <TableHead className="w-[5rem] text-center text-xs font-semibold">状态</TableHead>
+                <TableHead className="w-[7.5rem] pr-4 text-right text-xs font-semibold">
                   操作
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {page.items.map((bookmark) => {
-                const domain = domainOf(bookmark.url);
                 const active = !bookmark.deletedAt && !bookmark.archivedAt;
 
                 return (
                   <TableRow key={bookmark.id} className="group border-border/60">
-                    {/* 网站信息 */}
+                    {/* 网站：favicon + 标题 + 网址（同一格内截断） */}
                     <TableCell className="py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <BookmarkRowIcon bookmark={bookmark} />
@@ -317,65 +295,17 @@ export function WebsitesTab() {
                               </span>
                             ) : null}
                           </div>
-                          {bookmark.description ? (
-                            <p
-                              className="truncate text-[11px] text-muted-foreground"
-                              title={bookmark.description}
-                            >
-                              {bookmark.description}
-                            </p>
-                          ) : null}
+                          <a
+                            href={bookmark.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 truncate font-mono text-[11px] text-muted-foreground transition hover:text-primary"
+                            title={bookmark.url}
+                          >
+                            <span className="truncate">{domainOf(bookmark.url)}</span>
+                            <ExternalLink className="size-2.5 shrink-0 opacity-60" />
+                          </a>
                         </div>
-                      </div>
-                    </TableCell>
-
-                    {/* 网址 */}
-                    <TableCell className="py-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <a
-                          href={bookmark.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex max-w-[16rem] items-center gap-1 truncate font-mono text-xs text-muted-foreground transition hover:text-primary"
-                          title={bookmark.url}
-                        >
-                          <span className="truncate">{domain}</span>
-                          <ExternalLink className="size-3 shrink-0 opacity-60" />
-                        </a>
-                      </div>
-                    </TableCell>
-
-                    {/* 分类与标签 */}
-                    <TableCell className="py-2.5">
-                      <div className="flex flex-wrap items-center gap-1">
-                        {bookmark.categoryName && bookmark.categorySlug ? (
-                          <button
-                            type="button"
-                            onClick={() => setCategorySlug(bookmark.categorySlug!)}
-                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:text-primary"
-                          >
-                            <Folder className="size-2.5" />
-                            <span className="max-w-[5rem] truncate">{bookmark.categoryName}</span>
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground/50">-</span>
-                        )}
-                        {bookmark.tags.slice(0, 2).map((tag) => (
-                          <TagChip
-                            key={tag}
-                            name={tag}
-                            onClick={() => setTagSlug(tag)}
-                            className="h-4.5 px-1.5 py-0 text-[10px]"
-                          />
-                        ))}
-                        {bookmark.tags.length > 2 ? (
-                          <span
-                            className="font-mono text-[10px] text-muted-foreground"
-                            title={bookmark.tags.slice(2).join(', ')}
-                          >
-                            +{bookmark.tags.length - 2}
-                          </span>
-                        ) : null}
                       </div>
                     </TableCell>
 
@@ -530,18 +460,46 @@ export function WebsitesTab() {
             </TableBody>
           </Table>
 
-          {page.hasMore ? (
-            <div className="flex justify-center border-t border-border/60 bg-muted/20 p-3">
+          {/* 分页：页大小 10/20/50/100 + 上一页/下一页 */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">
+              共 {page.total} 条 · 第 {page.page} / {page.totalPages} 页
+            </span>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                aria-label="每页条数"
+                className="h-8 rounded-lg border border-border/70 bg-card px-2 text-xs outline-none focus-visible:border-primary/50"
+              >
+                {PAGE_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size} 条/页
+                  </option>
+                ))}
+              </select>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page.loadingMore}
-                onClick={() => void page.loadMore()}
+                className="gap-1"
+                disabled={page.page <= 1 || page.loading}
+                onClick={() => page.setPage(page.page - 1)}
               >
-                {page.loadingMore ? '加载中…' : '加载更多书签'}
+                <ChevronLeft className="size-3.5" />
+                上一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                disabled={page.page >= page.totalPages || page.loading}
+                onClick={() => page.setPage(page.page + 1)}
+              >
+                下一页
+                <ChevronRight className="size-3.5" />
               </Button>
             </div>
-          ) : null}
+          </div>
         </div>
       )}
 

@@ -15,7 +15,9 @@ import { getConfig } from "@ext/shared/storage";
 import { hasHostPermission, ensureHostPermission } from "@ext/shared/permissions";
 import { api, ApiError } from "@ext/shared/api/client";
 import { faviconFor, domainOf, type ExtConfig } from "@ext/shared/config";
-import type { MetadataPreview } from "@shared/api/types";
+import type { Category, MetadataPreview } from "@shared/api/types";
+
+import { CategorySelect } from "./CategorySelect";
 
 type PopupState =
   | "loading"
@@ -57,11 +59,15 @@ export default function App() {
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const configRef = useRef<ExtConfig | null>(null);
 
   const init = useCallback(async () => {
     setState("loading");
     setErrorMsg("");
+    setCategoryId(null);
     try {
       const [cfg, tabs] = await Promise.all([
         getConfig(),
@@ -114,6 +120,16 @@ export default function App() {
       setTitle(meta?.title || titleFromTab || domainOf(url));
       setDescription(meta?.description || "");
 
+      // 分类用于快速收藏时选择；加载失败不阻塞收藏，降级为「未分类」。
+      setCategoriesLoading(true);
+      try {
+        setCategories(await api.getCategories(cfg.apiBaseUrl, cfg.adminToken));
+      } catch {
+        setCategories([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+
       setState("ready");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "初始化失败");
@@ -148,6 +164,7 @@ export default function App() {
         url: tabUrl,
         description: description.trim() || null,
         iconUrl,
+        categoryId,
         tags: tags.split(",").map((item) => item.trim()).filter(Boolean),
       });
       setState("success");
@@ -155,7 +172,7 @@ export default function App() {
       setErrorMsg(e instanceof ApiError ? e.message : "创建失败");
       setState("create-error");
     }
-  }, [title, description, tabUrl, tabTitle, metadata, tags]);
+  }, [title, description, tabUrl, tabTitle, metadata, tags, categoryId]);
 
   const handleReset = useCallback(() => {
     setState("ready");
@@ -354,6 +371,18 @@ export default function App() {
         </div>
 
         <div><label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]" htmlFor="popup-tags">标签</label><input id="popup-tags" className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="开发, 阅读, 工具" /></div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]" htmlFor="popup-category">
+            分类
+          </label>
+          <CategorySelect
+            categories={categories}
+            value={categoryId}
+            loading={categoriesLoading}
+            onChange={setCategoryId}
+          />
+        </div>
 
         <button
           type="button"

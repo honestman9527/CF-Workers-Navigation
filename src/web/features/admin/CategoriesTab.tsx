@@ -3,6 +3,7 @@ import type { Category } from '@shared/api/types';
 import {
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Folder,
   FolderInput,
@@ -96,6 +97,8 @@ export function CategoriesTab() {
   const [createName, setCreateName] = useState('');
   const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
+  // 折叠集合：默认全展开，加入的 id 表示收起（反向维护，保持初次加载与旧观感一致）。
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   const loadCategories = useCallback(
     (signal: AbortSignal) => api.getCategories(undefined, signal),
@@ -119,6 +122,18 @@ export function CategoriesTab() {
   function startCreate(parentId: number | 'root') {
     setCreate({ parentId });
     setCreateName('');
+  }
+
+  function toggleCollapse(id: number) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }
 
   async function commitCreate() {
@@ -252,6 +267,8 @@ export function CategoriesTab() {
     const isEditing = editing?.id === node.id;
     const totalCount = totals.get(node.id) ?? node.bookmarkCount;
     const isRoot = depth === 0;
+    const isCollapsed = collapsed.has(node.id);
+    const showChildren = (node.children.length > 0 && !isCollapsed) || create?.parentId === node.id;
 
     const actions = (
       <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
@@ -354,6 +371,26 @@ export function CategoriesTab() {
               : 'hover:bg-muted/60',
           )}
         >
+          {/* 分级折叠箭头（叶节点占位保持对齐） */}
+          {node.children.length > 0 ? (
+            <button
+              type="button"
+              aria-label={isCollapsed ? '展开分类' : '收起分类'}
+              aria-expanded={!isCollapsed}
+              onClick={() => toggleCollapse(node.id)}
+              className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight
+                className={cn(
+                  'size-3.5 transition-transform duration-150',
+                  !isCollapsed && 'rotate-90',
+                )}
+              />
+            </button>
+          ) : (
+            <span className="grid size-6 shrink-0 place-items-center" aria-hidden />
+          )}
+
           {/* 图标选择触发器 */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -427,6 +464,9 @@ export function CategoriesTab() {
               >
                 {node.name}
               </span>
+              <span className="shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-4 text-muted-foreground/80">
+                LV{depth + 1}
+              </span>
               <span className="truncate font-mono text-[10px] text-muted-foreground/60">
                 /{node.slug}
               </span>
@@ -444,8 +484,8 @@ export function CategoriesTab() {
           {actions}
         </div>
 
-        {/* 子分类容器（带树形导轨连线） */}
-        {node.children.length > 0 || create?.parentId === node.id ? (
+        {/* 子分类容器（带树形导轨连线）；折叠时收起，新建子分类时强制展开 */}
+        {showChildren ? (
           <div className="relative mt-1 ml-5 space-y-1 border-l-2 border-border/60 pl-3.5">
             {node.children.map((child) => renderNode(child, depth + 1))}
             {create?.parentId === node.id ? createRow(node.id, depth + 1) : null}

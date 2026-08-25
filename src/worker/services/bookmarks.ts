@@ -150,37 +150,88 @@ function categoryConditions(category: string | undefined): {
   };
 }
 
+type BookmarkFilter = {
+  view?: BookmarkView;
+  category?: string;
+  tag?: string;
+  pinned?: boolean;
+};
+
+/** 列表与搜索共用的过滤片段：condition 以 AND 开头，可接在 WHERE 主表达式之后。 */
+function buildFilter(filter: BookmarkFilter): {
+  cte: ReturnType<typeof sql>;
+  condition: ReturnType<typeof sql>;
+} {
+  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(filter.category);
+  const tagCondition = filter.tag
+    ? sql`AND EXISTS (
+        SELECT 1 FROM bookmark_tags filter_bt
+        INNER JOIN tags filter_t ON filter_t.id = filter_bt.tag_id
+        WHERE filter_bt.bookmark_id = b.id AND filter_t.slug = ${slugify(filter.tag)}
+      )`
+    : sql``;
+  const pinnedCondition = filter.pinned ? sql`AND b.is_pinned = 1` : sql``;
+  return {
+    cte: categoryCte,
+    condition: sql`AND ${viewCondition(filter.view ?? 'active')} ${tagCondition} ${categoryCondition} ${pinnedCondition}`,
+  };
+}
+
+/** 分页模式下统计当前过滤条件的记录总数（复用同一 WHERE/GROUP BY 子查询）。 */
+async function countByFilter(
+  db: Db,
+  filter: { cte: ReturnType<typeof sql>; condition: ReturnType<typeof sql> },
+  from: ReturnType<typeof sql>,
+): Promise<number> {
+  const [row] = await db.all<{ total: number }>(sql`
+    ${filter.cte}
+    SELECT COUNT(*) AS total FROM (
+      ${from}
+      WHERE 1 = 1 ${filter.condition}
+      GROUP BY b.id
+    )
+  `);
+  return row?.total ?? 0;
+}
+
+const listSelect = sql`
+  SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+    b.archived_at, b.deleted_at, b.created_at, b.updated_at,
+    b.category_id, c.name AS category_name, c.slug AS category_slug,
+    ${tagProjection} AS tag_names
+  FROM bookmarks b
+  LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
+  LEFT JOIN tags t ON t.id = bt.tag_id
+  LEFT JOIN categories c ON c.id = b.category_id
+`;
+
+const searchSelect = sql`
+  SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+    b.archived_at, b.deleted_at, b.created_at, b.updated_at,
+    b.category_id, c.name AS category_name, c.slug AS category_slug,
+    bookmarks_fts.rank AS rank, ${tagProjection} AS tag_names
+  FROM bookmarks_fts
+  INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
+  LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
+  LEFT JOIN tags t ON t.id = bt.tag_id
+  LEFT JOIN categories c ON c.id = b.category_id
+`;
+
 async function queryRows(
   db: Db,
   options: BookmarkListOptions & { id?: number } = {},
 ): Promise<BookmarkRow[]> {
-  const view = options.view ?? 'active';
   const cursor = decodeListCursor(options.cursor);
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
-  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(options.category);
-  const tagCondition = options.tag
-    ? sql`AND EXISTS (
-        SELECT 1 FROM bookmark_tags filter_bt
-        INNER JOIN tags filter_t ON filter_t.id = filter_bt.tag_id
-        WHERE filter_bt.bookmark_id = b.id AND filter_t.slug = ${slugify(options.tag)}
-      )`
-    : sql``;
-  const pinnedCondition = options.pinned ? sql`AND b.is_pinned = 1` : sql``;
+  const { cte, condition } = buildFilter(options);
   const cursorCondition = cursor
     ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
     : sql``;
   const idCondition = options.id === undefined ? sql`` : sql`AND b.id = ${options.id}`;
   return db.all<BookmarkRow>(sql`
-    ${categoryCte}
-    SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
-      b.archived_at, b.deleted_at, b.created_at, b.updated_at,
-      b.category_id, c.name AS category_name, c.slug AS category_slug,
-      ${tagProjection} AS tag_names
-    FROM bookmarks b
-    LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
-    LEFT JOIN tags t ON t.id = bt.tag_id
-    LEFT JOIN categories c ON c.id = b.category_id
-    WHERE ${viewCondition(view)} ${tagCondition} ${categoryCondition} ${pinnedCondition} ${cursorCondition} ${idCondition}
+    ${cte}
+    ${listSelect}
+    WHERE 1 = 1 ${condition} ${cursorCondition} ${idCondition}
     GROUP BY b.id
     ORDER BY b.created_at DESC, b.id DESC
     LIMIT ${options.id === undefined ? limit + 1 : 1}
@@ -192,6 +243,22 @@ export async function listBookmarks(
   options: BookmarkListOptions = {},
 ): Promise<BookmarkPage> {
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+
+  // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
+  if (options.offset !== undefined) {
+    const { cte, condition } = buildFilter(options);
+    const rows = await db.all<BookmarkRow>(sql`
+      ${cte}
+      ${listSelect}
+      WHERE 1 = 1 ${condition}
+      GROUP BY b.id
+      ORDER BY b.created_at DESC, b.id DESC
+      LIMIT ${limit} OFFSET ${options.offset}
+    `);
+    const total = await countByFilter(db, { cte, condition }, listSelect);
+    return { items: rows.map(toDto), nextCursor: null, total };
+  }
+
   const rows = await queryRows(db, { ...options, limit });
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toDto);
@@ -220,33 +287,34 @@ export async function searchBookmarks(
   const ftsQuery = buildFtsQuery(query);
   if (!ftsQuery) return { items: [], nextCursor: null };
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+  const { cte, condition } = buildFilter(options);
+
+  // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
+  if (options.offset !== undefined) {
+    const rows = await db.all<SearchRow>(sql`
+      ${cte}
+      ${searchSelect}
+      WHERE bookmarks_fts MATCH ${ftsQuery} ${condition}
+      GROUP BY b.id
+      ORDER BY bookmarks_fts.rank ASC, b.id DESC
+      LIMIT ${limit} OFFSET ${options.offset}
+    `);
+    const total = await countByFilter(
+      db,
+      { cte, condition: sql`AND bookmarks_fts MATCH ${ftsQuery} ${condition}` },
+      searchSelect,
+    );
+    return { items: rows.map(toDto), nextCursor: null, total };
+  }
+
   const cursor = decodeSearchCursor(options.cursor);
   const cursorCondition = cursor
     ? sql`AND (bookmarks_fts.rank > ${cursor.rank} OR (bookmarks_fts.rank = ${cursor.rank} AND b.id < ${cursor.id}))`
     : sql``;
-  const view = options.view ?? 'active';
-  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(options.category);
-  const tagCondition = options.tag
-    ? sql`AND EXISTS (
-        SELECT 1 FROM bookmark_tags filter_bt
-        INNER JOIN tags filter_t ON filter_t.id = filter_bt.tag_id
-        WHERE filter_bt.bookmark_id = b.id AND filter_t.slug = ${slugify(options.tag)}
-      )`
-    : sql``;
-  const pinnedCondition = options.pinned ? sql`AND b.is_pinned = 1` : sql``;
   const rows = await db.all<SearchRow>(sql`
-    ${categoryCte}
-    SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
-      b.archived_at, b.deleted_at, b.created_at, b.updated_at,
-      b.category_id, c.name AS category_name, c.slug AS category_slug,
-      bookmarks_fts.rank AS rank, ${tagProjection} AS tag_names
-    FROM bookmarks_fts
-    INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
-    LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
-    LEFT JOIN tags t ON t.id = bt.tag_id
-    LEFT JOIN categories c ON c.id = b.category_id
-    WHERE bookmarks_fts MATCH ${ftsQuery}
-      AND ${viewCondition(view)} ${tagCondition} ${categoryCondition} ${pinnedCondition} ${cursorCondition}
+    ${cte}
+    ${searchSelect}
+    WHERE bookmarks_fts MATCH ${ftsQuery} ${condition} ${cursorCondition}
     GROUP BY b.id
     ORDER BY bookmarks_fts.rank ASC, b.id DESC
     LIMIT ${limit + 1}

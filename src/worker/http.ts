@@ -24,6 +24,8 @@ export const idParamSchema = z.coerce.number().int().positive();
 
 export const cursorSchema = z.string().trim().min(1).max(256).optional();
 export const limitSchema = z.coerce.number().int().min(1).max(100).default(24);
+/** 分页偏移：缺省 undefined 表示游标模式；提供后进入页码分页并返回 total。 */
+export const offsetSchema = z.coerce.number().int().min(0).optional();
 
 export function parseBooleanQuery(value: string | undefined): boolean | undefined {
   if (value === undefined) return undefined;
