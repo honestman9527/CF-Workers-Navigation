@@ -1,3 +1,5 @@
+import type { ChangeEvent, DragEvent } from 'react';
+
 import type { ImportSummary, TransferFormat } from '@shared/api/types';
 
 import {
@@ -158,7 +160,7 @@ export function TransferTab() {
     }
   }
 
-  function onDrop(event: React.DragEvent) {
+  function onDrop(event: DragEvent) {
     event.preventDefault();
     setDragging(false);
     const file = event.dataTransfer.files?.[0];
@@ -167,7 +169,7 @@ export function TransferTab() {
     }
   }
 
-  function onInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function onInputChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file) {
       pickFile(file);

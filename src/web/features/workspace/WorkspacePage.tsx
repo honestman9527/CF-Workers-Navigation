@@ -20,10 +20,11 @@ import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
-import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
+import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
+import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
 import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
 import { categoryIcon } from '@nav/features/categories/icons';
@@ -72,13 +73,6 @@ export function WorkspacePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
-  const [confirmState, setConfirmState] = useState<{
-    title: string;
-    description?: string;
-    confirmLabel: string;
-    destructive?: boolean;
-    onConfirm: () => void;
-  } | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     try {
@@ -302,27 +296,12 @@ export function WorkspacePage() {
     return sections;
   }, [categories, landing, page.items]);
 
-  async function mutate(action: () => Promise<unknown>, message: string) {
-    try {
-      await action();
-      page.refresh();
-      await loadTags();
-      await loadCategories();
-      pushToast(message, 'success');
-    } catch (error) {
-      reportError(error instanceof Error ? error.message : '操作失败');
-    }
-  }
-
-  function askConfirm(state: {
-    title: string;
-    description?: string;
-    confirmLabel: string;
-    destructive?: boolean;
-    action: () => Promise<unknown>;
-  }) {
-    setConfirmState({ ...state, onConfirm: () => void state.action() });
-  }
+  const { confirmState, mutate, askConfirm, setConfirmState } = useBookmarkMutations({
+    refreshPage: page.refresh,
+    reloadTags: loadTags,
+    reloadCategories: loadCategories,
+    onError: reportError,
+  });
 
   const title =
     view === 'active'
@@ -641,21 +620,7 @@ export function WorkspacePage() {
           />
         ) : null}
       </Suspense>
-      <ConfirmDialog
-        open={confirmState !== null}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) setConfirmState(null);
-        }}
-        title={confirmState?.title ?? ''}
-        description={confirmState?.description}
-        confirmLabel={confirmState?.confirmLabel ?? '确认'}
-        destructive={confirmState?.destructive ?? true}
-        onConfirm={() => {
-          const action = confirmState?.onConfirm;
-          setConfirmState(null);
-          action?.();
-        }}
-      />
+      <ConfirmStateDialog state={confirmState} onClose={() => setConfirmState(null)} />
     </>
   );
 }

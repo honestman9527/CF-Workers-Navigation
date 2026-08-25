@@ -1,21 +1,21 @@
 import type { Tag } from '@shared/api/types';
 
 import { Check, GitMerge, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { ApiError, api } from '@nav/api/client';
+import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { DialogPanel } from '@nav/components/DialogPanel';
-import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { useApiData } from '@nav/hooks/useApiData';
+
+import { useAdminRun } from './shared';
 
 export function TagsTab() {
   const auth = useAuthContext();
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('');
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -23,68 +23,35 @@ export function TagsTab() {
   const [mergeFor, setMergeFor] = useState<Tag | null>(null);
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Tag | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  async function refresh() {
-    setTags(await api.getTags());
-  }
+  const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
+  const {
+    data: tags,
+    loading,
+    error: loadError,
+    refresh,
+  } = useApiData(loadTags, {
+    onUnauthorized: () => void auth.logout(),
+  });
+  const { busy, error: runError, run } = useAdminRun();
 
-  useEffect(() => {
-    let alive = true;
-    api
-      .getTags()
-      .then((next) => {
-        if (alive) setTags(next);
-      })
-      .catch((caught) => {
-        if (caught instanceof ApiError && caught.status === 401) {
-          void auth.logout();
-        } else if (alive) {
-          setError(caught instanceof ApiError ? caught.message : '标签加载失败');
-        }
-      })
-      .finally(() => {
-        if (alive) setLoaded(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  async function run(action: () => Promise<unknown>, message?: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      await refresh();
-      if (message) pushToast(message, 'success');
-    } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        void auth.logout();
-      } else {
-        setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+  const error = runError ?? loadError;
 
   async function commitCreate() {
     const name = createName.trim();
     setCreating(false);
     setCreateName('');
     if (!name) return;
-    await run(() => api.createTag('', name), '标签已创建');
+    await run(() => api.createTag('', name), { message: '标签已创建', refresh });
   }
 
   async function commitRename() {
     if (editing === null) return;
     const name = editing.name.trim();
-    const current = tags.find((item) => item.id === editing.id);
+    const current = (tags ?? []).find((item) => item.id === editing.id);
     setEditing(null);
     if (!name || !current || name === current.name) return;
-    await run(() => api.updateTag('', editing.id, name), '标签已重命名');
+    await run(() => api.updateTag('', editing.id, name), { message: '标签已重命名', refresh });
   }
 
   async function commitMerge() {
@@ -92,18 +59,21 @@ export function TagsTab() {
     const source = mergeFor;
     setMergeFor(null);
     setMergeTarget(null);
-    await run(() => api.mergeTag('', source.id, mergeTarget), `已合并到目标标签`);
+    await run(() => api.mergeTag('', source.id, mergeTarget), {
+      message: `已合并到目标标签`,
+      refresh,
+    });
   }
 
   async function remove(target: Tag) {
     setConfirmDelete(null);
-    await run(() => api.deleteTag('', target.id), '标签已删除');
+    await run(() => api.deleteTag('', target.id), { message: '标签已删除', refresh });
   }
 
   const filtered = useMemo(() => {
     const query = filter.trim().toLocaleLowerCase();
-    if (!query) return tags;
-    return tags.filter(
+    if (!query) return tags ?? [];
+    return (tags ?? []).filter(
       (item) =>
         item.name.toLocaleLowerCase().includes(query) ||
         item.slug.toLocaleLowerCase().includes(query),
@@ -148,7 +118,7 @@ export function TagsTab() {
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      {!loaded ? (
+      {loading ? (
         <div className="h-40 animate-pulse rounded-xl bg-muted" />
       ) : (
         <div className="grid gap-1 rounded-xl border border-border/70 bg-card p-3">
@@ -275,7 +245,7 @@ export function TagsTab() {
             </div>
           ) : (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-              {tags.length === 0 ? '还没有标签，编辑书签时会自动创建' : '没有匹配的标签'}
+              {(tags ?? []).length === 0 ? '还没有标签，编辑书签时会自动创建' : '没有匹配的标签'}
             </p>
           )}
         </div>
@@ -302,7 +272,7 @@ export function TagsTab() {
           个书签将改指目标。此操作不可撤销。
         </p>
         <div className="mt-4 grid max-h-64 gap-1 overflow-y-auto pr-1">
-          {tags
+          {(tags ?? [])
             .filter((item) => item.id !== mergeFor?.id)
             .map((item) => {
               const selected = mergeTarget === item.id;

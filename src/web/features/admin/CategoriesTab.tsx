@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -25,13 +25,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { ApiError, api } from '@nav/api/client';
+import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
-import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { useApiData } from '@nav/hooks/useApiData';
 
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
 import { buildCategoryTree, flattenCategoryTree, type CategoryNode } from '../categories/tree';
+import { useAdminRun } from './shared';
 
 type CreateTarget = { parentId: number | 'root' };
 
@@ -90,62 +91,29 @@ function subtreeIds(categories: Category[], rootId: number): number[] {
 
 export function CategoriesTab() {
   const auth = useAuthContext();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const [create, setCreate] = useState<CreateTarget | null>(null);
   const [createName, setCreateName] = useState('');
   const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const tree = useMemo(() => buildCategoryTree(categories), [categories]);
-  const totals = useMemo(() => descendantTotals(categories), [categories]);
+  const loadCategories = useCallback(
+    (signal: AbortSignal) => api.getCategories(undefined, signal),
+    [],
+  );
+  const {
+    data: categories,
+    loading,
+    error: loadError,
+    refresh,
+  } = useApiData(loadCategories, {
+    onUnauthorized: () => void auth.logout(),
+  });
+  const { busy, error: runError, run } = useAdminRun();
 
-  async function refresh() {
-    const next = await api.getCategories();
-    setCategories(next);
-  }
+  const error = runError ?? loadError;
 
-  useEffect(() => {
-    let alive = true;
-    api
-      .getCategories()
-      .then((next) => {
-        if (alive) setCategories(next);
-      })
-      .catch((caught) => {
-        if (caught instanceof ApiError && caught.status === 401) {
-          void auth.logout();
-        } else if (alive) {
-          setError(caught instanceof ApiError ? caught.message : '分类加载失败');
-        }
-      })
-      .finally(() => {
-        if (alive) setLoaded(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  async function run(action: () => Promise<unknown>, message?: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-      await refresh();
-      if (message) pushToast(message, 'success');
-    } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        void auth.logout();
-      } else {
-        setError(caught instanceof ApiError ? caught.message : '操作失败，请重试');
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+  const tree = useMemo(() => buildCategoryTree(categories ?? []), [categories]);
+  const totals = useMemo(() => descendantTotals(categories ?? []), [categories]);
 
   function startCreate(parentId: number | 'root') {
     setCreate({ parentId });
@@ -159,45 +127,54 @@ export function CategoriesTab() {
     setCreateName('');
     if (!name) return;
     const parentId = create.parentId === 'root' ? null : create.parentId;
-    await run(() => api.createCategory('', { name, parentId }), '分类已创建');
+    await run(() => api.createCategory('', { name, parentId }), { message: '分类已创建', refresh });
   }
 
   async function commitRename() {
     if (editing === null) return;
     const name = editing.name.trim();
-    const current = categories.find((item) => item.id === editing.id);
+    const current = (categories ?? []).find((item) => item.id === editing.id);
     setEditing(null);
     if (!name || !current || name === current.name) return;
-    await run(() => api.updateCategory('', editing.id, { name }), '分类已重命名');
+    await run(() => api.updateCategory('', editing.id, { name }), {
+      message: '分类已重命名',
+      refresh,
+    });
   }
 
   async function setIcon(category: Category, icon: string) {
-    await run(() => api.updateCategory('', category.id, { icon }), '图标已更新');
+    await run(() => api.updateCategory('', category.id, { icon }), {
+      message: '图标已更新',
+      refresh,
+    });
   }
 
   async function move(category: Category, direction: -1 | 1) {
-    const ids = siblingIds(categories, category);
+    const ids = siblingIds(categories ?? [], category);
     const index = ids.indexOf(category.id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= ids.length) return;
     const next = [...ids];
     [next[index], next[target]] = [next[target], next[index]];
-    await run(() => api.reorderCategories('', next), '排序已更新');
+    await run(() => api.reorderCategories('', next), { message: '排序已更新', refresh });
   }
 
   async function moveTo(category: Category, parentId: number | null) {
     if (category.parentId === parentId) return;
-    await run(() => api.updateCategory('', category.id, { parentId }), '分类已移动');
+    await run(() => api.updateCategory('', category.id, { parentId }), {
+      message: '分类已移动',
+      refresh,
+    });
   }
 
   async function remove(target: Category) {
     setConfirmDelete(null);
-    await run(() => api.deleteCategory('', target.id), '分类已删除');
+    await run(() => api.deleteCategory('', target.id), { message: '分类已删除', refresh });
   }
 
   const confirmDeleteMeta = useMemo(() => {
     if (!confirmDelete) return null;
-    const ids = subtreeIds(categories, confirmDelete.id);
+    const ids = subtreeIds(categories ?? [], confirmDelete.id);
     const children = ids.length - 1;
     const bookmarks = totals.get(confirmDelete.id) ?? confirmDelete.bookmarkCount;
     return { children, bookmarks };
@@ -206,7 +183,7 @@ export function CategoriesTab() {
   const flat = useMemo(() => flattenCategoryTree(tree), [tree]);
 
   function moveTargets(node: Category): Array<{ id: number | null; label: string }> {
-    const exclude = new Set(subtreeIds(categories, node.id));
+    const exclude = new Set(subtreeIds(categories ?? [], node.id));
     return [
       { id: null, label: '不归属（根目录）' },
       ...flat
@@ -452,7 +429,7 @@ export function CategoriesTab() {
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
-      {!loaded ? (
+      {loading ? (
         <div className="h-40 animate-pulse rounded-xl bg-muted" />
       ) : (
         <div className="grid gap-1 rounded-xl border border-border/70 bg-card p-3">

@@ -9,6 +9,7 @@ import { adminDataRoute } from './routes/admin.data';
 import { adminOverviewRoute } from './routes/admin.overview';
 import { adminSettingsRoute } from './routes/admin.settings';
 import { adminTagsRoute } from './routes/admin.tags';
+import { adminWebsitesRoute } from './routes/admin.websites';
 import { launcherRoute } from './routes/launcher';
 import { loginRoute } from './routes/login';
 import { workspaceRoute } from './routes/workspace';
@@ -19,6 +20,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   adminRoute.addChildren([
     adminOverviewRoute,
+    adminWebsitesRoute,
     adminCategoriesRoute,
     adminTagsRoute,
     adminSettingsRoute,

@@ -1,5 +1,9 @@
-import * as React from 'react';
+import type { ComponentProps, CSSProperties } from 'react';
 
+import { PanelLeft } from 'lucide-react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const SIDEBAR_WIDTH = '16rem';
@@ -16,10 +20,10 @@ type SidebarContextProps = {
   toggleSidebar: () => void;
 };
 
-const SidebarContext = React.createContext<SidebarContextProps | null>(null);
+const SidebarContext = createContext<SidebarContextProps | null>(null);
 
 function useSidebar() {
-  const context = React.useContext(SidebarContext);
+  const context = useContext(SidebarContext);
   if (!context) {
     throw new Error('useSidebar must be used within a SidebarProvider.');
   }
@@ -27,14 +31,14 @@ function useSidebar() {
 }
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(() => {
+  const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return false;
     }
     return !window.matchMedia('(min-width: 64rem)').matches;
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     const mql = window.matchMedia('(min-width: 64rem)');
     const onChange = (event: MediaQueryListEvent) => setIsMobile(!event.matches);
     mql.addEventListener('change', onChange);
@@ -53,17 +57,17 @@ function SidebarProvider({
   style,
   children,
   ...props
-}: React.ComponentProps<'div'> & {
+}: ComponentProps<'div'> & {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
-  const [openMobile, setOpenMobile] = React.useState(false);
-  const [_open, _setOpen] = React.useState(defaultOpen);
+  const [openMobile, setOpenMobile] = useState(false);
+  const [_open, _setOpen] = useState(defaultOpen);
   const open = openProp ?? _open;
 
-  const setOpen = React.useCallback(
+  const setOpen = useCallback(
     (value: boolean | ((prev: boolean) => boolean)) => {
       const openState = typeof value === 'function' ? value(open) : value;
       if (setOpenProp) {
@@ -75,12 +79,12 @@ function SidebarProvider({
     [open, setOpenProp],
   );
 
-  const toggleSidebar = React.useCallback(() => {
+  const toggleSidebar = useCallback(() => {
     return isMobile ? setOpenMobile((value) => !value) : setOpen((value) => !value);
   }, [isMobile, setOpen, setOpenMobile]);
 
   // Keyboard shortcut to toggle the sidebar (Cmd/Ctrl + B).
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
@@ -92,7 +96,7 @@ function SidebarProvider({
   }, [toggleSidebar]);
 
   // Escape closes the mobile sidebar.
-  React.useEffect(() => {
+  useEffect(() => {
     if (!openMobile) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -104,14 +108,14 @@ function SidebarProvider({
   }, [openMobile, setOpenMobile]);
 
   // Close the mobile sidebar when the viewport grows to desktop size.
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isMobile && openMobile) {
       setOpenMobile(false);
     }
   }, [isMobile, openMobile]);
 
   // Lock body scroll while the mobile sidebar is open.
-  React.useEffect(() => {
+  useEffect(() => {
     if (!openMobile) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -122,7 +126,7 @@ function SidebarProvider({
 
   const state = open ? 'expanded' : 'collapsed';
 
-  const contextValue = React.useMemo<SidebarContextProps>(
+  const contextValue = useMemo<SidebarContextProps>(
     () => ({ state, open, setOpen, openMobile, setOpenMobile, isMobile, toggleSidebar }),
     [state, open, setOpen, openMobile, setOpenMobile, isMobile, toggleSidebar],
   );
@@ -136,7 +140,7 @@ function SidebarProvider({
             '--sidebar-width': SIDEBAR_WIDTH,
             '--sidebar-width-mobile': SIDEBAR_WIDTH_MOBILE,
             ...style,
-          } as React.CSSProperties
+          } as CSSProperties
         }
         className={cn('flex min-h-svh w-full', className)}
         {...props}
@@ -154,7 +158,7 @@ function Sidebar({
   className,
   children,
   ...props
-}: React.ComponentProps<'div'> & {
+}: ComponentProps<'div'> & {
   side?: 'left' | 'right';
   variant?: 'sidebar' | 'floating' | 'inset';
   collapsible?: 'offcanvas' | 'none';
@@ -233,7 +237,7 @@ function Sidebar({
   );
 }
 
-function SidebarInset({ className, ...props }: React.ComponentProps<'main'>) {
+function SidebarInset({ className, ...props }: ComponentProps<'main'>) {
   return (
     <main
       data-slot="sidebar-inset"
@@ -243,7 +247,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<'main'>) {
   );
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<'div'>) {
+function SidebarContent({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="sidebar-content"
@@ -254,4 +258,25 @@ function SidebarContent({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-export { Sidebar, SidebarContent, SidebarInset, SidebarProvider };
+/** 侧边栏开关：移动端唤起抽屉，桌面端折叠/展开。放在 SidebarProvider 内使用。 */
+function SidebarTrigger({ className, onClick }: ComponentProps<'button'>) {
+  const { toggleSidebar } = useSidebar();
+  return (
+    <Button
+      data-sidebar="trigger"
+      data-slot="sidebar-trigger"
+      variant="ghost"
+      size="icon-sm"
+      className={cn('size-9', className)}
+      onClick={(event) => {
+        onClick?.(event);
+        toggleSidebar();
+      }}
+      aria-label="切换侧边栏"
+    >
+      <PanelLeft className="size-4" />
+    </Button>
+  );
+}
+
+export { Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar };

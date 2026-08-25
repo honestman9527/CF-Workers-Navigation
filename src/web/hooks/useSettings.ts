@@ -1,16 +1,18 @@
 import type { Settings } from '@shared/api/types';
 
-import { useEffect, useRef, useState } from 'react';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { useEffect, useRef } from 'react';
 
-import { ApiError, api } from '@nav/api/client';
+import { loadSettingsAtom, settingsStateAtom } from '@nav/features/settings/store';
 
 /**
  * 读取服务端设置（搜索引擎、favicon、背景图片等）。
- * 挂载时请求一次并缓存到本地 state；401 时回调 onUnauthorized（经 ref 读取，
- * 不依赖回调的引用稳定性）。
+ * 数据经 jotai 原子缓存，多个页面共享同一份（只请求一次）；401 时回调 onUnauthorized
+ * （经 ref 读取，不依赖回调的引用稳定性）。
  */
 export function useSettings(onUnauthorized?: () => void): Settings | null {
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const { settings } = useAtomValue(settingsStateAtom);
+  const loadSettings = useSetAtom(loadSettingsAtom);
   const onUnauthorizedRef = useRef(onUnauthorized);
 
   useEffect(() => {
@@ -18,21 +20,8 @@ export function useSettings(onUnauthorized?: () => void): Settings | null {
   }, [onUnauthorized]);
 
   useEffect(() => {
-    let alive = true;
-    api
-      .getSettings()
-      .then((data) => {
-        if (alive) setSettings(data);
-      })
-      .catch((caught) => {
-        if (caught instanceof ApiError && caught.status === 401) {
-          onUnauthorizedRef.current?.();
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+    void loadSettings({ onUnauthorized: () => onUnauthorizedRef.current?.() });
+  }, [loadSettings]);
 
   return settings;
 }

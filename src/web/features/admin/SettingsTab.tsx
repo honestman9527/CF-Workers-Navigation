@@ -1,7 +1,7 @@
 import type { SearchEngine } from '@shared/search';
 
 import { Check, Image, Pencil, Plus, Settings, Trash2, TriangleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -11,6 +11,7 @@ import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { useApiData } from '@nav/hooks/useApiData';
 import { DEFAULT_SEARCH_ENGINES, domainOf, faviconFor } from '@shared/search';
 
 const PRESETS: { id: string; label: string; url: string }[] = [
@@ -199,40 +200,32 @@ export function SettingsTab() {
   const [searchEngines, setSearchEngines] = useState<SearchEngine[]>(DEFAULT_SEARCH_ENGINES);
   const [defaultEngineId, setDefaultEngineId] = useState('google');
   const [engineDialog, setEngineDialog] = useState<{ engine?: SearchEngine } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedProvider = PRESETS.find((preset) => preset.url === faviconProxyUrl)?.id ?? 'custom';
 
+  const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(undefined, signal), []);
+  const { data: settings, loading } = useApiData(loadSettings, {
+    onUnauthorized: () => void auth.logout(),
+  });
+  /** 数据到达后再填表，避免首次渲染空表单闪一下。 */
+  const pending = loading || settings === null;
+
   useEffect(() => {
-    let alive = true;
-    api
-      .getSettings()
-      .then((data) => {
-        if (!alive) return;
-        setFaviconProxyUrl(data.faviconProxyUrl);
-        setFaviconProxyEnabled(data.faviconProxyEnabled);
-        setBackgroundImageUrl(data.backgroundImageUrl);
-        setBackgroundImageEnabled(data.backgroundImageEnabled);
-        setSearchEngines(
-          data.searchEngines.length > 0 ? data.searchEngines : DEFAULT_SEARCH_ENGINES,
-        );
-        const ids = (
-          data.searchEngines.length > 0 ? data.searchEngines : DEFAULT_SEARCH_ENGINES
-        ).map((engine) => engine.id);
-        setDefaultEngineId(ids.includes(data.defaultEngineId) ? data.defaultEngineId : ids[0]);
-      })
-      .catch((caught) => {
-        if (handleUnauthorized(auth, caught)) return;
-        if (alive) setError(caught instanceof ApiError ? caught.message : '加载设置失败');
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+    if (!settings) return;
+    setFaviconProxyUrl(settings.faviconProxyUrl);
+    setFaviconProxyEnabled(settings.faviconProxyEnabled);
+    setBackgroundImageUrl(settings.backgroundImageUrl);
+    setBackgroundImageEnabled(settings.backgroundImageEnabled);
+    const engines =
+      settings.searchEngines.length > 0 ? settings.searchEngines : DEFAULT_SEARCH_ENGINES;
+    setSearchEngines(engines);
+    setDefaultEngineId(
+      engines.some((engine) => engine.id === settings.defaultEngineId)
+        ? settings.defaultEngineId
+        : engines[0].id,
+    );
+  }, [settings]);
 
   async function handleSave() {
     setSaving(true);
@@ -264,7 +257,7 @@ export function SettingsTab() {
         </p>
       </div>
 
-      {loading ? (
+      {pending ? (
         <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
           加载中…
         </div>

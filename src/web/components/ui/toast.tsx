@@ -1,24 +1,22 @@
+import type { ComponentProps } from 'react';
+
 import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import { CheckCircle2Icon, InfoIcon, Loader2Icon, TriangleAlertIcon, XIcon } from 'lucide-react';
-import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const toast = ToastPrimitive.createToastManager();
 
-function ToastProvider({ ...props }: React.ComponentProps<typeof ToastPrimitive.Provider>) {
+function ToastProvider({ ...props }: ComponentProps<typeof ToastPrimitive.Provider>) {
   return <ToastPrimitive.Provider {...props} />;
 }
 
-function ToastPortal({ ...props }: React.ComponentProps<typeof ToastPrimitive.Portal>) {
+function ToastPortal({ ...props }: ComponentProps<typeof ToastPrimitive.Portal>) {
   return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />;
 }
 
-function ToastViewport({
-  className,
-  ...props
-}: React.ComponentProps<typeof ToastPrimitive.Viewport>) {
+function ToastViewport({ className, ...props }: ComponentProps<typeof ToastPrimitive.Viewport>) {
   return (
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
@@ -31,7 +29,7 @@ function ToastViewport({
   );
 }
 
-function Toast({ className, ...props }: React.ComponentProps<typeof ToastPrimitive.Root>) {
+function Toast({ className, ...props }: ComponentProps<typeof ToastPrimitive.Root>) {
   return (
     <ToastPrimitive.Root
       data-slot="toast"
@@ -44,10 +42,7 @@ function Toast({ className, ...props }: React.ComponentProps<typeof ToastPrimiti
   );
 }
 
-function ToastContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof ToastPrimitive.Content>) {
+function ToastContent({ className, ...props }: ComponentProps<typeof ToastPrimitive.Content>) {
   return (
     <ToastPrimitive.Content
       data-slot="toast-content"
@@ -57,7 +52,7 @@ function ToastContent({
   );
 }
 
-function ToastTitle({ className, ...props }: React.ComponentProps<typeof ToastPrimitive.Title>) {
+function ToastTitle({ className, ...props }: ComponentProps<typeof ToastPrimitive.Title>) {
   return (
     <ToastPrimitive.Title
       data-slot="toast-title"
@@ -70,7 +65,7 @@ function ToastTitle({ className, ...props }: React.ComponentProps<typeof ToastPr
 function ToastDescription({
   className,
   ...props
-}: React.ComponentProps<typeof ToastPrimitive.Description>) {
+}: ComponentProps<typeof ToastPrimitive.Description>) {
   return (
     <ToastPrimitive.Description
       data-slot="toast-description"
@@ -84,7 +79,7 @@ function ToastAction({
   className,
   render = <Button variant="outline" size="sm" />,
   ...props
-}: React.ComponentProps<typeof ToastPrimitive.Action>) {
+}: ComponentProps<typeof ToastPrimitive.Action>) {
   return (
     <ToastPrimitive.Action
       data-slot="toast-action"
@@ -100,7 +95,7 @@ function ToastClose({
   children,
   render = <Button variant="ghost" size="icon-sm" />,
   ...props
-}: React.ComponentProps<typeof ToastPrimitive.Close>) {
+}: ComponentProps<typeof ToastPrimitive.Close>) {
   return (
     <ToastPrimitive.Close
       data-slot="toast-close"
@@ -143,7 +138,7 @@ function Toaster({
   children,
   toastManager = toast,
   ...props
-}: React.ComponentProps<typeof ToastPrimitive.Provider>) {
+}: ComponentProps<typeof ToastPrimitive.Provider>) {
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
