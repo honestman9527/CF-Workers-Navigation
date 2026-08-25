@@ -43,8 +43,9 @@ export function BookmarkCard({
   onDelete: (bookmark: Bookmark) => void;
   onTogglePin: (bookmark: Bookmark) => void;
   onArchive: (bookmark: Bookmark) => void;
-  onRestore: (id: number) => void;
-  onPermanentDelete: (bookmark: Bookmark) => void;
+  /** 归档/回收站视图能力只存在于管理后台；工作区不传。 */
+  onRestore?: (id: number) => void;
+  onPermanentDelete?: (bookmark: Bookmark) => void;
   onSelectTag?: (tag: string) => void;
   onSelectCategory?: (slug: string) => void;
 }) {
@@ -100,7 +101,7 @@ export function BookmarkCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => onRestore(bookmark.id)}
+            onClick={() => onRestore?.(bookmark.id)}
             aria-label="恢复"
           >
             <Undo2 className="size-4" />
@@ -108,7 +109,7 @@ export function BookmarkCard({
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => onPermanentDelete(bookmark)}
+            onClick={() => onPermanentDelete?.(bookmark)}
             aria-label="永久删除"
           >
             <X className="size-4" />
@@ -118,7 +119,7 @@ export function BookmarkCard({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => onRestore(bookmark.id)}
+          onClick={() => onRestore?.(bookmark.id)}
           aria-label="取消归档"
         >
           <ArchiveRestore className="size-4" />

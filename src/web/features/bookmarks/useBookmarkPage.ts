@@ -1,16 +1,19 @@
-import type { Bookmark, BookmarkView } from '@shared/api/types';
+import type { Bookmark, BookmarkPage, BookmarkView } from '@shared/api/types';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@nav/api/client';
 
+/**
+ * 工作区的「一次取全部」数据源：按当前筛选（常用入口/分类/标签）游标循环取全部；
+ * 输入搜索关键词时只按关键词全量匹配（忽略分类/标签/置顶）。不提供分页。
+ */
 export function useBookmarkPage({
   view,
   category,
   tag,
   pinned,
   query,
-  fetchAll,
   onUnauthorized,
   onError,
 }: {
@@ -20,26 +23,34 @@ export function useBookmarkPage({
   pinned: boolean;
   /** 搜索关键词（已由 URL 层防抖，此处直接使用）。 */
   query: string;
-  /** 全量拉取模式：游标循环取完当前视图所有书签，用于落地页按分类分组的展示。 */
-  fetchAll?: boolean;
   onUnauthorized: () => void;
   onError: (message: string) => void;
 }) {
   const [items, setItems] = useState<Bookmark[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // 回调经 ref 读取，避免非稳定引用进入 effect 依赖导致每次渲染重取（页面传入的 reportError 每次渲染都是新引用）。
+  const optionsRef = useRef({ onUnauthorized, onError });
+  useEffect(() => {
+    optionsRef.current = { onUnauthorized, onError };
+  }, [onUnauthorized, onError]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    const request = fetchAll
-      ? (async () => {
-          const items: Bookmark[] = [];
-          let cursor: string | null = null;
-          do {
-            const page = await api.getBookmarks(
+    const request = (async () => {
+      const result: Bookmark[] = [];
+      let cursor: string | null = null;
+      do {
+        // 全量搜索：不再依赖分类/标签/置顶，只按关键词匹配。
+        const page: BookmarkPage = query
+          ? await api.searchBookmarks(
+              undefined,
+              query,
+              { view, cursor: cursor ?? undefined, limit: 100 },
+              controller.signal,
+            )
+          : await api.getBookmarks(
               undefined,
               {
                 view,
@@ -51,88 +62,32 @@ export function useBookmarkPage({
               },
               controller.signal,
             );
-            items.push(...page.items);
-            cursor = page.nextCursor;
-          } while (cursor && !controller.signal.aborted);
-          return { items, nextCursor: null as string | null };
-        })()
-      : query
-        ? api.searchBookmarks(
-            undefined,
-            query,
-            {
-              view,
-              category,
-              tag,
-              pinned: pinned || undefined,
-              limit: 24,
-            },
-            controller.signal,
-          )
-        : api.getBookmarks(
-            undefined,
-            {
-              view,
-              category,
-              tag,
-              pinned: pinned || undefined,
-              limit: 24,
-            },
-            controller.signal,
-          );
+        result.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor && !controller.signal.aborted);
+      return result;
+    })();
     void request
-      .then((page) => {
-        setItems(page.items);
-        setNextCursor(page.nextCursor);
+      .then((next) => {
+        setItems(next);
       })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        if (error instanceof ApiError && error.status === 401) onUnauthorized();
-        else onError(error instanceof Error ? error.message : '加载失败');
+      .catch((caught: unknown) => {
+        if (caught instanceof DOMException && caught.name === 'AbortError') return;
+        if (caught instanceof ApiError && caught.status === 401) {
+          optionsRef.current.onUnauthorized();
+        } else {
+          optionsRef.current.onError(caught instanceof Error ? caught.message : '加载失败');
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, fetchAll, pinned, query, refreshKey, tag, view]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = query
-        ? await api.searchBookmarks(undefined, query, {
-            view,
-            category,
-            tag,
-            pinned: pinned || undefined,
-            cursor: nextCursor,
-            limit: 24,
-          })
-        : await api.getBookmarks(undefined, {
-            view,
-            category,
-            tag,
-            pinned: pinned || undefined,
-            cursor: nextCursor,
-            limit: 24,
-          });
-      setItems((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) onUnauthorized();
-      else onError(error instanceof Error ? error.message : '加载失败');
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  }, [category, pinned, query, refreshKey, tag, view]);
 
   return {
     items,
     loading,
-    loadingMore,
-    hasMore: nextCursor !== null,
-    loadMore,
     refresh: () => setRefreshKey((value) => value + 1),
   };
 }

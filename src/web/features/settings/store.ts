@@ -30,8 +30,8 @@ export function setPreferredFrontView(mode: FrontViewMode): void {
   }
 }
 
-export function getPreferredFrontRoute(): '/' | '/workspace' {
-  return getPreferredFrontView() === 'workspace' ? '/workspace' : '/';
+export function getPreferredFrontRoute(): '/launch' | '/workspace' {
+  return getPreferredFrontView() === 'workspace' ? '/workspace' : '/launch';
 }
 
 const themeStorage = {

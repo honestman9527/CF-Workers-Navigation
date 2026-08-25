@@ -1,5 +1,4 @@
 import {
-  Archive,
   Bookmark,
   ChevronDown,
   LayoutDashboard,
@@ -7,7 +6,6 @@ import {
   Moon,
   Rocket,
   Sun,
-  Trash2,
   UserRound,
 } from 'lucide-react';
 
@@ -22,14 +20,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-/** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。 */
+/** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。归档/回收站只存在于管理后台。 */
 export function HeaderMenu({
   theme,
   onThemeChange,
   onOpenLauncher,
   onOpenWorkspace,
-  onOpenArchive,
-  onOpenTrash,
   onOpenAdmin,
   onLogout,
 }: {
@@ -37,8 +33,6 @@ export function HeaderMenu({
   onThemeChange: (theme: 'dark' | 'light') => void;
   onOpenLauncher?: () => void;
   onOpenWorkspace?: () => void;
-  onOpenArchive?: () => void;
-  onOpenTrash?: () => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
@@ -77,18 +71,6 @@ export function HeaderMenu({
           <DropdownMenuItem onClick={onOpenLauncher}>
             <Rocket className="size-4" />
             启动台
-          </DropdownMenuItem>
-        ) : null}
-        {onOpenArchive ? (
-          <DropdownMenuItem onClick={onOpenArchive}>
-            <Archive className="size-4" />
-            归档
-          </DropdownMenuItem>
-        ) : null}
-        {onOpenTrash ? (
-          <DropdownMenuItem onClick={onOpenTrash}>
-            <Trash2 className="size-4" />
-            回收站
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />

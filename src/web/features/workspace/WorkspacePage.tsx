@@ -5,7 +5,6 @@ import {
   Bookmark as BookmarkIcon,
   FolderPlus,
   FolderTree,
-  Inbox,
   LayoutGrid,
   List,
   Menu,
@@ -40,7 +39,7 @@ import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
-import { resolveWorkspaceSearch, type WorkspaceView } from './search';
+import { resolveWorkspaceSearch } from './search';
 
 const routeApi = getRouteApi('/workspace');
 
@@ -52,15 +51,13 @@ const BookmarkForm = lazy(() =>
 
 const VIEW_MODE_KEY = 'nav-view-mode';
 
-type View = WorkspaceView;
-
 export function WorkspacePage() {
   const auth = useAuthContext();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
-  const { view, pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
+  const { pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
 
   const handleUnauthorized = useCallback(() => {
     void auth.logout();
@@ -113,16 +110,15 @@ export function WorkspacePage() {
     pushToast(message, 'error');
   }
 
-  /** 落地视图：活动书签、无任何筛选 —— 全部网站按分类分组展示。 */
-  const landing = view === 'active' && !pinned && !tag && !category && !query;
+  /** 落地视图：无任何筛选 —— 全部网站按分类分组展示。 */
+  const landing = !pinned && !tag && !category && !query;
 
   const page = useBookmarkPage({
-    view,
+    view: 'active',
     category,
     tag,
-    pinned: view === 'active' && pinned && !tag && !category,
+    pinned: pinned && !tag && !category,
     query: query ?? '',
-    fetchAll: landing,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
   });
@@ -155,9 +151,8 @@ export function WorkspacePage() {
   }, []);
 
   useEffect(() => {
-    document.title =
-      view === 'active' ? '书签柜' : view === 'archive' ? '归档 · 书签柜' : '回收站 · 书签柜';
-  }, [view]);
+    document.title = '书签柜';
+  }, []);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -186,19 +181,26 @@ export function WorkspacePage() {
     }
   }, [categories, categoriesLoaded, category, navigate]);
 
-  function selectView(next: View, options?: { pinned?: boolean }) {
+  /** 进入「常用入口」：显式 pinned=true。 */
+  function goCommon() {
     setNavOpen(false);
     void navigate({
       to: '/workspace',
-      search: {
-        view: next === 'active' ? undefined : next,
-        // 仅「常用入口」显式 pinned=true；默认（全部网站）不再写 pinned=false。
-        pinned: next === 'active' && options?.pinned === true ? true : undefined,
-        category: undefined,
-        tag: undefined,
-        q: undefined,
-      },
+      search: { pinned: true, category: undefined, tag: undefined, q: undefined },
     });
+  }
+
+  /** 「常用入口」切换：已在常用入口时回到默认「全部网站」（不再写 pinned=false）。 */
+  function toggleCommon() {
+    if (pinned && !category && !tag) {
+      setNavOpen(false);
+      void navigate({
+        to: '/workspace',
+        search: { category: undefined, tag: undefined, q: undefined },
+      });
+      return;
+    }
+    goCommon();
   }
 
   /** 选择分类筛选：保留已选标签，二者可叠加；再点当前分类则取消筛选回到全部。 */
@@ -208,7 +210,6 @@ export function WorkspacePage() {
       to: '/workspace',
       search: (prev) => ({
         ...prev,
-        view: undefined,
         // 进入分类筛选即离开「常用入口」，清除 pinned（写 undefined 表示省略，不产生 pinned=false）。
         pinned: undefined,
         category: prev.category === slug ? undefined : slug,
@@ -224,7 +225,6 @@ export function WorkspacePage() {
       to: '/workspace',
       search: (prev) => ({
         ...prev,
-        view: undefined,
         pinned: undefined,
         tag: next,
         q: undefined,
@@ -307,22 +307,17 @@ export function WorkspacePage() {
     onError: reportError,
   });
 
-  const title =
-    view === 'active'
-      ? query
-        ? `搜索 “${query}”`
-        : category
-          ? (selectedCategoryName ?? category)
-          : tag
-            ? (selectedTagName ?? tag)
-            : pinned
-              ? '常用入口'
-              : '全部网站'
-      : view === 'archive'
-        ? '归档'
-        : '回收站';
+  const title = query
+    ? `搜索 “${query}”`
+    : category
+      ? (selectedCategoryName ?? category)
+      : tag
+        ? (selectedTagName ?? tag)
+        : pinned
+          ? '常用入口'
+          : '全部网站';
 
-  /** 书签卡片统一渲染：落地分组与普通列表共用一套操作与筛选回调。 */
+  /** 书签卡片统一渲染：落地分组与普通列表共用一套操作与筛选回调（恢复/永久删除只在管理后台）。 */
   const renderCard = (bookmark: Bookmark) => (
     <BookmarkCard
       key={bookmark.id}
@@ -346,25 +341,14 @@ export function WorkspacePage() {
       onArchive={(item) =>
         askConfirm({
           title: `归档「${item.title}」？`,
-          description: '归档后书签会收藏到「归档」视图，可随时取消归档恢复。',
+          description: '归档后书签会移入「归档」状态，可在管理后台查看或恢复。',
           confirmLabel: '归档',
           destructive: false,
           action: () => api.archiveBookmark('', item.id),
         })
       }
-      onRestore={(id) => void mutate(() => api.restoreBookmark('', id), '已恢复')}
-      onPermanentDelete={(item) =>
-        askConfirm({
-          title: `永久删除「${item.title}」？`,
-          description: '此操作不可撤销，记录将从回收站中彻底移除。',
-          confirmLabel: '永久删除',
-          action: () => api.permanentDeleteBookmark('', item.id),
-        })
-      }
-      onSelectTag={view === 'active' ? selectTagFilter : undefined}
-      onSelectCategory={
-        view === 'active' ? (nextCategory) => selectCategory(nextCategory) : undefined
-      }
+      onSelectTag={selectTagFilter}
+      onSelectCategory={selectCategory}
     />
   );
 
@@ -379,7 +363,7 @@ export function WorkspacePage() {
           <Menu />
         </button>
       }
-      brand={<Brand onClick={() => selectView('active', { pinned: true })} />}
+      brand={<Brand onClick={goCommon} />}
       actions={
         <Button size="sm" onClick={() => setEditor('new')}>
           <Plus />
@@ -390,9 +374,7 @@ export function WorkspacePage() {
         <HeaderMenu
           theme={theme}
           onThemeChange={setTheme}
-          onOpenLauncher={() => void navigate({ to: '/' })}
-          onOpenArchive={() => selectView('archive')}
-          onOpenTrash={() => selectView('trash')}
+          onOpenLauncher={() => void navigate({ to: '/launch' })}
           onOpenAdmin={() => void navigate({ to: '/admin' })}
           onLogout={() => void auth.logout()}
         />
@@ -410,21 +392,8 @@ export function WorkspacePage() {
       </div>
       <div className="grid gap-1">
         <button
-          onClick={() => selectView('active')}
-          className={cn(
-            'nav-item',
-            view === 'active' && !pinned && !tag && !category && 'nav-item-active',
-          )}
-        >
-          <Inbox />
-          全部
-        </button>
-        <button
-          onClick={() => selectView('active', { pinned: true })}
-          className={cn(
-            'nav-item',
-            view === 'active' && pinned && !tag && !category && 'nav-item-active',
-          )}
+          onClick={toggleCommon}
+          className={cn('nav-item', pinned && !tag && !category && 'nav-item-active')}
         >
           <Star />
           常用入口
@@ -482,17 +451,11 @@ export function WorkspacePage() {
               </kbd>
             )}
           </div>
-          {view === 'active' ? (
-            <TagFilter tags={tags} selected={tag} onSelect={selectTagFilter} />
-          ) : null}
+          <TagFilter tags={tags} selected={tag} onSelect={selectTagFilter} />
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
-                {view === 'active'
-                  ? '你的网络入口'
-                  : view === 'archive'
-                    ? '暂时收起'
-                    : '可恢复项目'}
+                你的网络入口
               </p>
               <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
                 {title}
@@ -572,28 +535,15 @@ export function WorkspacePage() {
               })}
             </div>
           ) : (
-            <>
-              <div
-                className={cn(
-                  viewMode === 'grid'
-                    ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
-                    : 'grid gap-2',
-                )}
-              >
-                {page.items.map(renderCard)}
-              </div>
-              {page.hasMore ? (
-                <div className="flex justify-center border-t border-border pt-5">
-                  <Button
-                    variant="outline"
-                    disabled={page.loadingMore}
-                    onClick={() => void page.loadMore()}
-                  >
-                    {page.loadingMore ? '加载中…' : '加载更多'}
-                  </Button>
-                </div>
-              ) : null}
-            </>
+            <div
+              className={cn(
+                viewMode === 'grid'
+                  ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
+                  : 'grid gap-2',
+              )}
+            >
+              {page.items.map(renderCard)}
+            </div>
           )}
         </div>
       </AppShell>
