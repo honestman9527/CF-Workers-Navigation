@@ -31,7 +31,7 @@ API 资源以 `/api/v1/*` 下的独立路由表达：`bookmarks`、`categories`�
 
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 
-Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台首页在 `/`，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/`）是默认首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态经 router context 注入，未登录访问受保护路由由守卫重定向到 `/login`，退出或 401 过期由 `App` 统一回登录页。
+Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台首页在 `/`，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/`）是默认首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜无筛选的裸 `/workspace` 会在分类加载后以 `replace` 补写默认分类（本地记忆 → 第一个根分类 → 未分类），不再有「全部网站」落地视图，URL 始终反映当前位置。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态经 router context 注入，未登录访问受保护路由由守卫重定向到 `/login`，退出或 401 过期由 `App` 统一回登录页。
 
 Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题持久化到 localStorage 并自动迁移旧 key，设置首次请求后全局复用、不再逐页重复 `GET /settings`；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
 
@@ -73,6 +73,6 @@ Worker 不能混入 DOM，扩展不能混入 Worker 类型，Web 与扩展还需
 - Web 用 HttpOnly session cookie 登录；扩展配置与管理员密码保存在 Chrome storage，请求带 Bearer。
 - Web 通过同源请求访问 API；扩展通过配置的 Worker origin 跨源访问相同 API。
 
-Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（上限 100）；工作区只请求当前 24 条书签和标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。扩展只通过 popup / 右键菜单创建书签，不下载或缓存书签数据。
+Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（上限 100）；工作区按当前筛选（默认分类等）一次取完全部匹配书签（游标循环，单页 100 条）并加载标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。扩展只通过 popup / 右键菜单创建书签，不下载或缓存书签数据。
 
 `pnpm dev` 先生成 `dist/web`，再并行启动 Wrangler 和 Web watch。扩展不进入该开发进程，使用 `pnpm watch:extension` 独立联调。

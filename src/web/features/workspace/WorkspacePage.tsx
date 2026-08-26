@@ -3,7 +3,6 @@ import type { Bookmark, BookmarkInput, Category, Tag } from '@shared/api/types';
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import {
   Bookmark as BookmarkIcon,
-  FolderPlus,
   FolderTree,
   LayoutGrid,
   List,
@@ -13,7 +12,7 @@ import {
   Star,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Toaster } from '@/components/ui/toast';
@@ -26,8 +25,6 @@ import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
 import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
-import { categoryIcon } from '@nav/features/categories/icons';
-import { buildCategoryTree } from '@nav/features/categories/tree';
 import { AppHeader } from '@nav/features/layout/AppHeader';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { Brand } from '@nav/features/layout/Brand';
@@ -39,7 +36,8 @@ import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
-import { resolveWorkspaceSearch } from './search';
+import { isDefaultLanding, resolveDefaultCategorySlug, resolveWorkspaceSearch } from './search';
+import { getRememberedCategory, rememberCategory } from './storage';
 
 const routeApi = getRouteApi('/workspace');
 
@@ -58,6 +56,8 @@ export function WorkspacePage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
   const { pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
+  /** 裸入口：URL 无任何筛选（也非常用入口/搜索），等待默认分类注入，不再有「全部网站」落地。 */
+  const bare = isDefaultLanding({ pinned, category, tag, q: query });
 
   const handleUnauthorized = useCallback(() => {
     void auth.logout();
@@ -110,15 +110,14 @@ export function WorkspacePage() {
     pushToast(message, 'error');
   }
 
-  /** 落地视图：无任何筛选 —— 全部网站按分类分组展示。 */
-  const landing = !pinned && !tag && !category && !query;
-
   const page = useBookmarkPage({
     view: 'active',
     category,
     tag,
     pinned: pinned && !tag && !category,
     query: query ?? '',
+    // 裸入口（URL 尚无分类位置）时暂缓取数：等默认分类注入 URL 后再取，避免先全量取一次再按分类重取。
+    pending: bare,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
   });
@@ -150,6 +149,28 @@ export function WorkspacePage() {
     setPreferredFrontView('workspace');
   }, []);
 
+  /**
+   * 裸入口注入默认分类：URL 无任何筛选时，等分类加载后落到「记忆分类 → 第一个根分类 → 未分类」，
+   * 以 replace 写回 URL（保持深链/回退语义），取代旧的「全部网站」落地视图。
+   */
+  useEffect(() => {
+    if (!categoriesLoaded || !bare) return;
+    const slug = resolveDefaultCategorySlug(categories, getRememberedCategory());
+    void navigate({
+      to: '/workspace',
+      search: (prev) => ({ ...prev, category: slug }),
+      replace: true,
+    });
+  }, [bare, categories, categoriesLoaded, navigate]);
+
+  /** 记录最近浏览的分类位置：点击、深链、注入路径统一在此记忆（含「未分类」）。 */
+  useEffect(() => {
+    if (!categoriesLoaded || !category) return;
+    if (category === UNCATEGORIZED_SLUG || categories.some((item) => item.slug === category)) {
+      rememberCategory(category);
+    }
+  }, [categories, categoriesLoaded, category]);
+
   useEffect(() => {
     document.title = '书签柜';
   }, []);
@@ -165,7 +186,7 @@ export function WorkspacePage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  /** 管理后台删除了当前筛选的分类时，清理该参数避免空结果。 */
+  /** 管理后台删除了当前筛选的分类时，跳到新的默认分类（记忆 → 第一个根分类 → 未分类），保留标签。 */
   useEffect(() => {
     if (
       categoriesLoaded &&
@@ -173,9 +194,10 @@ export function WorkspacePage() {
       category !== UNCATEGORIZED_SLUG &&
       !categories.some((item) => item.slug === category)
     ) {
+      const slug = resolveDefaultCategorySlug(categories, getRememberedCategory());
       void navigate({
         to: '/workspace',
-        search: (prev) => ({ ...prev, category: undefined }),
+        search: (prev) => ({ ...prev, category: slug }),
         replace: true,
       });
     }
@@ -190,29 +212,37 @@ export function WorkspacePage() {
     });
   }
 
-  /** 「常用入口」切换：已在常用入口时回到默认「全部网站」（不再写 pinned=false）。 */
+  /** 「常用入口」切换：已在常用入口时回到默认分类（不再写 pinned=false，也没有「全部网站」可回）。 */
   function toggleCommon() {
     if (pinned && !category && !tag) {
       setNavOpen(false);
+      const slug = categoriesLoaded
+        ? resolveDefaultCategorySlug(categories, getRememberedCategory())
+        : undefined;
       void navigate({
         to: '/workspace',
-        search: { category: undefined, tag: undefined, q: undefined },
+        search: {
+          category: slug,
+          tag: undefined,
+          q: undefined,
+        },
       });
       return;
     }
     goCommon();
   }
 
-  /** 选择分类筛选：保留已选标签，二者可叠加；再点当前分类则取消筛选回到全部。 */
+  /** 选择分类筛选：保留已选标签，二者可叠加；点击当前分类保持选中（不再有「取消筛选回全部」）。 */
   function selectCategory(slug: string) {
     setNavOpen(false);
+    if (slug === category) return;
     void navigate({
       to: '/workspace',
       search: (prev) => ({
         ...prev,
         // 进入分类筛选即离开「常用入口」，清除 pinned（写 undefined 表示省略，不产生 pinned=false）。
         pinned: undefined,
-        category: prev.category === slug ? undefined : slug,
+        category: slug,
         q: undefined,
       }),
     });
@@ -248,58 +278,6 @@ export function WorkspacePage() {
       : (categories.find((item) => item.slug === category)?.name ?? category)
     : null;
 
-  /** 落地视图：把全部活动书签按顶层根分类分区块，子分类书签并入所属根分类。 */
-  const grouped = useMemo(() => {
-    if (!landing) return [];
-    const nodes = buildCategoryTree(categories);
-    const byId = new Map(categories.map((category) => [category.id, category]));
-    const bySlug = new Map<string, Bookmark[]>();
-    const pushTo = (slug: string, bookmark: Bookmark) => {
-      const list = bySlug.get(slug);
-      if (list) list.push(bookmark);
-      else bySlug.set(slug, [bookmark]);
-    };
-    for (const bookmark of page.items) {
-      let node = bookmark.categoryId !== null ? byId.get(bookmark.categoryId) : undefined;
-      let slug: string = UNCATEGORIZED_SLUG;
-      let guard = categories.length + 1;
-      while (node && guard-- > 0) {
-        slug = node.slug;
-        node = node.parentId !== null ? byId.get(node.parentId) : undefined;
-      }
-      pushTo(slug, bookmark);
-    }
-    const sections: Array<{
-      slug: string;
-      name: string;
-      icon: string | null;
-      bookmarks: Bookmark[];
-    }> = [];
-    const seen = new Set<string>();
-    for (const node of nodes) {
-      const bookmarks = bySlug.get(node.slug);
-      if (!bookmarks) continue;
-      seen.add(node.slug);
-      sections.push({ slug: node.slug, name: node.name, icon: node.icon, bookmarks });
-    }
-    if (bySlug.has(UNCATEGORIZED_SLUG)) {
-      seen.add(UNCATEGORIZED_SLUG);
-      sections.push({
-        slug: UNCATEGORIZED_SLUG,
-        name: '未分类',
-        icon: null,
-        bookmarks: bySlug.get(UNCATEGORIZED_SLUG)!,
-      });
-    }
-    // 防御：树外的孤儿分类（如数据不一致）仍展示。
-    for (const [slug, bookmarks] of bySlug) {
-      if (!seen.has(slug) && slug !== UNCATEGORIZED_SLUG) {
-        sections.push({ slug, name: slug, icon: null, bookmarks });
-      }
-    }
-    return sections;
-  }, [categories, landing, page.items]);
-
   const { confirmState, mutate, askConfirm, setConfirmState } = useBookmarkMutations({
     refreshPage: page.refresh,
     reloadTags: loadTags,
@@ -315,9 +293,9 @@ export function WorkspacePage() {
         ? (selectedTagName ?? tag)
         : pinned
           ? '常用入口'
-          : '全部网站';
+          : '加载中…';
 
-  /** 书签卡片统一渲染：落地分组与普通列表共用一套操作与筛选回调（恢复/永久删除只在管理后台）。 */
+  /** 书签卡片统一渲染：单分类/常用入口/标签/搜索共用的操作与筛选回调（恢复/永久删除只在管理后台）。 */
   const renderCard = (bookmark: Bookmark) => (
     <BookmarkCard
       key={bookmark.id}
@@ -502,37 +480,6 @@ export function WorkspacePage() {
               <BookmarkIcon className="mx-auto size-8 text-muted-foreground/40" />
               <p className="mt-3 font-medium">这里还没有书签</p>
               <p className="mt-1 text-sm text-muted-foreground">粘贴一个网址，给它一个标签。</p>
-            </div>
-          ) : landing ? (
-            <div className="space-y-10">
-              {grouped.map((section) => {
-                const Icon = section.icon ? categoryIcon(section.icon) : FolderPlus;
-                return (
-                  <section key={section.slug} aria-labelledby={`landing-section-${section.slug}`}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <Icon className="size-4 text-primary" />
-                      <h2
-                        id={`landing-section-${section.slug}`}
-                        className="font-display text-base font-semibold"
-                      >
-                        {section.name}
-                      </h2>
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {section.bookmarks.length}
-                      </span>
-                    </div>
-                    <div
-                      className={cn(
-                        viewMode === 'grid'
-                          ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
-                          : 'grid gap-2',
-                      )}
-                    >
-                      {section.bookmarks.map(renderCard)}
-                    </div>
-                  </section>
-                );
-              })}
             </div>
           ) : (
             <div

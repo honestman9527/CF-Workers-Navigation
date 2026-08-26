@@ -14,6 +14,7 @@ export function useBookmarkPage({
   tag,
   pinned,
   query,
+  pending = false,
   onUnauthorized,
   onError,
 }: {
@@ -23,6 +24,8 @@ export function useBookmarkPage({
   pinned: boolean;
   /** 搜索关键词（已由 URL 层防抖，此处直接使用）。 */
   query: string;
+  /** 裸入口等待默认分类解析期间暂缓取数，避免先全量取一次再按分类重取。 */
+  pending?: boolean;
   onUnauthorized: () => void;
   onError: (message: string) => void;
 }) {
@@ -36,6 +39,7 @@ export function useBookmarkPage({
   }, [onUnauthorized, onError]);
 
   useEffect(() => {
+    if (pending) return;
     const controller = new AbortController();
     setLoading(true);
     const request = (async () => {
@@ -83,7 +87,7 @@ export function useBookmarkPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, pinned, query, refreshKey, tag, view]);
+  }, [category, pending, pinned, query, refreshKey, tag, view]);
 
   return {
     items,
