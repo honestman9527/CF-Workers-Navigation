@@ -1,4 +1,7 @@
-import type { TransferBookmark, TransferData } from './types';
+import type { TransferBookmark, TransferCategory, TransferData } from './types';
+
+import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
+import { slugify } from '../slug';
 
 const HTML_ENTITIES: Record<string, string> = {
   '&': '&amp;',
@@ -7,6 +10,9 @@ const HTML_ENTITIES: Record<string, string> = {
   '"': '&quot;',
   "'": '&#39;',
 };
+
+/** 未分类书签在 HTML 导出/导入中使用的文件夹名称。 */
+const UNCATEGORIZED_NAME = '未分类';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => HTML_ENTITIES[char] ?? char);
@@ -39,19 +45,22 @@ function parseAddedAt(addDate: string | null): string | null {
     : null;
 }
 
-function cleanTags(tags: string[]): string[] {
-  const unique = new Map<string, string>();
-  for (const raw of tags) {
-    const name = raw.trim();
-    if (name && !unique.has(name.toLocaleLowerCase())) unique.set(name.toLocaleLowerCase(), name);
+type FolderEntry = { name: string; slug: string };
+
+/** 向上找最近的「非未分类」文件夹作为分类；没有则返回 null（书签属于未分类）。 */
+function nearestCategorySlug(stack: FolderEntry[]): string | null {
+  for (let index = stack.length - 1; index >= 0; index -= 1) {
+    if (stack[index].slug !== UNCATEGORIZED_SLUG) return stack[index].slug;
   }
-  return [...unique.values()].slice(0, 30);
+  return null;
 }
 
 export function parseHtml(input: string): TransferData {
   const lines = input.split(/\r?\n/);
-  const folderStack: string[] = [];
+  const folderStack: FolderEntry[] = [];
   const bookmarks: TransferBookmark[] = [];
+  const categories: TransferCategory[] = [];
+  const seenSlugs = new Set<string>();
   let lastBookmark: TransferBookmark | null = null;
 
   for (const rawLine of lines) {
@@ -65,7 +74,15 @@ export function parseHtml(input: string): TransferData {
 
     const folderMatch = line.match(/^<DT>\s*<H3[^>]*>([^<]*)<\/H3>/i);
     if (folderMatch) {
-      folderStack.push(unescapeHtml(folderMatch[1]).trim() || '未命名标签');
+      const name = unescapeHtml(folderMatch[1]).trim() || '未命名分类';
+      const slug = slugify(name) || UNCATEGORIZED_SLUG;
+      const uncategorized = slug === UNCATEGORIZED_SLUG || name === UNCATEGORIZED_NAME;
+      const parentSlug = nearestCategorySlug(folderStack);
+      folderStack.push({ name, slug: uncategorized ? UNCATEGORIZED_SLUG : slug });
+      if (!uncategorized && !seenSlugs.has(slug)) {
+        seenSlugs.add(slug);
+        categories.push({ name, slug, parentSlug });
+      }
       lastBookmark = null;
       continue;
     }
@@ -80,7 +97,8 @@ export function parseHtml(input: string): TransferData {
         url,
         iconUrl: parseIcon(extractAttr(attrs, 'ICON'), extractAttr(attrs, 'ICON_URI')),
         addedAt: parseAddedAt(extractAttr(attrs, 'ADD_DATE')),
-        tags: cleanTags(folderStack),
+        categorySlug: nearestCategorySlug(folderStack),
+        tags: [],
       };
       bookmarks.push(bookmark);
       lastBookmark = bookmark;
@@ -93,7 +111,12 @@ export function parseHtml(input: string): TransferData {
   }
 
   if (bookmarks.length === 0) throw new Error('未找到任何有效书签');
-  return { version: 1, exportedAt: new Date().toISOString(), bookmarks };
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    categories: categories.length > 0 ? categories : undefined,
+    bookmarks,
+  };
 }
 
 function serializeBookmark(bookmark: TransferBookmark, indent: string): string {
@@ -108,11 +131,34 @@ function serializeBookmark(bookmark: TransferBookmark, indent: string): string {
   return lines.join('\n');
 }
 
-function serializeFolder(name: string, bookmarks: TransferBookmark[], indent: string): string {
+function serializeFolder(name: string, content: string[], indent: string): string {
   const lines = [`${indent}<DT><H3>${escapeHtml(name)}</H3>`, `${indent}<DL><p>`];
-  for (const bookmark of bookmarks) lines.push(serializeBookmark(bookmark, `${indent}    `));
+  lines.push(...content);
   lines.push(`${indent}</DL><p>`);
   return lines.join('\n');
+}
+
+type CategoryNode = {
+  name: string;
+  slug: string;
+  bookmarks: TransferBookmark[];
+  children: CategoryNode[];
+};
+
+function serializeNode(node: CategoryNode, indent: string): string {
+  const content: string[] = [];
+  for (const bookmark of node.bookmarks) {
+    content.push(serializeBookmark(bookmark, `${indent}    `));
+  }
+  for (const child of node.children) {
+    content.push(serializeNode(child, `${indent}    `));
+  }
+  return serializeFolder(node.name, content, indent);
+}
+
+function categorySlug(category: TransferCategory): string | null {
+  const slug = category.slug?.trim() || slugify(category.name);
+  return slug && slug !== UNCATEGORIZED_SLUG ? slug : null;
 }
 
 export function serializeHtml(data: TransferData): string {
@@ -126,13 +172,35 @@ export function serializeHtml(data: TransferData): string {
     '<H1>Bookmarks</H1>',
     '<DL><p>',
   ];
-  const groups = new Map<string, TransferBookmark[]>();
-  for (const bookmark of data.bookmarks) {
-    const tags = bookmark.tags.length > 0 ? bookmark.tags : ['未分类'];
-    for (const tag of tags) groups.set(tag, [...(groups.get(tag) ?? []), bookmark]);
+  const nodes = new Map<string, CategoryNode>();
+  const roots: CategoryNode[] = [];
+  for (const category of data.categories ?? []) {
+    const slug = categorySlug(category);
+    if (!slug) continue;
+    nodes.set(slug, { name: category.name, slug, bookmarks: [], children: [] });
   }
-  const body = [...groups]
-    .map(([tag, bookmarks]) => serializeFolder(tag, bookmarks, '    '))
-    .join('\n');
-  return `${header.join('\n')}\n${body}\n</DL><p>\n`;
+  for (const category of data.categories ?? []) {
+    const slug = categorySlug(category);
+    if (!slug) continue;
+    const node = nodes.get(slug)!;
+    const parentSlug = category.parentSlug?.trim() || null;
+    const parent = parentSlug ? nodes.get(parentSlug) : undefined;
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  const uncategorized: TransferBookmark[] = [];
+  for (const bookmark of data.bookmarks) {
+    const node = bookmark.categorySlug ? nodes.get(bookmark.categorySlug) : undefined;
+    if (node) node.bookmarks.push(bookmark);
+    else uncategorized.push(bookmark);
+  }
+
+  const body: string[] = [];
+  for (const root of roots) body.push(serializeNode(root, '    '));
+  if (uncategorized.length > 0) {
+    const content = uncategorized.map((bookmark) => serializeBookmark(bookmark, '        '));
+    body.push(serializeFolder(UNCATEGORIZED_NAME, content, '    '));
+  }
+  return `${header.join('\n')}\n${body.join('\n')}\n</DL><p>\n`;
 }

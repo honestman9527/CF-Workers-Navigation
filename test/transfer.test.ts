@@ -1,7 +1,10 @@
+import type { TransferData } from '../src/worker/transfer/types';
+
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import { detectFormat } from '../src/worker/transfer/detect';
+import { parseHtml, serializeHtml } from '../src/worker/transfer/html';
 import { parseJson } from '../src/worker/transfer/json';
 
 const adminHeaders = {
@@ -69,7 +72,7 @@ describe('transfer api', () => {
     ]);
   });
 
-  it('imports html folders as tags without creating folder nodes', async () => {
+  it('imports html folders as a category tree without tags', async () => {
     const response = await exports.default.fetch(
       'https://example.com/api/v1/transfer/import?format=html&strategy=skip',
       {
@@ -81,20 +84,32 @@ describe('transfer api', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).bookmarksCreated).toBe(2);
 
+    const catsResponse = await exports.default.fetch('https://example.com/api/v1/categories', {
+      headers: { Authorization: 'Bearer dev-password' },
+    });
+    const cats = (await catsResponse.json()) as Array<{
+      name: string;
+      slug: string;
+      parentId: number | null;
+    }>;
+    const dev = cats.find((item) => item.name === '开发工具');
+    const frontend = cats.find((item) => item.name === '前端');
+    expect(dev).toBeDefined();
+    expect(frontend?.parentId).toBe(dev?.id);
+
     const bookmarksResponse = await exports.default.fetch(
       'https://example.com/api/v1/bookmarks?view=all',
       { headers: { Authorization: 'Bearer dev-password' } },
     );
     const page = (await bookmarksResponse.json()) as {
-      items: Array<{ url: string; tags: string[] }>;
+      items: Array<{ url: string; tags: string[]; categorySlug: string | null }>;
     };
-    expect(page.items.find((bookmark) => bookmark.url.includes('github'))?.tags).toEqual([
-      '开发工具',
-    ]);
-    expect(page.items.find((bookmark) => bookmark.url.includes('react'))?.tags).toEqual([
-      '开发工具',
-      '前端',
-    ]);
+    const github = page.items.find((bookmark) => bookmark.url.includes('github'));
+    const react = page.items.find((bookmark) => bookmark.url.includes('react'));
+    expect(github?.tags).toEqual([]);
+    expect(github?.categorySlug).toBe(dev?.slug);
+    expect(react?.tags).toEqual([]);
+    expect(react?.categorySlug).toBe(frontend?.slug);
   });
 
   it('skips duplicate urls and updates tags on repeated imports', async () => {
@@ -244,6 +259,87 @@ describe('parseJson tag backup', () => {
 
   it('reports malformed json in chinese', () => {
     expect(() => parseJson('{ not valid json')).toThrow(/JSON 格式有误/);
+  });
+});
+
+describe('html transfer', () => {
+  it('parseHtml maps nested folders to a category tree without tags', () => {
+    const data = parseHtml(htmlFixture);
+    expect(data.categories).toEqual([
+      { name: '开发工具', slug: '开发工具', parentSlug: null },
+      { name: '前端', slug: '前端', parentSlug: '开发工具' },
+    ]);
+    expect(data.bookmarks).toHaveLength(2);
+    const github = data.bookmarks.find((bookmark) => bookmark.url.includes('github'));
+    const react = data.bookmarks.find((bookmark) => bookmark.url.includes('react'));
+    expect(github).toMatchObject({ categorySlug: '开发工具', tags: [] });
+    expect(github?.description).toBe('Where the world builds software');
+    expect(github?.addedAt).toBe(new Date(1700000000 * 1000).toISOString());
+    expect(react).toMatchObject({ categorySlug: '前端', tags: [] });
+  });
+
+  it('parseHtml treats a 未分类 folder as uncategorized', () => {
+    const input = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+    <DT><H3>未分类</H3>
+    <DL><p>
+        <DT><A HREF="https://uncategorized.example.com">Loose</A>
+    </DL><p>
+</DL><p>`;
+    const data = parseHtml(input);
+    expect(data.categories).toBeUndefined();
+    expect(data.bookmarks[0]).toMatchObject({ categorySlug: null, tags: [] });
+  });
+
+  it('serializeHtml groups by category tree and leaves tags out', () => {
+    const data: TransferData = {
+      version: 1,
+      exportedAt: '2024-01-01T00:00:00.000Z',
+      categories: [
+        { name: '开发', slug: 'dev', parentSlug: null },
+        { name: '前端', slug: 'frontend', parentSlug: 'dev' },
+      ],
+      bookmarks: [
+        { title: 'Loose', url: 'https://loose.example.com', tags: ['x'] },
+        { title: 'Dev site', url: 'https://dev.example.com', categorySlug: 'dev', tags: ['y'] },
+        { title: 'Fe site', url: 'https://fe.example.com', categorySlug: 'frontend', tags: [] },
+      ],
+    };
+    const html = serializeHtml(data);
+    expect(html).toContain('<DT><H3>开发</H3>');
+    expect(html).toContain('<DT><H3>前端</H3>');
+    expect(html).toContain('<DT><H3>未分类</H3>');
+    expect(html).not.toContain('TAGS=');
+    // 每个书签只出现一次（不再按标签重复），未分类书签不落入分类文件夹
+    expect(html.match(/loose\.example\.com/g)).toHaveLength(1);
+    expect(html.match(/dev\.example\.com/g)).toHaveLength(1);
+    const devBlock = html.slice(html.indexOf('<DT><H3>开发</H3>'));
+    expect(devBlock.slice(0, devBlock.indexOf('</DL><p>') + 8)).not.toContain('loose.example.com');
+  });
+
+  it('serializeHtml round-trips through parseHtml', () => {
+    const data: TransferData = {
+      version: 1,
+      exportedAt: '2024-01-01T00:00:00.000Z',
+      categories: [
+        { name: '开发', slug: 'dev', parentSlug: null },
+        { name: '前端', slug: 'frontend', parentSlug: 'dev' },
+      ],
+      bookmarks: [
+        { title: 'Loose', url: 'https://loose.example.com' },
+        { title: 'Dev site', url: 'https://dev.example.com', categorySlug: 'dev' },
+        { title: 'Fe site', url: 'https://fe.example.com', categorySlug: 'frontend' },
+      ],
+    };
+    const parsed = parseHtml(serializeHtml(data));
+    const byName = new Map((parsed.categories ?? []).map((category) => [category.name, category]));
+    expect(byName.size).toBe(2);
+    expect(byName.get('前端')?.parentSlug).toBe('开发');
+    const byUrl = new Map(parsed.bookmarks.map((bookmark) => [bookmark.url, bookmark]));
+    expect(byUrl.get('https://loose.example.com')?.categorySlug).toBeNull();
+    expect(byUrl.get('https://dev.example.com')?.categorySlug).toBe('开发');
+    expect(byUrl.get('https://fe.example.com')?.categorySlug).toBe('前端');
+    expect(parsed.bookmarks.every((bookmark) => bookmark.tags.length === 0)).toBe(true);
   });
 });
 
