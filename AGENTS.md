@@ -11,7 +11,7 @@
 ## DO
 
 - 默认使用中文回复，除非用户指定其他语言
-- 动手前阅读相关代码与 `docs/INDEX.md`
+- 动手前阅读相关代码与文档
 - 优先复用现有实现，保持最小改动、高内聚和清晰依赖方向
 - `src/worker` 与 `src/web` 是同一个部署单元；`src/extension` 是独立分发产物
 - 组件库使用`shadcn/ui`，没有适配的再自己实现
@@ -29,10 +29,8 @@
 ## Documentation
 
 - 文档位于 `docs/` 下
-- 根 `README.md` 面向开发者快速开始
-- `docs/INDEX.md` 是详细文档的唯一索引
 - 当前行为与必要取舍直接写入对应主题文档
-- 新增或移动主题文档后同步更新 `docs/INDEX.md`
+- 新增或移动主题文档后同步更新 `docs`
 
 ## Commands
 
@@ -45,5 +43,3 @@ pnpm lint
 pnpm fmt:check
 pnpm check
 ```
-
-Web 本地地址固定为 `http://localhost:8787`，inspector 端口为 `9229`。扩展不提供独立 dev server，使用 `watch:extension`、`build:extension` 或 `bundle:extension`
