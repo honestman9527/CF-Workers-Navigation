@@ -1,35 +1,24 @@
 import type { Bookmark } from '@shared/api/types';
 
 import { ArrowRight, RefreshCw, Star } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
-
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
+import { domainOf } from '@shared/search';
 
 function Tile({ bookmark }: { bookmark: Bookmark }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [bookmark.iconUrl]);
-  const icon =
-    failed || !bookmark.iconUrl ? (
-      <span className="text-base font-semibold text-primary">
-        {(bookmark.title.charAt(0) || '?').toUpperCase()}
-      </span>
-    ) : (
-      <img
-        src={bookmark.iconUrl}
-        alt=""
-        className="size-6 rounded"
-        loading="lazy"
-        onError={() => setFailed(true)}
-      />
-    );
+  const icon = (
+    <ImageWithFallback
+      src={bookmark.iconUrl}
+      className="size-6 rounded"
+      loading="lazy"
+      fallback={
+        <span className="text-base font-semibold text-primary">
+          {(bookmark.title.charAt(0) || '?').toUpperCase()}
+        </span>
+      }
+    />
+  );
   return (
     <a
       href={bookmark.url}

@@ -28,4 +28,3 @@ export type TransferData = {
 export type { ImportStrategy, ImportSummary } from '../../shared/api/types';
 
 export type ExportFormat = 'html' | 'json';
-export type ImportFormat = 'html' | 'json';

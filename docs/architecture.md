@@ -62,6 +62,8 @@ Web 的 React 基础组件是**项目内本地化**的 shadcn/base-nova 组件�
 | `tsconfig.web.json`       | Web React 入口，使用 DOM、Vite 和 `@nav` 路径别名                      |
 | `tsconfig.extension.json` | Chrome 扩展 React 入口，使用 DOM、Chrome 和 `@ext` 路径别名            |
 
+Worker 的绑定类型以 `src/worker/env.d.ts` 中的最小声明参与日常类型检查；`worker-configuration.d.ts` 是 Wrangler 生成的运行时类型，已加入 `.gitignore`，需要时通过 `pnpm cf-typegen`（部署或配置变更后）重新生成，不纳入版本控制。
+
 Worker 不能混入 DOM，扩展不能混入 Worker 类型，Web 与扩展还需要不同的路径别名；因此保留这些小配置比合并成一个会污染类型环境的“大配置”更清晰。公共编译选项只放在 `tsconfig.base.json`，子配置只声明运行时差异。根 solution 的 `@/*` 映射仅供 shadcn CLI 与编辑器定位 `src/web`，不会被引用的子项目继承。
 
 ## 构建与运行

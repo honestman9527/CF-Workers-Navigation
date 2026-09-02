@@ -39,6 +39,8 @@ import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
+import { handleAdminUnauthorized } from './shared';
+
 type Stage = 'idle' | 'reading' | 'uploading' | 'processing' | 'done';
 
 type ImportState = {
@@ -99,14 +101,6 @@ export function TransferTab() {
     importState.stage === 'reading' ||
     exporting;
 
-  function handleUnauthorized(caught: unknown): boolean {
-    if (caught instanceof ApiError && caught.status === 401) {
-      void auth.logout();
-      return true;
-    }
-    return false;
-  }
-
   async function handleExport(format: TransferFormat) {
     setExporting(true);
     setExportError(null);
@@ -114,7 +108,7 @@ export function TransferTab() {
       const result = await api.exportData(format);
       downloadBlob(result.blob, result.filename);
     } catch (caught) {
-      if (handleUnauthorized(caught)) return;
+      if (handleAdminUnauthorized(auth, caught)) return;
       setExportError(caught instanceof ApiError ? friendlyError(caught) : '导出失败');
     } finally {
       setExporting(false);
@@ -150,7 +144,7 @@ export function TransferTab() {
       const result = await promise;
       setImportState({ stage: 'done', progress: 1, summary: result, error: null });
     } catch (caught) {
-      if (handleUnauthorized(caught)) return;
+      if (handleAdminUnauthorized(auth, caught)) return;
       setImportState({ ...INITIAL_IMPORT, error: friendlyError(caught) });
     } finally {
       abortRef.current = null;

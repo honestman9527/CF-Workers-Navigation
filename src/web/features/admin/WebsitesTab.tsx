@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -38,6 +39,7 @@ import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedB
 import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
 import { useApiData } from '@nav/hooks/useApiData';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
+import { domainOf } from '@shared/search';
 
 const BookmarkForm = lazy(() =>
   import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
@@ -52,34 +54,19 @@ const VIEWS: Array<{ id: BookmarkView; label: string }> = [
   { id: 'trash', label: '回收站' },
 ];
 
-function domainOf(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
-
 function BookmarkRowIcon({ bookmark }: { bookmark: Bookmark }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [bookmark.iconUrl]);
   const domain = domainOf(bookmark.url);
 
-  if (!bookmark.iconUrl || failed) {
-    return (
-      <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted text-xs font-semibold text-primary">
-        {domain.charAt(0).toUpperCase()}
-      </span>
-    );
-  }
-
   return (
-    <img
+    <ImageWithFallback
       src={bookmark.iconUrl}
-      alt=""
       className="size-7 shrink-0 rounded-lg border border-border/70 bg-card object-contain p-0.5"
-      onError={() => setFailed(true)}
       loading="lazy"
+      fallback={
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted text-xs font-semibold text-primary">
+          {domain.charAt(0).toUpperCase()}
+        </span>
+      }
     />
   );
 }

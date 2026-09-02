@@ -52,7 +52,7 @@ export function faviconFor(domain: string): string {
 /** 从 URL 提取域名。 */
 export function domainOf(url: string): string {
   try {
-    return new URL(url).hostname;
+    return new URL(url).hostname.replace(/^www\./i, '');
   } catch {
     return url;
   }

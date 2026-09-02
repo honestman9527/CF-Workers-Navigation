@@ -11,19 +11,12 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { TagChip } from '@nav/features/tags/TagChip';
-
-function domainOf(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
+import { domainOf } from '@shared/search';
 
 export function BookmarkCard({
   bookmark,
@@ -49,20 +42,16 @@ export function BookmarkCard({
   onSelectTag?: (tag: string) => void;
   onSelectCategory?: (slug: string) => void;
 }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [bookmark.iconUrl]);
   const domain = domainOf(bookmark.url);
-  const icon =
-    !bookmark.iconUrl || failed ? (
-      <span className="text-sm font-semibold text-primary">{domain.charAt(0).toUpperCase()}</span>
-    ) : (
-      <img
-        src={bookmark.iconUrl}
-        alt=""
-        className="size-5 rounded"
-        onError={() => setFailed(true)}
-      />
-    );
+  const icon = (
+    <ImageWithFallback
+      src={bookmark.iconUrl}
+      className="size-5 rounded"
+      fallback={
+        <span className="text-sm font-semibold text-primary">{domain.charAt(0).toUpperCase()}</span>
+      }
+    />
+  );
   const active = !bookmark.deletedAt && !bookmark.archivedAt;
   const actions = (
     <div className="pointer-events-auto relative z-20 flex items-center gap-0.5">

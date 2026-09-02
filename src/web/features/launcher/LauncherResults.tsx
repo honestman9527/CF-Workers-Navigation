@@ -2,8 +2,8 @@ import type { Bookmark } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
 import { Globe, Search, TriangleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { cn } from '@/lib/utils';
 import { domainOf } from '@shared/search';
 
@@ -18,22 +18,18 @@ function ResultTile({
   onHighlight: () => void;
   onOpen: () => void;
 }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [bookmark.iconUrl]);
-  const icon =
-    failed || !bookmark.iconUrl ? (
-      <span className="text-base font-semibold text-primary">
-        {(bookmark.title.charAt(0) || '?').toUpperCase()}
-      </span>
-    ) : (
-      <img
-        src={bookmark.iconUrl}
-        alt=""
-        className="size-6 rounded"
-        loading="lazy"
-        onError={() => setFailed(true)}
-      />
-    );
+  const icon = (
+    <ImageWithFallback
+      src={bookmark.iconUrl}
+      className="size-6 rounded"
+      loading="lazy"
+      fallback={
+        <span className="text-base font-semibold text-primary">
+          {(bookmark.title.charAt(0) || '?').toUpperCase()}
+        </span>
+      }
+    />
+  );
 
   return (
     <button

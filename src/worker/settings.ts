@@ -145,14 +145,3 @@ export async function updateSettings(
 
   return getSettings(db);
 }
-
-export function defaultSettings(): SettingsConfig {
-  return {
-    faviconProxyUrl: DEFAULTS.favicon_proxy_url,
-    faviconProxyEnabled: DEFAULTS.favicon_proxy_enabled === 'true',
-    searchEngines: DEFAULT_SEARCH_ENGINES,
-    defaultEngineId: DEFAULTS.default_engine_id,
-    backgroundImageUrl: DEFAULTS.background_image_url,
-    backgroundImageEnabled: String(DEFAULTS.background_image_enabled) === 'true',
-  };
-}

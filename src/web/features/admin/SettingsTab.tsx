@@ -3,6 +3,7 @@ import type { SearchEngine } from '@shared/search';
 import { Check, Image, Pencil, Plus, Settings, Trash2, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,8 @@ import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
 import { DEFAULT_SEARCH_ENGINES, domainOf, faviconFor } from '@shared/search';
+
+import { handleAdminUnauthorized } from './shared';
 
 const PRESETS: { id: string; label: string; url: string }[] = [
   {
@@ -27,14 +30,6 @@ const PRESETS: { id: string; label: string; url: string }[] = [
   },
   { id: 'icon-horse', label: 'Icon Horse', url: 'https://icon.horse/icon/{domain}' },
 ];
-
-function handleUnauthorized(auth: ReturnType<typeof useAuthContext>, caught: unknown): boolean {
-  if (caught instanceof ApiError && caught.status === 401) {
-    void auth.logout();
-    return true;
-  }
-  return false;
-}
 
 /** 由名称生成引擎 id；冲突时追加序号。 */
 function engineIdFromName(name: string, existing: string[]): string {
@@ -54,19 +49,13 @@ function engineIdFromName(name: string, existing: string[]): string {
 }
 
 function EngineIcon({ engine }: { engine: SearchEngine }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [engine.url]);
   const src = faviconFor(domainOf(engine.url));
-  if (failed) {
-    return <span className="text-xs font-semibold text-primary">{engine.name.charAt(0)}</span>;
-  }
   return (
-    <img
+    <ImageWithFallback
       src={src}
-      alt=""
       className="size-5 rounded"
-      onError={() => setFailed(true)}
       loading="lazy"
+      fallback={<span className="text-xs font-semibold text-primary">{engine.name.charAt(0)}</span>}
     />
   );
 }
@@ -241,7 +230,7 @@ export function SettingsTab() {
       });
       pushToast('设置已保存', 'success');
     } catch (caught) {
-      if (handleUnauthorized(auth, caught)) return;
+      if (handleAdminUnauthorized(auth, caught)) return;
       setError(caught instanceof ApiError ? caught.message : '保存失败');
     } finally {
       setSaving(false);
@@ -471,7 +460,7 @@ export function SettingsTab() {
                   setFaviconProxyUrl(data.faviconProxyUrl);
                   setFaviconProxyEnabled(data.faviconProxyEnabled);
                 } catch (caught) {
-                  if (handleUnauthorized(auth, caught)) return;
+                  if (handleAdminUnauthorized(auth, caught)) return;
                   setError(caught instanceof ApiError ? caught.message : '重置失败');
                 }
                 setBackgroundImageUrl('');

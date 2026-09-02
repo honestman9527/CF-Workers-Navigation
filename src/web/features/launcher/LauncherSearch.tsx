@@ -4,6 +4,7 @@ import type { SearchEngine } from '@shared/search';
 import { ArrowDown, ArrowUp, ChevronDown, Search as SearchIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
+import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,16 +21,11 @@ import {
 } from '@shared/search';
 
 function EngineFavicon({ engine }: { engine: SearchEngine }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [engine.url]);
-  if (failed) return null;
   return (
-    <img
+    <ImageWithFallback
       src={faviconFor(domainOf(engine.url))}
-      alt=""
       className="size-4 rounded"
       loading="lazy"
-      onError={() => setFailed(true)}
     />
   );
 }

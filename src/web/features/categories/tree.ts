@@ -6,6 +6,55 @@ function compare(a: Category, b: Category): number {
   return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'zh-Hans-CN');
 }
 
+export function siblingIds(categories: Category[], node: Category): number[] {
+  return categories
+    .filter((item) => (item.parentId ?? null) === (node.parentId ?? null))
+    .sort(compare)
+    .map((item) => item.id);
+}
+
+/** Total direct and descendant bookmark counts for each category. */
+export function descendantTotals(categories: Category[]): Map<number, number> {
+  const byParent = new Map<number | null, Category[]>();
+  for (const category of categories) {
+    const key = category.parentId ?? null;
+    const list = byParent.get(key);
+    if (list) list.push(category);
+    else byParent.set(key, [category]);
+  }
+  const totals = new Map<number, number>();
+  function sum(id: number): number {
+    const cached = totals.get(id);
+    if (cached !== undefined) return cached;
+    const node = categories.find((item) => item.id === id);
+    let result = node?.bookmarkCount ?? 0;
+    for (const child of byParent.get(id) ?? []) result += sum(child.id);
+    totals.set(id, result);
+    return result;
+  }
+  for (const category of categories) sum(category.id);
+  return totals;
+}
+
+/** Returns a category subtree's ids, including its root. */
+export function subtreeIds(categories: Category[], rootId: number): number[] {
+  const byParent = new Map<number | null, Category[]>();
+  for (const category of categories) {
+    const key = category.parentId ?? null;
+    const list = byParent.get(key);
+    if (list) list.push(category);
+    else byParent.set(key, [category]);
+  }
+  const ids: number[] = [];
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    ids.push(id);
+    for (const child of byParent.get(id) ?? []) stack.push(child.id);
+  }
+  return ids;
+}
+
 /** 由扁平分类列表构建树；孤儿节点（父级缺失）按根节点处理。 */
 export function buildCategoryTree(categories: Category[]): CategoryNode[] {
   const nodes = new Map<number, CategoryNode>();

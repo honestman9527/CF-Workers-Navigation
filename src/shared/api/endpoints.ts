@@ -8,7 +8,6 @@ export const ENDPOINTS = {
   bookmarksSearch: `${API_V1_PREFIX}/bookmarks/search`,
   bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
   bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,
-  bookmarksTags: `${API_V1_PREFIX}/bookmarks/tags`,
   categories: `${API_V1_PREFIX}/categories`,
   categoriesReorder: `${API_V1_PREFIX}/categories/reorder`,
   settings: `${API_V1_PREFIX}/settings`,

@@ -33,63 +33,17 @@ import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
 
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
-import { buildCategoryTree, flattenCategoryTree, type CategoryNode } from '../categories/tree';
+import {
+  buildCategoryTree,
+  descendantTotals,
+  flattenCategoryTree,
+  siblingIds,
+  subtreeIds,
+  type CategoryNode,
+} from '../categories/tree';
 import { useAdminRun } from './shared';
 
 type CreateTarget = { parentId: number | 'root' };
-
-function compareCategory(a: Category, b: Category): number {
-  return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'zh-Hans-CN');
-}
-
-function siblingIds(categories: Category[], node: Category): number[] {
-  return categories
-    .filter((item) => (item.parentId ?? null) === (node.parentId ?? null))
-    .sort(compareCategory)
-    .map((item) => item.id);
-}
-
-/** 每个分类的「含子类书签总数」映射（直属 + 所有后代的直属计数）。 */
-function descendantTotals(categories: Category[]): Map<number, number> {
-  const byParent = new Map<number | null, Category[]>();
-  for (const category of categories) {
-    const key = category.parentId ?? null;
-    const list = byParent.get(key);
-    if (list) list.push(category);
-    else byParent.set(key, [category]);
-  }
-  const totals = new Map<number, number>();
-  function sum(id: number): number {
-    const cached = totals.get(id);
-    if (cached !== undefined) return cached;
-    const node = categories.find((item) => item.id === id);
-    let result = node?.bookmarkCount ?? 0;
-    for (const child of byParent.get(id) ?? []) result += sum(child.id);
-    totals.set(id, result);
-    return result;
-  }
-  for (const category of categories) sum(category.id);
-  return totals;
-}
-
-/** 目标分类下所有后代 id（含自身），用于「移动到…」排除集与删除影响统计。 */
-function subtreeIds(categories: Category[], rootId: number): number[] {
-  const byParent = new Map<number | null, Category[]>();
-  for (const category of categories) {
-    const key = category.parentId ?? null;
-    const list = byParent.get(key);
-    if (list) list.push(category);
-    else byParent.set(key, [category]);
-  }
-  const ids: number[] = [];
-  const stack = [rootId];
-  while (stack.length > 0) {
-    const id = stack.pop()!;
-    ids.push(id);
-    for (const child of byParent.get(id) ?? []) stack.push(child.id);
-  }
-  return ids;
-}
 
 export function CategoriesTab() {
   const auth = useAuthContext();

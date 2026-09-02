@@ -7,9 +7,9 @@
   },
   "include": [
     "src/worker/**/*.ts",
+    "src/worker/**/*.d.ts",
     "src/shared/**/*.ts",
     "drizzle.config.ts",
-    "vitest.worker.config.ts",
-    "worker-configuration.d.ts"
+    "vitest.worker.config.ts"
   ]
 }

@@ -30,7 +30,7 @@ describe('buildSearchUrl', () => {
 
 describe('domainOf / faviconFor', () => {
   it('提取域名并生成 favicon 代理 URL', () => {
-    expect(domainOf('https://www.example.com/path?q=1')).toBe('www.example.com');
+    expect(domainOf('https://www.example.com/path?q=1')).toBe('example.com');
     expect(faviconFor('example.com')).toBe(
       'https://www.google.com/s2/favicons?domain=example.com&sz=64',
     );
@@ -40,6 +40,11 @@ describe('domainOf / faviconFor', () => {
     expect(resolveBookmarkIcon('https://cdn.example.com/i.png', 'https://example.com')).toBe(
       'https://cdn.example.com/i.png',
     );
+  });
+
+  it('保留非法 URL 原文，并统一去除 www 前缀', () => {
+    expect(domainOf('https://WWW.Example.com')).toBe('example.com');
+    expect(domainOf('not a url')).toBe('not a url');
   });
 });
 
