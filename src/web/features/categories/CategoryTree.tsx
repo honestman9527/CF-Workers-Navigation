@@ -121,7 +121,7 @@ function TreeNode({
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 pr-1">
         <button
           type="button"
           onClick={() => onSelect(node.slug)}

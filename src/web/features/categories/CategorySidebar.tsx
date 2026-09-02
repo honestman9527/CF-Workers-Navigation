@@ -17,7 +17,7 @@ export function CategorySidebar({
   onSelect: (slug: string) => void;
 }) {
   return (
-    <div className="grid max-h-[min(38vh,26rem)] gap-1 overflow-y-auto pr-1">
+    <div className="scrollbar-safe grid min-h-0 flex-1 content-start gap-1 overflow-y-auto pr-1">
       <button
         type="button"
         onClick={() => onSelect(UNCATEGORIZED_SLUG)}

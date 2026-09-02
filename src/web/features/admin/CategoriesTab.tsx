@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ChevronUp,
   Folder,
-  FolderInput,
   FolderPlus,
   Pencil,
   Plus,
@@ -20,7 +19,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -32,11 +30,11 @@ import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
 
+import { CategoryMovePicker } from '../categories/CategoryMovePicker';
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
 import {
   buildCategoryTree,
   descendantTotals,
-  flattenCategoryTree,
   siblingIds,
   subtreeIds,
   type CategoryNode,
@@ -150,21 +148,6 @@ export function CategoriesTab() {
     return { children, bookmarks };
   }, [categories, confirmDelete, totals]);
 
-  const flat = useMemo(() => flattenCategoryTree(tree), [tree]);
-
-  function moveTargets(node: Category): Array<{ id: number | null; label: string }> {
-    const exclude = new Set(subtreeIds(categories ?? [], node.id));
-    return [
-      { id: null, label: '不归属（根目录）' },
-      ...flat
-        .filter((item) => !exclude.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          label: `${'　'.repeat(Math.max(item.depth, 0))}${item.name}`,
-        })),
-    ];
-  }
-
   const createRow = (parentId: number | 'root', depth: number) => (
     <div
       key="create"
@@ -270,36 +253,13 @@ export function CategoriesTab() {
         >
           <Pencil className="size-3.5" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="size-6 text-muted-foreground hover:text-foreground"
-                disabled={busy}
-                aria-label={`移动 ${node.name}`}
-                title="调整层级 / 移动到…"
-              />
-            }
-          >
-            <FolderInput className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>移动到父级分类</DropdownMenuLabel>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            {moveTargets(node).map((target) => (
-              <DropdownMenuItem
-                key={target.id ?? 'root'}
-                onClick={() => void moveTo(node, target.id)}
-              >
-                <span className="truncate">{target.label}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <CategoryMovePicker
+          categories={categories ?? []}
+          excludedIds={new Set(subtreeIds(categories ?? [], node.id))}
+          value={node.parentId}
+          disabled={busy}
+          onChange={(parentId) => void moveTo(node, parentId)}
+        />
         <Button
           variant="ghost"
           size="icon-xs"

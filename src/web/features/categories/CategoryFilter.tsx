@@ -69,7 +69,7 @@ export function CategoryFilter({
             <span className="min-w-0 flex-1 truncate">全部分类</span>
             {selectedSlug ? <X className="size-3 shrink-0" /> : null}
           </button>
-          <div className="mt-1 max-h-72 overflow-y-auto border-t border-border/60 pt-1">
+          <div className="scrollbar-safe mt-1 max-h-72 overflow-y-auto border-t border-border/60 pt-1">
             <CategoryTree
               categories={categories}
               selectedSlug={selectedSlug}

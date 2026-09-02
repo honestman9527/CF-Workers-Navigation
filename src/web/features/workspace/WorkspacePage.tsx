@@ -377,7 +377,7 @@ export function WorkspacePage() {
           常用入口
         </button>
       </div>
-      <div className="border-t border-border/80 pt-5">
+      <div className="flex min-h-0 flex-1 flex-col border-t border-border/80 pt-5">
         <div className="mb-3 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
           <FolderTree className="size-3.5" />
           分类

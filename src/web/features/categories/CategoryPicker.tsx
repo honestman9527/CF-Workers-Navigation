@@ -62,7 +62,7 @@ export function CategoryPicker({
         />
       </Button>
       {open ? (
-        <div className="animate-panel-enter max-h-72 overflow-y-auto rounded-xl border border-border/70 bg-popover p-2 shadow-sm">
+        <div className="scrollbar-safe animate-panel-enter max-h-72 overflow-y-auto rounded-xl border border-border/70 bg-popover p-2 shadow-sm">
           <CategoryTree
             categories={categories}
             selectedSlug={selected?.slug}
