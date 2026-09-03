@@ -8,7 +8,29 @@ export type ConfirmRequest = {
   confirmLabel: string;
   destructive?: boolean;
   action: () => Promise<unknown>;
+  successMessage: string;
 };
+
+export async function runBookmarkMutation(
+  action: () => Promise<unknown>,
+  options: {
+    refreshPage: () => void;
+    reloadTags: () => Promise<unknown> | void;
+    reloadCategories: () => Promise<unknown> | void;
+    onError: (message: string) => void;
+  },
+  message: string,
+) {
+  try {
+    await action();
+    options.refreshPage();
+    await options.reloadTags();
+    await options.reloadCategories();
+    pushToast(message, 'success');
+  } catch (error) {
+    options.onError(error instanceof Error ? error.message : '操作失败');
+  }
+}
 
 /**
  * 书签通用写操作包装：
@@ -25,19 +47,14 @@ export function useBookmarkMutations(options: {
   const [confirmState, setConfirmState] = useState<ConfirmRequest | null>(null);
 
   async function mutate(action: () => Promise<unknown>, message: string) {
-    try {
-      await action();
-      options.refreshPage();
-      await options.reloadTags();
-      await options.reloadCategories();
-      pushToast(message, 'success');
-    } catch (error) {
-      options.onError(error instanceof Error ? error.message : '操作失败');
-    }
+    await runBookmarkMutation(action, options, message);
   }
 
   function askConfirm(state: ConfirmRequest) {
-    setConfirmState(state);
+    setConfirmState({
+      ...state,
+      action: () => runBookmarkMutation(state.action, options, state.successMessage),
+    });
   }
 
   return { confirmState, mutate, askConfirm, setConfirmState };

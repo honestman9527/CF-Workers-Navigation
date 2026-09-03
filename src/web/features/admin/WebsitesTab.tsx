@@ -364,6 +364,7 @@ export function WebsitesTab() {
                                   description: '归档后书签会移入「归档」视图，可随时取消归档恢复。',
                                   confirmLabel: '归档',
                                   destructive: false,
+                                  successMessage: '已归档',
                                   action: () => api.archiveBookmark('', bookmark.id),
                                 })
                               }
@@ -380,6 +381,7 @@ export function WebsitesTab() {
                                   title: `移入回收站「${bookmark.title}」？`,
                                   description: '可以将书签移入回收站，之后仍可从回收站恢复。',
                                   confirmLabel: '移入回收站',
+                                  successMessage: '已移入回收站',
                                   action: () => api.deleteBookmark('', bookmark.id),
                                 })
                               }
@@ -411,6 +413,7 @@ export function WebsitesTab() {
                                   title: `永久删除「${bookmark.title}」？`,
                                   description: '此操作不可撤销，记录将从回收站中彻底移除。',
                                   confirmLabel: '永久删除',
+                                  successMessage: '已永久删除',
                                   action: () => api.permanentDeleteBookmark('', bookmark.id),
                                 })
                               }
