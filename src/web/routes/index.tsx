@@ -9,8 +9,8 @@ import { requireAuth } from './guards';
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: async ({ context }) => {
-    await requireAuth({ context });
+  beforeLoad: async ({ context, location }) => {
+    await requireAuth({ context, location });
     throw redirect({ to: getPreferredFrontRoute() });
   },
   component: () => null,

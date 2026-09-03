@@ -1,6 +1,7 @@
 import { RouterProvider } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { getAuthReturnPath, resolveAuthRedirect } from '@nav/features/auth/redirect';
 import { useAuth } from '@nav/features/auth/useAuth';
 import { getPreferredFrontRoute } from '@nav/features/settings/store';
 import { router } from '@nav/router';
@@ -9,19 +10,25 @@ export default function App() {
   const auth = useAuth();
   const { authed, loading } = auth;
 
+  // 认证结果确定后才同步路由：刷新受保护页面时，首次匹配会使用已确认的 auth context。
   useEffect(() => {
-    router.update({ context: { auth } });
-  }, [auth]);
+    if (loading) return;
 
-  // 登录态即路由：退出/401 过期统一回登录页；登录成功按记忆偏好进对应前台 UI（启动台或书签柜）。守卫负责兜底。
-  useEffect(() => {
-    const path = router.state.location.pathname;
-    if (!authed && path !== '/login') {
-      void router.navigate({ to: '/login' });
-    } else if (authed && path === '/login') {
-      void router.navigate({ to: getPreferredFrontRoute() });
+    const location = router.state.location;
+    if (!authed && location.pathname !== '/login') {
+      void router.navigate({
+        to: '/login',
+        search: { redirect: getAuthReturnPath(location) },
+        replace: true,
+      });
+      return;
     }
-  }, [authed]);
+
+    if (authed && location.pathname === '/login') {
+      const redirect = resolveAuthRedirect(location.search.redirect);
+      void router.navigate({ href: redirect ?? getPreferredFrontRoute(), replace: true });
+    }
+  }, [authed, loading]);
 
   if (loading) {
     return (
@@ -31,5 +38,5 @@ export default function App() {
     );
   }
 
-  return <RouterProvider router={router} />;
+  return <RouterProvider router={router} context={{ auth }} />;
 }
