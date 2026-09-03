@@ -195,7 +195,7 @@ export function CategorySelect({
       </button>
 
       {open ? (
-        <div className="animate-fade-in absolute top-full left-0 z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border-color)] bg-[var(--card-bg)] p-1.5 shadow-lg">
+        <div className="animate-fade-in absolute top-full left-0 z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border-color)] bg-[var(--card-bg)] p-1.5 shadow-sm">
           <button
             type="button"
             onClick={() => {

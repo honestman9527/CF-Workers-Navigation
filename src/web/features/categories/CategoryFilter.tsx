@@ -56,7 +56,7 @@ export function CategoryFilter({
       {open ? (
         <div
           ref={panelRef}
-          className="animate-panel-enter absolute top-full left-0 z-50 mt-1 w-64 rounded-xl border border-border/70 bg-popover p-2 shadow-md"
+          className="animate-panel-enter absolute top-full left-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2"
         >
           <button
             type="button"

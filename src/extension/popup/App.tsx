@@ -197,7 +197,7 @@ export default function App() {
     return (
       <div className="glass-card m-3 animate-fade-in">
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <Warning className="h-8 w-8 text-amber-400" />
+          <Warning className="h-8 w-8 text-[var(--warning)]" />
           <p className="text-sm text-[var(--text-primary)]">请先在设置中配置 API 地址和管理员密码</p>
           <button
             type="button"
@@ -230,7 +230,7 @@ export default function App() {
     return (
       <div className="glass-card m-3 animate-fade-in">
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <Warning className="h-8 w-8 text-amber-400" />
+          <Warning className="h-8 w-8 text-[var(--warning)]" />
           <p className="text-sm text-[var(--text-primary)]">需要授权才能连接 API 服务器</p>
           <button type="button" className="btn-primary text-sm" onClick={handlePermissionRequest}>
             授权访问
@@ -261,8 +261,8 @@ export default function App() {
     return (
       <div className="glass-card m-3 animate-fade-in">
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--verdigris)_15%,transparent)]">
-            <Check className="h-5 w-5 text-[var(--verdigris)]" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary-soft)]">
+            <Check className="h-5 w-5 text-[var(--primary)]" />
           </div>
           <p className="text-sm font-medium text-[var(--text-primary)]">已收藏</p>
           <button type="button" className="btn-primary text-sm" onClick={handleFinish}>
@@ -303,10 +303,9 @@ export default function App() {
     <div className="animate-fade-in">
       <div className="relative flex items-center justify-between border-b border-[var(--border-color)] px-4 py-2.5">
         <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-primary)]">
-          <BookmarkSimple className="h-4 w-4 text-[var(--lacquer)]" />
+          <BookmarkSimple className="h-4 w-4 text-[var(--primary)]" />
           快速收藏
         </span>
-        <span className="absolute top-10 left-4 h-0.5 w-14 rounded-full bg-[var(--shift-track)]" aria-hidden />
         <button
           type="button"
           className="btn-icon text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -335,7 +334,7 @@ export default function App() {
             </p>
             <p className="mt-0.5 truncate font-mono text-xs text-[var(--text-secondary)]">{domain}</p>
             {metadata?.partial ? (
-              <p className="mt-1.5 text-xs text-amber-400/90">
+              <p className="mt-1.5 text-xs text-[var(--warning)] opacity-90">
                 未能自动抓取完整信息，请核对标题与描述
               </p>
             ) : null}

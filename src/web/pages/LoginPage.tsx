@@ -28,13 +28,13 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           }
         }}
       >
-        <div className="mb-6 grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
+        <div className="mb-6 grid size-12 place-items-center rounded-lg bg-primary text-primary-foreground">
           <Bookmark className="size-6" />
         </div>
-        <p className="font-display text-[11px] tracking-[0.28em] text-seal uppercase">
+        <p className="font-display text-[11px] tracking-[0.28em] text-primary uppercase">
           personal index
         </p>
-        <h1 className="mt-3 font-display text-4xl leading-none tracking-tight">打开你的书签柜</h1>
+        <h1 className="mt-3 font-display text-4xl leading-none">打开你的书签柜</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           只保留真正有用的网络入口，输入密码开始整理。
         </p>

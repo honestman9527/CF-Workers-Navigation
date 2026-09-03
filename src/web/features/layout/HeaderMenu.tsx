@@ -41,14 +41,14 @@ export function HeaderMenu({
       <DropdownMenuTrigger
         render={
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-9 gap-1.5 rounded-full px-2.5"
+            className="h-8 gap-1.5 rounded-full px-2.5 text-white hover:bg-white/10 hover:text-white"
             aria-label="菜单"
           />
         }
       >
-        <UserRound className="size-4 text-primary" />
+        <UserRound className="size-4" />
         <ChevronDown className="size-3 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">

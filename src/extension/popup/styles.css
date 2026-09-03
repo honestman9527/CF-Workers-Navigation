@@ -6,37 +6,34 @@
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
 
- inline {
+@theme inline {
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 }
 
-/*
-  Lacquer Shift — popup
-  与 Web / Options 一致的墨蓝强调与单色表面。
-*/
+/* Popup uses the same paper, ink, rule and Action Blue tokens as the web app. */
 :root {
   font-family: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --accent: 40 86 182;
-  --accent-hex: #2856b6;
+  --accent: 0 102 204;
+  --accent-hex: #0066cc;
   --bg-app: var(--background);
   --bg-elevated: var(--card);
-  --bg-muted: var(--accent);
+  --bg-muted: var(--muted);
   --text-primary: var(--foreground);
   --text-secondary: var(--muted-foreground);
   --text-tertiary: color-mix(in srgb, var(--muted-foreground) 72%, transparent);
   --border-color: var(--border);
   --border-strong: color-mix(in srgb, var(--border) 80%, var(--foreground));
   --card-bg: var(--card);
-  --focus-ring: color-mix(in srgb, var(--cobalt) 45%, transparent);
+  --focus-ring: color-mix(in srgb, var(--primary) 45%, transparent);
   --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-md: 8px;
 }
 .dark {
-  --accent: 120 160 255;
-  --accent-hex: #78a0ff;
+  --accent: 41 151 255;
+  --accent-hex: #2997ff;
   --bg-elevated: var(--card);
-  --bg-muted: var(--accent);
+  --bg-muted: var(--muted);
   --border-strong: color-mix(in srgb, var(--border) 80%, var(--foreground));
   --card-bg: var(--card);
 }
@@ -124,8 +121,8 @@ button:focus:not(:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--lacquer);
-  color: var(--background);
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
   border-radius: var(--radius-sm);
   padding: 9px 16px;
@@ -146,7 +143,7 @@ button:focus:not(:focus-visible) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--bg-muted);
+  background: var(--card);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);

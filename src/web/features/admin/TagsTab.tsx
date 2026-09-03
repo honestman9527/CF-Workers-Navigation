@@ -83,7 +83,7 @@ export function TagsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">标签管理</h1>
+        <h1 className="font-display text-2xl font-semibold">标签管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           标签是细粒度的书签标注。合并会把源标签的关联书签全部改指到目标标签，适合整理近义标签。
         </p>
@@ -119,9 +119,9 @@ export function TagsTab() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {loading ? (
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
+        <div className="h-40 animate-pulse rounded-lg bg-muted" />
       ) : (
-        <div className="grid gap-1 rounded-xl border border-border/70 bg-card p-3">
+        <div className="grid gap-1 rounded-lg border border-border bg-card p-3">
           {creating ? (
             <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2">
               <span className="font-mono text-sm text-primary">#</span>

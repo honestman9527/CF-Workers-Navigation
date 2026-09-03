@@ -15,6 +15,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
@@ -334,7 +335,7 @@ export function WorkspacePage() {
     <AppHeader
       navButton={
         <button
-          className="grid size-9 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
+          className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
           onClick={() => setNavOpen(true)}
           aria-label="打开索引"
         >
@@ -406,7 +407,7 @@ export function WorkspacePage() {
         onCloseNav={() => setNavOpen(false)}
       >
         <div className="mx-auto w-full space-y-7 px-1 sm:px-2">
-          <div className="flex items-center gap-3 rounded-[1.1rem] border border-border/70 bg-card px-4 py-3.5 shadow-sm transition focus-within:border-primary/50 focus-within:shadow-md">
+          <div className="flex h-11 items-center gap-3 rounded-full border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="size-4.5 text-muted-foreground" />
             <input
               ref={searchRef}
@@ -432,47 +433,42 @@ export function WorkspacePage() {
           <TagFilter tags={tags} selected={tag} onSelect={selectTagFilter} />
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="mb-2 text-xs font-medium tracking-[0.18em] text-primary uppercase">
-                你的网络入口
+              <p className="mb-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
+                书签柜
               </p>
-              <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-                {title}
-              </h1>
+              <h1 className="font-display text-3xl font-semibold sm:text-4xl">{title}</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {page.loading ? '同步中…' : `已加载 ${page.items.length} 个书签`}
               </p>
             </div>
-            <div
-              role="group"
+            <Tabs
+              value={viewMode}
+              onValueChange={(value) => setViewMode(value === 'list' ? 'list' : 'grid')}
               aria-label="视图切换"
-              className="flex shrink-0 items-center rounded-lg border border-border/70 bg-card p-0.5 shadow-sm"
+              className="shrink-0"
             >
-              <Button
-                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                size="icon-sm"
-                className="size-7 rounded-md"
-                onClick={() => setViewMode('grid')}
-                aria-pressed={viewMode === 'grid'}
-                aria-label="网格视图"
-              >
-                <LayoutGrid />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                size="icon-sm"
-                className="size-7 rounded-md"
-                onClick={() => setViewMode('list')}
-                aria-pressed={viewMode === 'list'}
-                aria-label="列表视图"
-              >
-                <List />
-              </Button>
-            </div>
+              <TabsList className="border border-border bg-card p-0.5">
+                <TabsTrigger
+                  value="grid"
+                  aria-label="网格视图"
+                  className="size-7 flex-none rounded-md px-0"
+                >
+                  <LayoutGrid />
+                </TabsTrigger>
+                <TabsTrigger
+                  value="list"
+                  aria-label="列表视图"
+                  className="size-7 flex-none rounded-md px-0"
+                >
+                  <List />
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
           {page.loading ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-36 animate-pulse rounded-xl bg-muted" />
+                <div key={index} className="h-36 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
           ) : page.items.length === 0 ? (

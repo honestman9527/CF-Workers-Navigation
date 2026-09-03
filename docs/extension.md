@@ -26,3 +26,9 @@ pnpm bundle:extension
 扩展图标来自 `public/icons`。主题偏好契约来自 `src/shared`，扩展 CSS 位于 `src/extension/base.css`，options 与 popup 读取同一 Chrome storage 偏好。
 
 本地加载时打开 `chrome://extensions`，启用开发者模式并选择 `dist/extension/`。选项页中的 API 地址本地通常为 `http://localhost:8787`。
+
+# Chrome 扩展视觉
+
+Popup 与 options 是独立的 Chrome MV3 构建产物，不引用 `src/web` 或 `src/worker` 内部源码。两者各自维护 CSS，但共享同一组语义 token：浅色 `#f5f5f7` 纸面、`#ffffff` 实体卡片、`#1d1d1f` 墨色、`#d2d2d7` 细线和 Action Blue `#0066cc`；暗色使用近黑表面与 `#2997ff`。
+
+主按钮、选中态和成功反馈使用 Action Blue；错误与危险操作继续使用语义红色。组件采用细边框、最多 8px 的实体卡片圆角和低阴影，不使用旧的多色品牌强调或装饰性渐变。扩展自己的尺寸、布局约束、Chrome storage、权限申请、连接测试、草稿保存和 popup 分类树行为保持不变。

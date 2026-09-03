@@ -240,7 +240,7 @@ export function SettingsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">设置</h1>
+        <h1 className="font-display text-2xl font-semibold">设置</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           配置背景图片、favicon 获取工具与启动台使用的搜索引擎。
         </p>

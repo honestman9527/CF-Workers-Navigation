@@ -25,9 +25,9 @@ export function AppShell({
             自带的内部状态抽屉（openMobile），避免与下方受 navOpen 控制的抽屉重复。 */}
         <div className="hidden lg:contents">
           <Sidebar
-            collapsible="none"
+            collapsible="offcanvas"
             variant="floating"
-            className="top-[calc(var(--header-h)+var(--safe-t)+1rem)] m-4 h-[calc(100dvh-var(--header-h)-var(--safe-t)-2rem)] w-[15rem] xl:w-[16rem]"
+            className="top-[calc(var(--header-h)+var(--safe-t)+1rem)] bottom-4 left-4 h-auto w-[15rem] xl:w-[16rem]"
           >
             <SidebarContent className="p-4">{sidebar}</SidebarContent>
           </Sidebar>
@@ -56,7 +56,7 @@ export function AppShell({
         />
         <aside
           className={cn(
-            'absolute top-0 left-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-border bg-card pt-[var(--safe-t)] shadow-2xl transition-transform duration-200 ease-out',
+            'absolute top-0 left-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-border bg-card pt-[var(--safe-t)] transition-transform duration-200 ease-out',
             navOpen ? 'translate-x-0' : '-translate-x-full',
           )}
           onClick={(event) => event.stopPropagation()}

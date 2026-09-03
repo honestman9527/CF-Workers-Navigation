@@ -37,11 +37,11 @@ function ResultTile({
       onMouseEnter={onHighlight}
       onClick={onOpen}
       className={cn(
-        'group flex min-w-0 flex-col items-center gap-2.5 rounded-[1.1rem] border border-border/70 bg-card p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-soft',
+        'group flex min-w-0 flex-col items-center gap-2.5 rounded-lg border border-border bg-card p-4 text-center transition hover:-translate-y-0.5 hover:border-primary',
         highlighted && 'border-primary/60 ring-2 ring-primary/30',
       )}
     >
-      <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-border/70 bg-muted">
+      <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-muted">
         {icon}
       </span>
       <span className="w-full min-w-0">
@@ -95,11 +95,11 @@ export function LauncherResults({
       {loading ? (
         <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="h-28 animate-pulse rounded-[1.1rem] bg-muted" />
+            <div key={index} className="h-28 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
       ) : error ? (
-        <div className="w-full rounded-[1.1rem] border border-border/70 bg-card px-6 py-8 text-center">
+        <div className="w-full rounded-lg border border-border bg-card px-6 py-8 text-center">
           <TriangleAlert className="mx-auto size-6 text-destructive" />
           <p className="mt-3 text-sm font-medium">无法连接 Nav 服务</p>
           <p className="mt-1 text-xs text-muted-foreground">{error}</p>
@@ -114,7 +114,7 @@ export function LauncherResults({
           ) : null}
         </div>
       ) : results.length === 0 ? (
-        <div className="w-full rounded-[1.1rem] border border-dashed border-border bg-card/60 px-6 py-10 text-center">
+        <div className="w-full rounded-lg border border-dashed border-border bg-card/60 px-6 py-10 text-center">
           <Search className="mx-auto size-6 text-muted-foreground/40" />
           <p className="mt-3 text-sm font-medium">未找到匹配的书签</p>
           {showWebTile ? (
@@ -148,11 +148,11 @@ export function LauncherResults({
               onMouseEnter={() => onHighlightChange(listLen)}
               onClick={onWebSearch}
               className={cn(
-                'group flex min-w-0 flex-col items-center justify-center gap-2.5 rounded-[1.1rem] border border-dashed border-border/70 bg-card/60 p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-soft',
+                'group flex min-w-0 flex-col items-center justify-center gap-2.5 rounded-lg border border-dashed border-border bg-card/60 p-4 text-center transition hover:-translate-y-0.5 hover:border-primary',
                 highlighted === listLen && 'border-primary/60 ring-2 ring-primary/30',
               )}
             >
-              <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-border/70 bg-muted">
+              <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-muted">
                 <Globe className="size-5 text-primary" />
               </span>
               <span className="w-full min-w-0">

@@ -182,9 +182,7 @@ export function LauncherPage() {
             <p className="font-mono text-[11px] tracking-[0.3em] text-primary uppercase">
               personal index
             </p>
-            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-              {greeting()}
-            </h1>
+            <h1 className="mt-2 font-display text-2xl font-semibold sm:text-3xl">{greeting()}</h1>
           </div>
 
           <LauncherSearch

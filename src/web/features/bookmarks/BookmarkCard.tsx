@@ -143,10 +143,8 @@ export function BookmarkCard({
   return (
     <article
       className={cn(
-        'group relative flex min-w-0 touch-manipulation gap-3 border border-border/80 bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-soft',
-        viewMode === 'grid'
-          ? 'min-h-36 flex-col rounded-[1.1rem]'
-          : 'items-center rounded-[1rem] py-3',
+        'group relative flex min-w-0 touch-manipulation gap-3 border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary',
+        viewMode === 'grid' ? 'min-h-36 flex-col rounded-lg' : 'items-center rounded-lg py-3',
       )}
     >
       {active ? (
@@ -160,7 +158,7 @@ export function BookmarkCard({
       ) : null}
       <div className="pointer-events-none relative z-10 flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-[0.85rem] border border-border/70 bg-muted">
+          <div className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted">
             {icon}
           </div>
           <div className="min-w-0">

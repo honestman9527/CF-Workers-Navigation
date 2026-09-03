@@ -4,6 +4,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { Archive, Bookmark, FolderTree, Globe, Inbox, Tags, Trash2 } from 'lucide-react';
 import { useCallback } from 'react';
 
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
@@ -70,20 +72,48 @@ function StatCards({
         const Icon = card.icon;
         if (card.to) {
           return (
-            <button
+            <Card
               key={card.key}
-              type="button"
-              onClick={() => onNavigate(card.to!)}
+              size="sm"
               className={cn(
-                'flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft',
+                'min-w-0 border border-border text-left transition hover:border-primary/45',
               )}
             >
+              <button
+                type="button"
+                onClick={() => onNavigate(card.to!)}
+                className="w-full text-left"
+              >
+                <CardContent className="flex flex-col gap-3">
+                  <span
+                    className={cn(
+                      'grid size-8 place-items-center rounded-lg',
+                      card.tone === 'primary' && 'bg-primary/10 text-primary',
+                      card.tone === 'accent' && 'bg-accent text-accent-foreground',
+                      card.tone === 'warn' && 'bg-destructive/10 text-destructive',
+                      card.tone === 'muted' && 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="font-display text-2xl font-semibold tabular-nums">
+                    {card.value}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">{card.label}</span>
+                </CardContent>
+              </button>
+            </Card>
+          );
+        }
+        return (
+          <Card key={card.key} size="sm" className="min-w-0 border border-border">
+            <CardContent className="flex flex-col gap-3">
               <span
                 className={cn(
                   'grid size-8 place-items-center rounded-lg',
                   card.tone === 'primary' && 'bg-primary/10 text-primary',
                   card.tone === 'accent' && 'bg-accent text-accent-foreground',
-                  card.tone === 'warn' && 'bg-amber-500/10 text-amber-500',
+                  card.tone === 'warn' && 'bg-destructive/10 text-destructive',
                   card.tone === 'muted' && 'bg-muted text-muted-foreground',
                 )}
               >
@@ -91,28 +121,8 @@ function StatCards({
               </span>
               <span className="font-display text-2xl font-semibold tabular-nums">{card.value}</span>
               <span className="truncate text-xs text-muted-foreground">{card.label}</span>
-            </button>
-          );
-        }
-        return (
-          <div
-            key={card.key}
-            className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm"
-          >
-            <span
-              className={cn(
-                'grid size-8 place-items-center rounded-lg',
-                card.tone === 'primary' && 'bg-primary/10 text-primary',
-                card.tone === 'accent' && 'bg-accent text-accent-foreground',
-                card.tone === 'warn' && 'bg-amber-500/10 text-amber-500',
-                card.tone === 'muted' && 'bg-muted text-muted-foreground',
-              )}
-            >
-              <Icon className="size-4" />
-            </span>
-            <span className="font-display text-2xl font-semibold tabular-nums">{card.value}</span>
-            <span className="truncate text-xs text-muted-foreground">{card.label}</span>
-          </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -139,7 +149,7 @@ export function OverviewTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">概览</h1>
+        <h1 className="font-display text-2xl font-semibold">概览</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           书签柜的整体规模一览。分类、标签与网站的整理入口在对应侧栏。
         </p>
@@ -150,7 +160,7 @@ export function OverviewTab() {
       ) : loading ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="h-28 animate-pulse rounded-xl bg-muted" />
+            <Skeleton key={index} className="h-28 rounded-lg" />
           ))}
         </div>
       ) : stats === null ? null : (
@@ -161,9 +171,9 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/websites')}
-          className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft"
+          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
         >
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Globe className="size-5" />
           </span>
           <span className="min-w-0">
@@ -176,9 +186,9 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/categories')}
-          className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft"
+          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
         >
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <FolderTree className="size-5" />
           </span>
           <span className="min-w-0">
@@ -191,9 +201,9 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/tags')}
-          className="flex items-center gap-4 rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition hover:border-primary/45 hover:shadow-soft"
+          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
         >
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
+          <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
             <Tags className="size-5" />
           </span>
           <span className="min-w-0">

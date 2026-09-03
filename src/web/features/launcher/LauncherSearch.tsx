@@ -201,7 +201,7 @@ export function LauncherSearch({
 
   return (
     <div className="w-full max-w-2xl">
-      <div className="animate-launcher-enter flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-5 py-4 shadow-sm transition focus-within:border-primary/50 focus-within:shadow-md">
+      <div className="animate-launcher-enter flex h-11 items-center gap-3 rounded-full border border-border bg-card px-5 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
         <SearchIcon className="size-5 shrink-0 text-muted-foreground" />
         <input
           ref={inputRef}

@@ -66,7 +66,7 @@ export function CategoryTree({
           type="button"
           onClick={() => onSelect(UNCATEGORIZED_SLUG)}
           className={cn(
-            'flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
+            'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
             selectedSlug === UNCATEGORIZED_SLUG && 'bg-primary/10 font-medium text-primary',
             rowClass,
           )}
@@ -126,7 +126,7 @@ function TreeNode({
           type="button"
           onClick={() => onSelect(node.slug)}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
+            'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
             depth > 0 && 'py-1.5 text-xs',
             isSelected && 'bg-primary/10 font-medium text-primary',
             rowClass,
@@ -156,7 +156,7 @@ function TreeNode({
             aria-label={isExpanded ? '收起分类' : '展开分类'}
             aria-expanded={isExpanded}
             onClick={() => onToggle(node.id)}
-            className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <ChevronRight
               className={cn(

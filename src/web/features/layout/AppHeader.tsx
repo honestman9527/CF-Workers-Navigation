@@ -17,7 +17,7 @@ export function AppHeader({
   menu: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-40 w-full max-w-full border-b border-border/60 bg-background/80 pt-[var(--safe-t)] backdrop-blur-xl">
+    <header className="sticky top-0 z-40 w-full max-w-full bg-black pt-[var(--safe-t)] text-white">
       <div className="flex h-[var(--header-h)] items-center justify-between gap-4 px-4 sm:px-8">
         <div className="flex items-center gap-2">
           {navButton}

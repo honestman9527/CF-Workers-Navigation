@@ -3,8 +3,6 @@ import type { Bookmark, BookmarkInput, BookmarkView } from '@shared/api/types';
 import {
   Archive,
   ArchiveRestore,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   Globe,
   Pencil,
@@ -18,8 +16,17 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -143,7 +150,7 @@ export function WebsitesTab() {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">网站管理</h1>
+        <h1 className="font-display text-2xl font-semibold">网站管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           以紧凑表格统一查看与整理全部书签（含归档与回收站），支持页码分页与分类/标签筛选。
         </p>
@@ -153,7 +160,7 @@ export function WebsitesTab() {
         <div
           role="group"
           aria-label="状态筛选"
-          className="flex items-center rounded-lg border border-border/70 bg-card p-0.5 shadow-xs"
+          className="flex items-center rounded-lg border border-border/70 bg-card p-0.5"
         >
           {VIEWS.map((item) => (
             <button
@@ -237,19 +244,19 @@ export function WebsitesTab() {
       </div>
 
       {page.loading ? (
-        <div className="space-y-3 rounded-xl border border-border/70 bg-card p-6">
+        <div className="space-y-3 rounded-lg border border-border bg-card p-6">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-10 animate-pulse rounded-lg bg-muted/60" />
+            <Skeleton key={index} className="h-10 rounded-lg" />
           ))}
         </div>
       ) : page.items.length === 0 ? (
-        <div className="rounded-xl border border-border/70 bg-card py-16 text-center">
+        <div className="rounded-lg border border-border bg-card py-16 text-center">
           <Globe className="mx-auto size-8 text-muted-foreground/40" />
           <p className="mt-3 text-sm font-medium">没有符合条件的书签</p>
           <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或新建一个书签。</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs">
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
           {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
           <Table className="table-fixed">
             <TableHeader className="bg-muted/30">
@@ -277,7 +284,7 @@ export function WebsitesTab() {
                               {bookmark.title}
                             </span>
                             {bookmark.isPinned ? (
-                              <span title="常用书签" className="shrink-0 text-amber-500">
+                              <span title="常用书签" className="shrink-0 text-primary">
                                 <Star className="size-3 fill-current" />
                               </span>
                             ) : null}
@@ -299,17 +306,16 @@ export function WebsitesTab() {
                     {/* 状态 */}
                     <TableCell className="py-2.5 text-center">
                       {bookmark.deletedAt ? (
-                        <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
-                          回收站
-                        </span>
+                        <Badge variant="destructive">回收站</Badge>
                       ) : bookmark.archivedAt ? (
-                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          已归档
-                        </span>
+                        <Badge variant="secondary">已归档</Badge>
                       ) : (
-                        <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                        <Badge
+                          variant="outline"
+                          className="border-primary/30 bg-primary/10 text-primary"
+                        >
                           活动
-                        </span>
+                        </Badge>
                       )}
                     </TableCell>
 
@@ -465,26 +471,33 @@ export function WebsitesTab() {
                   </option>
                 ))}
               </select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                disabled={page.page <= 1 || page.loading}
-                onClick={() => page.setPage(page.page - 1)}
-              >
-                <ChevronLeft className="size-3.5" />
-                上一页
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                disabled={page.page >= page.totalPages || page.loading}
-                onClick={() => page.setPage(page.page + 1)}
-              >
-                下一页
-                <ChevronRight className="size-3.5" />
-              </Button>
+              <Pagination className="mx-0 w-auto">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      text="上一页"
+                      aria-disabled={page.page <= 1 || page.loading}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (page.page > 1 && !page.loading) page.setPage(page.page - 1);
+                      }}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      text="下一页"
+                      aria-disabled={page.page >= page.totalPages || page.loading}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (page.page < page.totalPages && !page.loading)
+                          page.setPage(page.page + 1);
+                      }}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           </div>
         </div>

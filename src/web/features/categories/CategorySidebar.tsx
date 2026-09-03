@@ -22,7 +22,7 @@ export function CategorySidebar({
         type="button"
         onClick={() => onSelect(UNCATEGORIZED_SLUG)}
         className={cn(
-          'nav-item rounded-xl px-3 py-2',
+          'nav-item rounded-lg px-3 py-2',
           selectedSlug === UNCATEGORIZED_SLUG && 'nav-item-active',
         )}
       >

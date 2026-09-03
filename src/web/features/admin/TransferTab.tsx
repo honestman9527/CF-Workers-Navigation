@@ -181,7 +181,7 @@ export function TransferTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">导入 / 导出</h1>
+        <h1 className="font-display text-2xl font-semibold">导入 / 导出</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           支持 HTML 书签与 JSON
           备份，导入时自动识别格式。导出在工作区不可用，请在这里完成数据备份与恢复。
@@ -310,7 +310,7 @@ export function TransferTab() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-foreground">
               {importState.stage === 'done' ? (
-                <CheckCircle size={16} className="fill-current text-[var(--verdigris)]" />
+                <CheckCircle size={16} className="fill-current text-primary" />
               ) : busy ? (
                 <LoaderCircle size={16} className="animate-spin text-primary" />
               ) : (
@@ -427,7 +427,7 @@ function SummaryStat({
   tone: 'accent' | 'muted' | 'warn';
 }) {
   const toneClass =
-    tone === 'accent' ? 'text-primary' : tone === 'warn' ? 'text-amber-500' : 'text-foreground';
+    tone === 'accent' ? 'text-primary' : tone === 'warn' ? 'text-destructive' : 'text-foreground';
   return (
     <div className="rounded-md border border-border bg-card px-2 py-1.5">
       <div className={cn('text-sm font-semibold tabular-nums', toneClass)}>{value}</div>

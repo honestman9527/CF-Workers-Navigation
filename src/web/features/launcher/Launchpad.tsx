@@ -25,9 +25,9 @@ function Tile({ bookmark }: { bookmark: Bookmark }) {
       target="_blank"
       rel="noreferrer"
       title={bookmark.title}
-      className="group flex min-w-0 flex-col items-center gap-2.5 rounded-[1.1rem] border border-border/70 bg-card p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-soft"
+      className="group flex min-w-0 flex-col items-center gap-2.5 rounded-lg border border-border bg-card p-4 text-center transition hover:-translate-y-0.5 hover:border-primary"
     >
-      <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-border/70 bg-muted">
+      <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-muted">
         {icon}
       </span>
       <span className="w-full min-w-0">
@@ -57,7 +57,7 @@ export function Launchpad({
     return (
       <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="h-28 animate-pulse rounded-[1.1rem] bg-muted" />
+          <div key={index} className="h-28 animate-pulse rounded-lg bg-muted" />
         ))}
       </div>
     );
@@ -65,7 +65,7 @@ export function Launchpad({
 
   if (error && bookmarks.length === 0) {
     return (
-      <div className="w-full rounded-[1.1rem] border border-border/70 bg-card px-6 py-8 text-center">
+      <div className="w-full rounded-lg border border-border bg-card px-6 py-8 text-center">
         <p className="text-sm font-medium">常用网站加载失败</p>
         <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
@@ -78,7 +78,7 @@ export function Launchpad({
 
   if (bookmarks.length === 0) {
     return (
-      <div className="w-full rounded-[1.1rem] border border-dashed border-border bg-card/60 px-6 py-10 text-center">
+      <div className="w-full rounded-lg border border-dashed border-border bg-card/60 px-6 py-10 text-center">
         <Star className="mx-auto size-6 text-muted-foreground/40" />
         <p className="mt-3 text-sm font-medium">还没有常用网站</p>
         <p className="mt-1 text-xs text-muted-foreground">

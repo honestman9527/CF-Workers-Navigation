@@ -152,7 +152,7 @@ export function CategoriesTab() {
     <div
       key="create"
       className={cn(
-        'flex items-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-2 transition-all',
+        'flex items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-2 transition-all',
         depth > 0 &&
           'relative ml-6 before:absolute before:top-1/2 before:-left-3.5 before:h-px before:w-3 before:bg-border/80',
       )}
@@ -279,9 +279,9 @@ export function CategoriesTab() {
         {/* 节点行 */}
         <div
           className={cn(
-            'group flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-colors',
+            'group flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors',
             isRoot
-              ? 'border border-border/70 bg-card shadow-xs hover:border-primary/40'
+              ? 'border border-border/70 bg-card hover:border-primary/40'
               : 'hover:bg-muted/60',
           )}
         >
@@ -412,7 +412,7 @@ export function CategoriesTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">分类管理</h1>
+        <h1 className="font-display text-2xl font-semibold">分类管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           分类是书签的树形归属。删除分类后子分类自动上移一级，内含书签转为未分类。书签数统计为「直属
           / 含子类总数」。
@@ -428,14 +428,14 @@ export function CategoriesTab() {
       </div>
 
       {loading ? (
-        <div className="h-44 animate-pulse rounded-xl bg-muted/60" />
+        <div className="h-44 animate-pulse rounded-lg bg-muted/60" />
       ) : (
         <div className="space-y-3">
           {create?.parentId === 'root' ? createRow('root', 0) : null}
           {tree.length > 0 ? (
             <div className="space-y-2.5">{tree.map((node) => renderNode(node, 0))}</div>
           ) : create === null ? (
-            <div className="rounded-xl border border-dashed border-border p-12 text-center">
+            <div className="rounded-lg border border-dashed border-border p-12 text-center">
               <Folder className="mx-auto size-8 text-muted-foreground/40" />
               <p className="mt-3 text-sm font-medium">还没有分类</p>
               <p className="mt-1 text-xs text-muted-foreground">

@@ -202,7 +202,6 @@ export default function App() {
               Nav Extension
             </p>
             <h1 className="shell-title">设置</h1>
-            <div className="shift-track" aria-hidden />
             <p className="shell-lead">
               配置 API 地址与管理员密码，Popup 与右键菜单将使用该连接。
             </p>
@@ -224,7 +223,7 @@ export default function App() {
           <div className="module-head">
             <div>
               <h2 className="module-title">
-                <Plug className="h-4 w-4 text-[var(--lacquer)]" />
+                <Plug className="h-4 w-4 text-[var(--primary)]" />
                 连接
               </h2>
               <p className="module-desc">
@@ -322,9 +321,9 @@ export default function App() {
                 <span
                   className={
                     permStatus === "granted"
-                      ? "text-[var(--verdigris)]"
+                      ? "text-[var(--primary)]"
                       : permStatus === "requesting"
-                        ? "text-amber-400"
+                        ? "text-[var(--warning)]"
                         : "text-[var(--destructive)]"
                   }
                 >
@@ -342,11 +341,11 @@ export default function App() {
                   <span
                     className={
                       connectionStatus === "success"
-                        ? "text-[var(--verdigris)]"
+                        ? "text-[var(--primary)]"
                         : connectionStatus === "failed"
                           ? "text-[var(--destructive)]"
                           : connectionStatus === "testing"
-                            ? "text-amber-400"
+                            ? "text-[var(--warning)]"
                             : "text-[var(--text-tertiary)]"
                     }
                   >
@@ -378,7 +377,7 @@ export default function App() {
           <div className="module-head">
             <div>
               <h2 className="module-title">
-                <Sun className="h-4 w-4 text-[var(--lacquer)]" />
+                <Sun className="h-4 w-4 text-[var(--primary)]" />
                 界面主题
               </h2>
               <p className="module-desc">Popup 与设置页共用此偏好。</p>

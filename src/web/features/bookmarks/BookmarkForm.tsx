@@ -204,7 +204,7 @@ export function BookmarkForm({
           </Button>
         </div>
         {metadata ? (
-          <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+          <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
             {metadata.iconUrl ? (
               <img src={metadata.iconUrl} alt="" className="size-6 rounded" />
             ) : (

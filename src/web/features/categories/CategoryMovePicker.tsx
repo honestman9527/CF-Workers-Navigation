@@ -54,7 +54,7 @@ export function CategoryMovePicker({
         <FolderInput className="size-3.5" />
       </Button>
       {open ? (
-        <div className="animate-panel-enter absolute top-full right-0 z-50 mt-1 w-64 rounded-xl border border-border/70 bg-popover p-2 shadow-md">
+        <div className="animate-panel-enter absolute top-full right-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2">
           <button
             type="button"
             onClick={() => select(null)}

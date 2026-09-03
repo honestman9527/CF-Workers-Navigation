@@ -53,7 +53,7 @@ function AdminNavItem({ to, label, icon: Icon, end }: (typeof NAV)[number]) {
       to={to}
       onClick={() => setOpenMobile(false)}
       aria-current={active ? 'page' : undefined}
-      className={cn('nav-item rounded-xl px-3 py-2.5', active && 'nav-item-active')}
+      className={cn('nav-item rounded-lg px-3 py-2.5', active && 'nav-item-active')}
     >
       <Icon className="size-4" />
       {label}
@@ -72,13 +72,13 @@ export function AdminPage() {
     <div className="app-root min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
       <SidebarProvider>
         <Sidebar
-          collapsible="none"
+          collapsible="offcanvas"
           variant="floating"
-          className="top-4 m-4 h-[calc(100dvh-2rem)] w-[15rem] xl:w-[16rem]"
+          className="top-4 bottom-4 left-4 h-auto w-[15rem] xl:w-[16rem]"
         >
           <SidebarContent className="gap-6 p-4">
             <div className="flex items-center gap-2.5 px-1">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
                 <LayoutDashboard className="size-4" />
               </span>
               <div className="min-w-0">
@@ -100,14 +100,14 @@ export function AdminPage() {
             </nav>
 
             <div className="mt-auto grid gap-1 border-t border-border/80 pt-3">
-              <Link to={frontRoute} className="nav-item rounded-xl px-3 py-2.5">
+              <Link to={frontRoute} className="nav-item rounded-lg px-3 py-2.5">
                 <ArrowLeft className="size-4" />
                 {returnLabel}
               </Link>
               <button
                 type="button"
                 onClick={() => void auth.logout()}
-                className="nav-item rounded-xl px-3 py-2.5 text-destructive hover:text-destructive"
+                className="nav-item rounded-lg px-3 py-2.5 text-destructive hover:text-destructive"
               >
                 <LogOut className="size-4" />
                 退出登录
