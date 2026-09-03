@@ -128,7 +128,7 @@ jobs:
         run: pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.ci.jsonc
 
       - name: Build Web
-        run: pnpm build:web
+        run: pnpm build
 
       - name: Deploy Worker
         run: pnpm exec wrangler deploy --config wrangler.ci.jsonc --secrets-file wrangler.secrets.json
