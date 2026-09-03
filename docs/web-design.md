@@ -121,4 +121,4 @@
 
 ## 不做什么
 
-不套奶油底+衬线模板的大数字 hero；不套黑底酸绿；扩展保持独立 CSS 与独立构建产物，但与 Web 对齐 paper / ink / rule / Action Blue 语义 token。
+不套奶油底+衬线模板的大数字 hero；不套黑底酸绿；Web 统一使用 paper / ink / rule / Action Blue 语义 token。

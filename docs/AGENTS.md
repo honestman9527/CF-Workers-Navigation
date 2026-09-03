@@ -8,7 +8,6 @@
 | 目录边界、运行时与配置 | [架构](./architecture.md)   |
 | HTTP API 与登录        | [API](./api.md)             |
 | Cloudflare、D1 与部署  | [部署](./deployment.md)     |
-| Chrome MV3 扩展        | [扩展](./extension.md)      |
 | Web 视觉方向           | [Web 设计](./web-design.md) |
 
 架构决策直接写入对应主题文档，不再维护单独的 ADR、术语表或历史方案文档。

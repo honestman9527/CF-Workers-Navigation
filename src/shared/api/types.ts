@@ -1,4 +1,4 @@
-/** 跨端 API DTO：Worker、Web、extension 的唯一契约。 */
+/** 跨端 API DTO：Worker 与 Web 的唯一契约。 */
 
 import type { SearchEngine } from '../search';
 
@@ -97,7 +97,7 @@ export type FaviconPreview = {
 export type Settings = {
   faviconProxyUrl: string;
   faviconProxyEnabled: boolean;
-  /** 搜索引擎列表（Web 启动台 / 扩展共用契约）。 */
+  /** 搜索引擎列表（Web 启动台使用）。 */
   searchEngines: SearchEngine[];
   /** 默认搜索引擎 id，须存在于 searchEngines。 */
   defaultEngineId: string;

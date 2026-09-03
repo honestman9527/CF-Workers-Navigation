@@ -8,11 +8,10 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@ext': path.join(projectRoot, 'src/extension'),
       '@shared': path.join(projectRoot, 'src/shared'),
     },
   },
   test: {
-    include: ['src/extension/**/*.test.ts', 'src/shared/**/*.test.ts', 'src/web/**/*.test.ts'],
+    include: ['src/shared/**/*.test.ts', 'src/web/**/*.test.ts'],
   },
 });

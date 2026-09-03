@@ -1,8 +1,8 @@
 # API
 
-Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点和 fetch client 位于 `src/shared`。未版本化的 `/api/*` 已移除并返回 404。
+Web 通过 `/api/v1/*` 访问 Worker。共享 DTO、端点和 fetch client 位于 `src/shared`。未版本化的 `/api/*` 已移除并返回 404。
 
-这是私人书签柜：除登录与健康检查外，所有接口都必须认证。Web 使用 HttpOnly session cookie，扩展使用 `Authorization: Bearer <ADMIN_PASSWORD>`。
+这是私人书签柜：除登录与健康检查外，所有接口都必须认证。Web 使用 HttpOnly session cookie。
 
 ## 认证与健康检查
 
@@ -62,7 +62,7 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
 - `GET /api/v1/tags`：返回标签及活动书签数量（标签的规范列表接口）。
 - `GET /api/v1/bookmarks/tags`：过时别名，行为与 `GET /api/v1/tags` 相同，仅用于向后兼容。
 
-搜索默认只返回活动书签。扩展搜索限制为 8 条；Web 前台（启动台 + 书签柜）单页大小 100，并按筛选一次取完全部匹配书签。
+搜索默认只返回活动书签。Web 前台（启动台 + 书签柜）单页大小 100，并按筛选一次取完全部匹配书签。
 
 ## 标签管理
 
@@ -142,7 +142,7 @@ Web 与 Chrome 扩展只通过 `/api/v1/*` 访问 Worker。共享 DTO、端点�
 }
 ```
 
-`searchEngines` 是完整替换的引擎列表（1..20 个）：`id` 唯一、`url` 必须含 `{query}` 占位符、`builtin` 标记内置项。内置项不可删除——缺失时服务端写入前自动补回默认内置引擎。`defaultEngineId` 必须存在于列表中，否则返回 `400`。Web 启动台与扩展共用 `SearchEngine` 契约（见 `src/shared/search.ts`）；扩展端仍在 chrome.storage 维护本地引擎配置，可覆盖服务端默认。
+`searchEngines` 是完整替换的引擎列表（1..20 个）：`id` 唯一、`url` 必须含 `{query}` 占位符、`builtin` 标记内置项。内置项不可删除——缺失时服务端写入前自动补回默认内置引擎。`defaultEngineId` 必须存在于列表中，否则返回 `400`。Web 启动台使用 `SearchEngine` 契约（见 `src/shared/search.ts`）。
 
 背景图片：`backgroundImageUrl` 为空串表示不启用；非空时须为合法 `http(s)` 网址（否则返回 `400`）。`backgroundImageEnabled` 控制是否启用，Web 启动台与工作区共用该背景。
 
