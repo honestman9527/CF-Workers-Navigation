@@ -11,6 +11,14 @@ import {
 } from 'lucide-react';
 
 import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from '@/components/ui/breadcrumb';
+import {
   Sidebar,
   SidebarContent,
   SidebarInset,
@@ -20,6 +28,7 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { BrandIcon } from '@nav/features/layout/BrandIcon';
 import { getPreferredFrontRoute, getPreferredFrontView } from '@nav/features/settings/store';
 
 const NAV: Array<{
@@ -64,6 +73,8 @@ function AdminNavItem({ to, label, icon: Icon, end }: (typeof NAV)[number]) {
 /** 管理后台布局：侧边栏导航（桌面常驻浮动栏 + 移动端抽屉）+ 路由内容区。 */
 export function AdminPage() {
   const auth = useAuthContext();
+  const { pathname } = useLocation();
+  const currentLabel = NAV.find((item) => item.to === pathname)?.label ?? '概览';
   const frontRoute = getPreferredFrontRoute();
   const frontViewMode = getPreferredFrontView();
   const returnLabel = frontViewMode === 'workspace' ? '返回书签柜' : '返回启动台';
@@ -78,9 +89,7 @@ export function AdminPage() {
         >
           <SidebarContent className="gap-6 p-4">
             <div className="flex items-center gap-2.5 px-1">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-                <LayoutDashboard className="size-4" />
-              </span>
+              <BrandIcon className="size-9" />
               <div className="min-w-0">
                 <strong className="block truncate font-display text-base">管理后台</strong>
                 <span className="block text-[11px] text-muted-foreground">书签柜设置与整理</span>
@@ -121,10 +130,17 @@ export function AdminPage() {
             <div className="lg:hidden">
               <SidebarTrigger />
             </div>
-            <span className="font-display text-sm font-semibold sm:hidden">管理后台</span>
-            <span className="hidden font-mono text-[11px] tracking-wide text-muted-foreground uppercase sm:block">
-              管理后台 · 设置与整理
-            </span>
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink render={<Link to="/admin" />}>管理后台</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{currentLabel}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </header>
 
           <main className="mx-auto w-full max-w-[70rem] px-4 py-6 sm:px-6 sm:py-8">

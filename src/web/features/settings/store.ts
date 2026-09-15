@@ -86,3 +86,10 @@ export const settingsStateAtom = atom((get) => ({
   error: get(settingsErrorAtom),
   loaded: get(settingsLoadedAtom),
 }));
+
+/** 写入服务端确认的设置，使已挂载的前台同步更新。 */
+export const updateSettingsCacheAtom = atom(null, (_get, set, settings: Settings) => {
+  set(settingsDataAtom, settings);
+  set(settingsErrorAtom, null);
+  set(settingsLoadedAtom, true);
+});

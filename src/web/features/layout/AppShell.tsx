@@ -23,7 +23,7 @@ export function AppShell({
           <SidebarContent className="p-4">{sidebar}</SidebarContent>
         </Sidebar>
         <SidebarInset className="app-inset min-w-0 overflow-x-clip">
-          <div className="mx-auto w-full max-w-[60rem] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-[90rem] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             {children}
           </div>
         </SidebarInset>

@@ -37,7 +37,7 @@ function StatCards({
     },
     {
       key: 'active',
-      label: '活动书签',
+      label: '正常书签',
       value: stats.bookmarks.active,
       icon: Inbox,
       tone: 'accent',

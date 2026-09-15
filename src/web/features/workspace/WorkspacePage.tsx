@@ -4,10 +4,19 @@ import { getRouteApi, useNavigate } from '@tanstack/react-router';
 import { Bookmark as BookmarkIcon, LayoutGrid, List, Plus, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyMedia,
+} from '@/components/ui/empty';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/toast';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
@@ -15,7 +24,7 @@ import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
-import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
+import { usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 import { AppHeader } from '@nav/features/layout/AppHeader';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { Brand } from '@nav/features/layout/Brand';
@@ -27,6 +36,7 @@ import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
 import { selectWorkspaceFilter, setWorkspaceQuery, type WorkspaceSearch } from './search';
+import { WorkspacePagination } from './WorkspacePagination';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 
 const routeApi = getRouteApi('/workspace');
@@ -55,6 +65,7 @@ export function WorkspacePage() {
   const settings = useSettings(handleUnauthorized);
   useBackground(settings);
 
+  const [revealSelection, setRevealSelection] = useState(0);
   const [tags, setTags] = useState<Tag[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
@@ -98,12 +109,24 @@ export function WorkspacePage() {
     pushToast(message, 'error');
   }
 
-  const page = useBookmarkPage({
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const pageSize = search.pageSize ?? 24;
+  function changePage(value: number, scroll = true) {
+    void navigate({
+      to: '/workspace',
+      search: (prev) => ({ ...prev, page: value > 1 ? value : undefined }),
+    });
+    if (scroll) resultsRef.current?.scrollIntoView({ block: 'start' });
+  }
+  const page = usePagedBookmarks({
     view: 'active',
-    category,
-    tag,
-    pinned: pinned === true,
-    untagged,
+    category: query ? undefined : category,
+    tag: query ? undefined : tag,
+    pinned: !query && pinned === true,
+    untagged: query ? undefined : untagged,
+    page: search.page ?? 1,
+    pageSize,
+    onPageChange: (value) => changePage(value, false),
     query: query ?? '',
     onUnauthorized: handleUnauthorized,
     onError: reportError,
@@ -167,14 +190,19 @@ export function WorkspacePage() {
 
   function selectFilter(filter: Omit<WorkspaceSearch, 'q'>) {
     setQueryDraft('');
-    void navigate({ to: '/workspace', search: selectWorkspaceFilter(filter) });
+    void navigate({
+      to: '/workspace',
+      search: selectWorkspaceFilter({ ...filter, pageSize: search.pageSize }),
+    });
   }
 
   function selectCategory(slug: string) {
+    setRevealSelection((value) => value + 1);
     selectFilter({ category: slug });
   }
 
   function selectTagFilter(slug: string) {
+    setRevealSelection((value) => value + 1);
     selectFilter({ tag: slug });
   }
 
@@ -281,11 +309,12 @@ export function WorkspacePage() {
             categories={categories}
             tags={tags}
             search={search}
+            revealSelection={revealSelection}
             onSelect={selectFilter}
           />
         }
       >
-        <div className="mx-auto flex w-full flex-col gap-7 px-1 sm:px-2">
+        <div className="@container flex w-full flex-col gap-5">
           <div className="flex h-11 items-center gap-3 rounded-full border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="size-4.5 text-muted-foreground" />
             <input
@@ -309,63 +338,87 @@ export function WorkspacePage() {
               </kbd>
             )}
           </div>
-          <div className="flex items-end justify-between gap-3">
+          <div ref={resultsRef} className="flex scroll-mt-20 items-end justify-between gap-3">
             <div className="min-w-0">
-              <p className="mb-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-                书签柜
-              </p>
               <h1 className="font-display text-3xl font-semibold sm:text-4xl">{title}</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                {page.loading ? '同步中…' : `已加载 ${page.items.length} 个书签`}
+                {page.loading ? '加载中…' : page.error ? '加载失败' : `共 ${page.total} 条书签`}
               </p>
             </div>
-            <Tabs
-              value={viewMode}
-              onValueChange={(value) => setViewMode(value === 'list' ? 'list' : 'grid')}
+            <ToggleGroup
+              value={[viewMode]}
+              onValueChange={(values) => {
+                if (values[0]) setViewMode(values[0] === 'list' ? 'list' : 'grid');
+              }}
+              variant="outline"
+              spacing={0}
               aria-label="视图切换"
-              className="shrink-0"
             >
-              <TabsList className="border border-border bg-card p-0.5">
-                <TabsTrigger
-                  value="grid"
-                  aria-label="网格视图"
-                  className="size-7 flex-none rounded-md px-0"
-                >
-                  <LayoutGrid />
-                </TabsTrigger>
-                <TabsTrigger
-                  value="list"
-                  aria-label="列表视图"
-                  className="size-7 flex-none rounded-md px-0"
-                >
-                  <List />
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              <ToggleGroupItem value="grid" aria-label="网格视图">
+                <LayoutGrid />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="list" aria-label="列表视图">
+                <List />
+              </ToggleGroupItem>
+            </ToggleGroup>
           </div>
           {page.loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 @[560px]:grid-cols-2 @[900px]:grid-cols-3 @[1200px]:grid-cols-4">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="h-36 animate-pulse rounded-lg bg-muted" />
+                <Skeleton key={index} className="h-44 rounded-lg" />
               ))}
             </div>
+          ) : page.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {page.error}
+                <Button variant="outline" onClick={page.refresh}>
+                  重试
+                </Button>
+              </AlertDescription>
+            </Alert>
           ) : page.items.length === 0 ? (
-            <div className="border-y border-border py-16 text-center">
-              <BookmarkIcon className="mx-auto size-8 text-muted-foreground/40" />
-              <p className="mt-3 font-medium">这里还没有书签</p>
-              <p className="mt-1 text-sm text-muted-foreground">粘贴一个网址，给它一个标签。</p>
-            </div>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <BookmarkIcon />
+                </EmptyMedia>
+                <EmptyTitle>{query ? '没有找到匹配的书签' : '这里还没有书签'}</EmptyTitle>
+                <EmptyDescription>
+                  {query ? '换一个关键词试试。' : '添加一个网址，开始整理。'}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div
               className={cn(
                 viewMode === 'grid'
-                  ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'
+                  ? 'grid grid-cols-1 gap-3 @[560px]:grid-cols-2 @[900px]:grid-cols-3 @[1200px]:grid-cols-4'
                   : 'grid gap-2',
               )}
             >
               {page.items.map(renderCard)}
             </div>
           )}
+          {!page.error ? (
+            <WorkspacePagination
+              page={page.page}
+              total={page.total}
+              pageSize={pageSize}
+              loading={page.loading}
+              onPageChange={changePage}
+              onPageSizeChange={(size) => {
+                void navigate({
+                  to: '/workspace',
+                  search: (prev) => ({
+                    ...prev,
+                    page: undefined,
+                    pageSize: size === 24 ? undefined : size,
+                  }),
+                });
+              }}
+            />
+          ) : null}
         </div>
       </AppShell>
       <Toaster />

@@ -183,8 +183,7 @@ export function TransferTab() {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-2xl font-semibold">导入 / 导出</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          支持 HTML 书签与 JSON
-          备份，导入时自动识别格式。导出在工作区不可用，请在这里完成数据备份与恢复。
+          支持 HTML 书签与 JSON 备份，导入时自动识别格式。可导出完整备份或浏览器书签文件。
         </p>
       </div>
 

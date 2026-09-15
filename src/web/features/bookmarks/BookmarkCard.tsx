@@ -1,6 +1,7 @@
 import type { Bookmark } from '@shared/api/types';
 
 import {
+  MoreHorizontal,
   Archive,
   ArchiveRestore,
   ExternalLink,
@@ -14,6 +15,13 @@ import {
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { TagChip } from '@nav/features/tags/TagChip';
 import { domainOf } from '@shared/search';
@@ -54,36 +62,43 @@ export function BookmarkCard({
   );
   const active = !bookmark.deletedAt && !bookmark.archivedAt;
   const actions = (
-    <div className="pointer-events-auto relative z-20 flex items-center gap-0.5">
+    <div className="pointer-events-auto relative z-20 flex shrink-0 items-center gap-0.5">
       {active ? (
         <>
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={() => onTogglePin(bookmark)}
-            aria-label="切换常用"
+            aria-label={bookmark.isPinned ? '取消常用' : '加入常用'}
+            aria-pressed={bookmark.isPinned}
           >
             <Star className={cn('size-4', bookmark.isPinned && 'fill-current text-primary')} />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onArchive(bookmark)}
-            aria-label="归档"
-          >
-            <Archive className="size-4" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => onEdit(bookmark)} aria-label="编辑">
-            <Pencil className="size-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onDelete(bookmark)}
-            aria-label="移入回收站"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label={`更多操作：${bookmark.title}`} />
+              }
+            >
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem onClick={() => onEdit(bookmark)}>
+                  <Pencil />
+                  编辑
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onArchive(bookmark)}>
+                  <Archive />
+                  归档
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete(bookmark)}>
+                  <Trash2 />
+                  移入回收站
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       ) : bookmark.deletedAt ? (
         <>
@@ -156,13 +171,15 @@ export function BookmarkCard({
           aria-label={`打开 ${bookmark.title}`}
         />
       ) : null}
-      <div className="pointer-events-none relative z-10 flex min-w-0 items-start justify-between gap-3">
+      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted">
             {icon}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">{bookmark.title}</h2>
+            <h2 title={bookmark.title} className="line-clamp-2 text-sm font-semibold">
+              {bookmark.title}
+            </h2>
             <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{domain}</p>
           </div>
         </div>
@@ -171,7 +188,7 @@ export function BookmarkCard({
       {viewMode === 'grid' ? (
         <>
           <p className="pointer-events-none relative z-10 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">
-            {bookmark.description || '没有描述'}
+            {bookmark.description || ''}
           </p>
           <div className="relative z-20 mt-auto flex flex-wrap gap-1.5">
             {categoryChip}

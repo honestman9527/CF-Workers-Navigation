@@ -56,8 +56,8 @@ const BookmarkForm = lazy(() =>
 
 const VIEWS: Array<{ id: BookmarkView; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'active', label: '活动' },
-  { id: 'archive', label: '归档' },
+  { id: 'active', label: '正常' },
+  { id: 'archive', label: '已归档' },
   { id: 'trash', label: '回收站' },
 ];
 
@@ -152,7 +152,7 @@ export function WebsitesTab() {
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold">网站管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          以紧凑表格统一查看与整理全部书签（含归档与回收站），支持页码分页与分类/标签筛选。
+          查看和整理全部书签，包括正常、已归档及回收站中的书签。
         </p>
       </div>
 
@@ -314,7 +314,7 @@ export function WebsitesTab() {
                           variant="outline"
                           className="border-primary/30 bg-primary/10 text-primary"
                         >
-                          活动
+                          正常
                         </Badge>
                       )}
                     </TableCell>
@@ -361,7 +361,8 @@ export function WebsitesTab() {
                               onClick={() =>
                                 askConfirm({
                                   title: `归档「${bookmark.title}」？`,
-                                  description: '归档后书签会移入「归档」视图，可随时取消归档恢复。',
+                                  description:
+                                    '归档后书签会移入「已归档」状态，可随时取消归档恢复。',
                                   confirmLabel: '归档',
                                   destructive: false,
                                   successMessage: '已归档',
@@ -433,7 +434,7 @@ export function WebsitesTab() {
                                 void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
                               }
                               aria-label="取消归档"
-                              title="恢复到活动书签"
+                              title="恢复到正常书签"
                             >
                               <ArchiveRestore className="size-3.5" />
                             </Button>

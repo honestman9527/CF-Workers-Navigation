@@ -1,20 +1,38 @@
+import type { Settings } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
-import { Check, Image, Pencil, Plus, Settings, Trash2, TriangleAlert } from 'lucide-react';
+import { useSetAtom } from 'jotai';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+  FieldSet,
+  FieldLegend,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ApiError, api } from '@nav/api/client';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { updateSettingsCacheAtom } from '@nav/features/settings/store';
 import { useApiData } from '@nav/hooks/useApiData';
-import { DEFAULT_SEARCH_ENGINES, domainOf, faviconFor } from '@shared/search';
+import { domainOf, faviconFor } from '@shared/search';
 
+import { validateSettingsDraft } from './settingsValidation';
 import { handleAdminUnauthorized } from './shared';
 
 const PRESETS: { id: string; label: string; url: string }[] = [
@@ -38,7 +56,8 @@ function engineIdFromName(name: string, existing: string[]): string {
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'engine';
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 28) || 'engine';
   let id = base;
   let index = 2;
   while (existing.includes(id)) {
@@ -49,7 +68,7 @@ function engineIdFromName(name: string, existing: string[]): string {
 }
 
 function EngineIcon({ engine }: { engine: SearchEngine }) {
-  const src = faviconFor(domainOf(engine.url));
+  const src = engine.iconUrl || faviconFor(domainOf(engine.url));
   return (
     <ImageWithFallback
       src={src}
@@ -92,8 +111,8 @@ function EngineFormDialog({
     const trimmedName = name.trim();
     const trimmedUrl = url.trim();
     const trimmedIcon = iconUrl.trim();
-    if (!trimmedName) {
-      setError('请输入名称');
+    if (!trimmedName || trimmedName.length > 40) {
+      setError('请输入 1–40 字的名称');
       return;
     }
     if (!trimmedUrl.includes('{query}')) {
@@ -130,9 +149,9 @@ function EngineFormDialog({
       <h2 className="font-display text-lg font-semibold">
         {engine ? '编辑搜索引擎' : '添加搜索引擎'}
       </h2>
-      <div className="grid gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="engine-name">名称</Label>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="engine-name">名称</FieldLabel>
           <Input
             id="engine-name"
             value={name}
@@ -140,9 +159,9 @@ function EngineFormDialog({
             placeholder="例如：知乎"
             autoFocus
           />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="engine-url">搜索网址模板</Label>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="engine-url">搜索网址模板</FieldLabel>
           <Input
             id="engine-url"
             value={url}
@@ -152,16 +171,16 @@ function EngineFormDialog({
           <p className="text-[11px] text-muted-foreground">
             使用 <code className="rounded bg-card px-1">{'{query}'}</code> 作为查询词占位符。
           </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="engine-icon">图标网址（可选）</Label>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="engine-icon">图标网址（可选）</FieldLabel>
           <Input
             id="engine-icon"
             value={iconUrl}
             onChange={(event) => setIconUrl(event.target.value)}
             placeholder="留空则自动取域名 favicon"
           />
-        </div>
+        </Field>
         {error ? (
           <p role="alert" className="text-xs text-destructive">
             {error}
@@ -175,333 +194,326 @@ function EngineFormDialog({
             {engine ? '保存修改' : '添加'}
           </Button>
         </div>
-      </div>
+      </FieldGroup>
     </DialogPanel>
   );
 }
 
 export function SettingsTab() {
   const auth = useAuthContext();
-  const [faviconProxyUrl, setFaviconProxyUrl] = useState('');
-  const [faviconProxyEnabled, setFaviconProxyEnabled] = useState(true);
-  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
-  const [backgroundImageEnabled, setBackgroundImageEnabled] = useState(false);
-  const [searchEngines, setSearchEngines] = useState<SearchEngine[]>(DEFAULT_SEARCH_ENGINES);
-  const [defaultEngineId, setDefaultEngineId] = useState('google');
-  const [engineDialog, setEngineDialog] = useState<{ engine?: SearchEngine } | null>(null);
+  const cacheSettings = useSetAtom(updateSettingsCacheAtom);
+  const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(undefined, signal), []);
+  const {
+    data: settings,
+    loading,
+    error: loadError,
+    refresh,
+    setData,
+  } = useApiData(loadSettings, { onUnauthorized: () => void auth.logout() });
+  const [draft, setDraft] = useState<Settings | null>(null);
+  const [tab, setTab] = useState('appearance');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const selectedProvider = PRESETS.find((preset) => preset.url === faviconProxyUrl)?.id ?? 'custom';
-
-  const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(undefined, signal), []);
-  const { data: settings, loading } = useApiData(loadSettings, {
-    onUnauthorized: () => void auth.logout(),
-  });
-  /** 数据到达后再填表，避免首次渲染空表单闪一下。 */
-  const pending = loading || settings === null;
-
+  const [invalid, setInvalid] = useState<string | null>(null);
+  const [engineDialog, setEngineDialog] = useState<{ engine?: SearchEngine } | null>(null);
   useEffect(() => {
-    if (!settings) return;
-    setFaviconProxyUrl(settings.faviconProxyUrl);
-    setFaviconProxyEnabled(settings.faviconProxyEnabled);
-    setBackgroundImageUrl(settings.backgroundImageUrl);
-    setBackgroundImageEnabled(settings.backgroundImageEnabled);
-    const engines =
-      settings.searchEngines.length > 0 ? settings.searchEngines : DEFAULT_SEARCH_ENGINES;
-    setSearchEngines(engines);
-    setDefaultEngineId(
-      engines.some((engine) => engine.id === settings.defaultEngineId)
-        ? settings.defaultEngineId
-        : engines[0].id,
-    );
+    if (settings) setDraft(settings);
   }, [settings]);
-
-  async function handleSave() {
+  const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  function update(values: Partial<Settings>) {
+    setDraft((current) => (current ? { ...current, ...values } : current));
+    setInvalid(null);
+    setError(null);
+  }
+  async function save() {
+    if (!draft) return;
+    const fail = (section: string, field: string, message: string) => {
+      setTab(section);
+      setInvalid(field);
+      setError(message);
+      requestAnimationFrame(() => document.getElementById(field)?.focus());
+    };
+    const issue = validateSettingsDraft(draft);
+    if (issue) {
+      fail(issue.tab, issue.field, issue.message);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await api.updateSettings('', {
-        faviconProxyUrl,
-        faviconProxyEnabled,
-        backgroundImageUrl,
-        backgroundImageEnabled,
-        searchEngines,
-        defaultEngineId,
-      });
+      const saved = await api.updateSettings('', draft);
+      setData(saved);
+      setDraft(saved);
+      cacheSettings(saved);
       pushToast('设置已保存', 'success');
     } catch (caught) {
-      if (handleAdminUnauthorized(auth, caught)) return;
-      setError(caught instanceof ApiError ? caught.message : '保存失败');
+      if (!handleAdminUnauthorized(auth, caught))
+        setError(caught instanceof Error ? caught.message : '保存失败');
     } finally {
       setSaving(false);
     }
   }
-
+  const provider = PRESETS.find((item) => item.url === draft?.faviconProxyUrl)?.id ?? 'custom';
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-1.5">
+    <div className="mx-auto flex w-full max-w-[64rem] flex-col gap-5">
+      <div>
         <h1 className="font-display text-2xl font-semibold">设置</h1>
-        <p className="text-sm leading-6 text-muted-foreground">
-          配置背景图片、favicon 获取工具与启动台使用的搜索引擎。
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">管理外观、网站图标与启动台搜索引擎。</p>
       </div>
-
-      {pending ? (
-        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
-          加载中…
-        </div>
-      ) : (
-        <div className="max-w-2xl space-y-4">
-          <section className="rounded-lg border border-border bg-muted/40 p-4">
-            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-              <Image className="size-4" />
-              背景图片
-            </div>
-            <p className="mb-3 text-xs leading-5 text-muted-foreground">
-              为启动台与书签柜设置一张背景图；留空则使用纯色纸面。
-            </p>
-
-            <label className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
-              <Checkbox
-                checked={backgroundImageEnabled}
-                onCheckedChange={(checked) => setBackgroundImageEnabled(checked === true)}
-              />
-              启用背景图片
-            </label>
-
-            <div className="mt-3 flex flex-col gap-2">
-              <Label htmlFor="background-url">图片网址</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="background-url"
-                  value={backgroundImageUrl}
-                  onChange={(event) => setBackgroundImageUrl(event.target.value)}
-                  placeholder="https://example.com/wallpaper.jpg"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={!backgroundImageUrl}
-                  onClick={() => setBackgroundImageUrl('')}
-                >
-                  清除
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                填写 https 图片地址，建议宽图（如 1920×1080）以便铺满背景。
-              </p>
-            </div>
-
-            {backgroundImageUrl ? (
-              <div
-                aria-hidden
-                className="mt-3 h-28 rounded-md border border-border bg-cover bg-center"
-                style={{ backgroundImage: `url("${backgroundImageUrl}")` }}
-              />
-            ) : null}
-          </section>
-
-          <section className="rounded-lg border border-border bg-muted/40 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-              <Settings className="size-4" />
-              Favicon 自动获取
-            </div>
-
-            <label className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
-              <Checkbox
-                checked={faviconProxyEnabled}
-                onCheckedChange={(checked) => setFaviconProxyEnabled(checked === true)}
-              />
-              保存书签时自动补全图标
-            </label>
-
-            <div className="mt-3 flex flex-col gap-2">
-              <Label>获取工具</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup">
-                {PRESETS.map((preset) => (
-                  <Button
-                    key={preset.id}
-                    type="button"
-                    size="sm"
-                    variant={selectedProvider === preset.id ? 'default' : 'outline'}
-                    role="radio"
-                    aria-checked={selectedProvider === preset.id}
-                    onClick={() => setFaviconProxyUrl(preset.url)}
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={selectedProvider === 'custom' ? 'default' : 'outline'}
-                  role="radio"
-                  aria-checked={selectedProvider === 'custom'}
-                  onClick={() => {
-                    if (selectedProvider !== 'custom') {
-                      setFaviconProxyUrl('https://{domain}/favicon.ico');
-                    }
-                  }}
-                >
-                  自定义
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-2">
-              <Label htmlFor="favicon-url">URL 模板</Label>
-              <Input
-                id="favicon-url"
-                value={faviconProxyUrl}
-                onChange={(event) => setFaviconProxyUrl(event.target.value)}
-                placeholder="https://www.google.com/s2/favicons?domain={domain}&sz=64"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                使用 <code className="rounded bg-card px-1">{'{domain}'}</code> 作为域名占位符。
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-border bg-muted/40 p-4">
-            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-              <Settings className="size-4" />
-              搜索引擎
-            </div>
-            <p className="mb-3 text-xs leading-5 text-muted-foreground">
-              启动台与网页搜索使用的引擎，内置项不可删除。
-            </p>
-
-            <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="默认搜索引擎">
-              {searchEngines.map((engine) => (
-                <div
-                  key={engine.id}
-                  className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2"
-                >
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={engine.id === defaultEngineId}
-                    aria-label={`设 ${engine.name} 为默认`}
-                    onClick={() => setDefaultEngineId(engine.id)}
-                    className="grid size-4 shrink-0 place-items-center rounded-full border border-border transition hover:border-primary"
-                  >
-                    {engine.id === defaultEngineId ? (
-                      <span className="size-2 rounded-full bg-primary" />
-                    ) : null}
-                  </button>
-                  <EngineIcon engine={engine} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {engine.name}
-                      {engine.builtin ? (
-                        <span className="ml-1.5 rounded bg-card px-1 py-px text-[10px] font-normal text-muted-foreground">
-                          内置
-                        </span>
+      {loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : loadError ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {loadError}
+            <Button variant="outline" onClick={refresh}>
+              重试
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : draft ? (
+        <>
+          <fieldset disabled={saving} className="min-w-0">
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList>
+                <TabsTrigger value="appearance">外观</TabsTrigger>
+                <TabsTrigger value="icons">网站图标</TabsTrigger>
+                <TabsTrigger value="engines">搜索引擎</TabsTrigger>
+              </TabsList>
+              <TabsContent value="appearance">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>背景图片</h2>
+                    </CardTitle>
+                    <CardDescription>
+                      启动台与书签柜共用背景图片，关闭后使用纯色背景。
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldGroup>
+                      <Field orientation="horizontal">
+                        <FieldLabel htmlFor="background-enabled">启用背景图片</FieldLabel>
+                        <Switch
+                          id="background-enabled"
+                          checked={draft.backgroundImageEnabled}
+                          onCheckedChange={(checked) => update({ backgroundImageEnabled: checked })}
+                        />
+                      </Field>
+                      <Field data-invalid={invalid === 'background-url'}>
+                        <FieldLabel htmlFor="background-url">图片网址</FieldLabel>
+                        <Input
+                          id="background-url"
+                          aria-invalid={invalid === 'background-url'}
+                          value={draft.backgroundImageUrl}
+                          onChange={(event) => update({ backgroundImageUrl: event.target.value })}
+                          placeholder="https://example.com/wallpaper.jpg"
+                        />
+                        <FieldDescription>使用 HTTPS 图片网址，建议选择宽幅图片。</FieldDescription>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="self-start"
+                          disabled={!draft.backgroundImageUrl}
+                          onClick={() => update({ backgroundImageUrl: '' })}
+                        >
+                          清除网址
+                        </Button>
+                      </Field>
+                      {draft.backgroundImageUrl ? (
+                        <img
+                          src={draft.backgroundImageUrl}
+                          alt="背景预览"
+                          className="h-48 w-full rounded-lg object-cover"
+                        />
                       ) : null}
-                    </span>
-                    <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                      {engine.url}
-                    </span>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`编辑 ${engine.name}`}
-                    onClick={() => setEngineDialog({ engine })}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                  {!engine.builtin ? (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`删除 ${engine.name}`}
-                      onClick={() =>
-                        setSearchEngines((current) =>
-                          current.filter((item) => item.id !== engine.id),
-                        )
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="icons">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>网站图标</h2>
+                    </CardTitle>
+                    <CardDescription>保存书签时自动补全图标，可选择图标来源。</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldGroup>
+                      <Field orientation="horizontal">
+                        <FieldLabel htmlFor="favicon-enabled">自动获取图标</FieldLabel>
+                        <Switch
+                          id="favicon-enabled"
+                          checked={draft.faviconProxyEnabled}
+                          onCheckedChange={(checked) => update({ faviconProxyEnabled: checked })}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>图标来源</FieldLabel>
+                        <ToggleGroup
+                          value={[provider]}
+                          variant="outline"
+                          className="flex-wrap"
+                          onValueChange={(values) => {
+                            if (values[0])
+                              update({
+                                faviconProxyUrl:
+                                  PRESETS.find((item) => item.id === values[0])?.url ??
+                                  'https://{domain}/favicon.ico',
+                              });
+                          }}
+                          aria-label="图标来源"
+                        >
+                          {PRESETS.map((item) => (
+                            <ToggleGroupItem key={item.id} value={item.id}>
+                              {item.label}
+                            </ToggleGroupItem>
+                          ))}
+                          <ToggleGroupItem value="custom">自定义</ToggleGroupItem>
+                        </ToggleGroup>
+                      </Field>
+                      <Field data-invalid={invalid === 'favicon-url'}>
+                        <FieldLabel htmlFor="favicon-url">图标网址模板</FieldLabel>
+                        <Input
+                          id="favicon-url"
+                          aria-invalid={invalid === 'favicon-url'}
+                          readOnly={provider !== 'custom'}
+                          value={draft.faviconProxyUrl}
+                          onChange={(event) => update({ faviconProxyUrl: event.target.value })}
+                        />
+                        <FieldDescription>
+                          使用 {'{domain}'} 作为域名占位符。预设模板只读，选择自定义后可编辑。
+                        </FieldDescription>
+                      </Field>
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="engines">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>搜索引擎</h2>
+                    </CardTitle>
+                    <CardDescription>
+                      选择默认引擎或管理自定义引擎，内置项不可删除。
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldSet>
+                      <FieldLegend>默认搜索引擎</FieldLegend>
+                      <RadioGroup
+                        id="engine-list"
+                        tabIndex={-1}
+                        aria-invalid={invalid === 'engine-list'}
+                        value={draft.defaultEngineId}
+                        onValueChange={(value) => update({ defaultEngineId: String(value) })}
+                        aria-label="默认搜索引擎"
+                      >
+                        {draft.searchEngines.map((engine) => (
+                          <Field
+                            orientation="horizontal"
+                            key={engine.id}
+                            className="rounded-md border p-3"
+                          >
+                            <RadioGroupItem value={engine.id} id={`engine-${engine.id}`} />
+                            <EngineIcon engine={engine} />
+                            <div className="min-w-0 flex-1">
+                              <FieldLabel htmlFor={`engine-${engine.id}`}>
+                                {engine.name}
+                                {engine.builtin ? <Badge variant="secondary">内置</Badge> : null}
+                              </FieldLabel>
+                              <p className="truncate text-xs text-muted-foreground">{engine.url}</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`编辑 ${engine.name}`}
+                              onClick={() => setEngineDialog({ engine })}
+                            >
+                              <Pencil />
+                            </Button>
+                            {!engine.builtin ? (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`删除 ${engine.name}`}
+                                onClick={() => {
+                                  const engines = draft.searchEngines.filter(
+                                    (item) => item.id !== engine.id,
+                                  );
+                                  update({
+                                    searchEngines: engines,
+                                    defaultEngineId:
+                                      draft.defaultEngineId === engine.id
+                                        ? (engines[0]?.id ?? '')
+                                        : draft.defaultEngineId,
+                                  });
+                                }}
+                              >
+                                <Trash2 />
+                              </Button>
+                            ) : null}
+                          </Field>
+                        ))}
+                      </RadioGroup>
+                      <Button
+                        variant="outline"
+                        className="self-start"
+                        onClick={() => setEngineDialog({})}
+                      >
+                        <Plus data-icon="inline-start" />
+                        添加引擎
+                      </Button>
+                    </FieldSet>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </fieldset>
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <span role="status" className="text-sm text-muted-foreground">
+              {dirty ? '有未保存修改' : '所有修改已保存'}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={saving || !dirty}
+                onClick={() => {
+                  setDraft(settings);
+                  setError(null);
+                  setInvalid(null);
+                }}
+              >
+                撤销修改
+              </Button>
+              <Button disabled={saving || !dirty} onClick={() => void save()}>
+                {saving ? '保存中…' : '保存设置'}
+              </Button>
             </div>
-
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="mt-3"
-              onClick={() => setEngineDialog({})}
-            >
-              <Plus className="size-4" />
-              添加引擎
-            </Button>
-          </section>
-
-          {error ? (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-xs">
-              <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-              <span>{error}</span>
-            </div>
-          ) : null}
-
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={async () => {
-                setError(null);
-                try {
-                  const data = await api.getSettings();
-                  setFaviconProxyUrl(data.faviconProxyUrl);
-                  setFaviconProxyEnabled(data.faviconProxyEnabled);
-                } catch (caught) {
-                  if (handleAdminUnauthorized(auth, caught)) return;
-                  setError(caught instanceof ApiError ? caught.message : '重置失败');
-                }
-                setBackgroundImageUrl('');
-                setBackgroundImageEnabled(false);
-                setSearchEngines(DEFAULT_SEARCH_ENGINES);
-                setDefaultEngineId('google');
-              }}
-            >
-              <Check className="size-4" />
-              恢复默认
-            </Button>
-            <Button
-              type="button"
-              disabled={saving}
-              onClick={() => void handleSave()}
-              variant="default"
-            >
-              {saving ? '保存中…' : '保存'}
-            </Button>
+            {error ? (
+              <Alert variant="destructive" className="w-full">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
-        </div>
-      )}
-
-      {engineDialog ? (
-        <EngineFormDialog
-          open
-          engine={engineDialog.engine}
-          existingIds={searchEngines.map((engine) => engine.id)}
-          onClose={() => setEngineDialog(null)}
-          onSubmit={(engine) =>
-            setSearchEngines((current) => {
-              const index = current.findIndex((item) => item.id === engine.id);
-              if (index >= 0) {
-                const next = [...current];
-                next[index] = engine;
-                return next;
+          {engineDialog ? (
+            <EngineFormDialog
+              open
+              engine={engineDialog.engine}
+              existingIds={draft.searchEngines.map((engine) => engine.id)}
+              onClose={() => setEngineDialog(null)}
+              onSubmit={(engine) =>
+                update({
+                  searchEngines: draft.searchEngines.some((item) => item.id === engine.id)
+                    ? draft.searchEngines.map((item) => (item.id === engine.id ? engine : item))
+                    : [...draft.searchEngines, engine],
+                })
               }
-              return [...current, engine];
-            })
-          }
-        />
+            />
+          ) : null}
+        </>
       ) : null}
     </div>
   );

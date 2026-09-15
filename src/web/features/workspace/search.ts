@@ -6,6 +6,8 @@ export type WorkspaceSearch = {
   /** 兼容旧常用入口链接。 */
   pinned?: boolean;
   q?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 function rawString(value: unknown): string | undefined {
@@ -30,6 +32,15 @@ export function parseWorkspaceSearch(search: Record<string, unknown>): Workspace
   else if (isTrue(search.pinned)) result.pinned = true;
   const q = rawString(search.q);
   if (q) result.q = q;
+  const page =
+    typeof search.page === 'number' || typeof search.page === 'string' ? Number(search.page) : NaN;
+  if (Number.isSafeInteger(page) && page > 1 && Number.isSafeInteger((page - 1) * 96))
+    result.page = page;
+  const pageSize =
+    typeof search.pageSize === 'number' || typeof search.pageSize === 'string'
+      ? Number(search.pageSize)
+      : NaN;
+  if (pageSize === 48 || pageSize === 96) result.pageSize = pageSize;
   return result;
 }
 
@@ -37,11 +48,12 @@ export function parseWorkspaceSearch(search: Record<string, unknown>): Workspace
 export function selectWorkspaceFilter(filter: Omit<WorkspaceSearch, 'q'>): WorkspaceSearch {
   const search = parseWorkspaceSearch(filter);
   delete search.q;
+  delete search.page;
   return search;
 }
 
 export function setWorkspaceQuery(search: WorkspaceSearch, query: string): WorkspaceSearch {
-  return parseWorkspaceSearch({ ...search, q: query });
+  return parseWorkspaceSearch({ ...search, q: query, page: undefined });
 }
 
 /** 比较路由解码后的值，兼容数字/布尔查询词，避免规范化重定向循环。 */

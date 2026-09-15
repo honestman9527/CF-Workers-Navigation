@@ -65,7 +65,7 @@ Web 通过 `/api/v1/*` 访问 Worker。共享 DTO、端点和 fetch client 位�
 - `GET /api/v1/tags`：返回标签及活动书签数量（标签的规范列表接口）。
 - `GET /api/v1/bookmarks/tags`：过时别名，行为与 `GET /api/v1/tags` 相同，仅用于向后兼容。
 
-搜索默认只返回活动书签。Web 前台（启动台 + 书签柜）单页大小 100，并按筛选一次取完全部匹配书签。
+搜索默认只返回正常（active）书签。启动台沿用游标查询；工作区使用 offset 页码分页，默认 limit=24，可选 48/96，读取 total 展示总数。工作区 URL 的 page/pageSize 转换为 API 的 offset/limit，不直接传入 API。
 
 ## 标签管理
 

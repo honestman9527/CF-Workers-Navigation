@@ -91,3 +91,38 @@ describe('工作区导航', () => {
     expect(parseWorkspaceSearch({ tag: 'untagged' })).toEqual({ tag: 'untagged' });
   });
 });
+
+describe('工作区页码', () => {
+  it('默认分页省略，支持刷新链接中的页码与条数', () => {
+    expect(parseWorkspaceSearch({ page: 1, pageSize: 24 })).toEqual({});
+    expect(parseWorkspaceSearch({ page: '3', pageSize: '48', untagged: true })).toEqual({
+      page: 3,
+      pageSize: 48,
+      untagged: true,
+    });
+    expect(isCanonicalWorkspaceSearch({ page: 3, pageSize: 48 }, { page: 3, pageSize: 48 })).toBe(
+      true,
+    );
+  });
+  it.each([-1, 0, 1.5, 'bad', [], {}, true, Number.MAX_SAFE_INTEGER])(
+    '非法页码回默认：%s',
+    (value) => {
+      expect(parseWorkspaceSearch({ page: value })).toEqual({});
+    },
+  );
+  it('搜索、清空与导航回第一页，保留条数', () => {
+    expect(setWorkspaceQuery({ page: 5, pageSize: 48, tag: 'dev' }, 'hello')).toEqual({
+      q: 'hello',
+      tag: 'dev',
+      pageSize: 48,
+    });
+    expect(setWorkspaceQuery({ page: 5, pageSize: 48, tag: 'dev', q: 'hello' }, '')).toEqual({
+      tag: 'dev',
+      pageSize: 48,
+    });
+    expect(selectWorkspaceFilter({ page: 5, pageSize: 96, untagged: true })).toEqual({
+      pageSize: 96,
+      untagged: true,
+    });
+  });
+});

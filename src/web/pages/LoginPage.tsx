@@ -1,10 +1,10 @@
-import { Bookmark } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ApiError } from '@nav/api/client';
+import { BrandIcon } from '@nav/features/layout/BrandIcon';
 
 export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promise<void> }) {
   const [password, setPassword] = useState('');
@@ -28,9 +28,7 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           }
         }}
       >
-        <div className="mb-6 grid size-12 place-items-center rounded-lg bg-primary text-primary-foreground">
-          <Bookmark className="size-6" />
-        </div>
+        <BrandIcon className="mb-6 size-12" />
         <p className="font-display text-[11px] tracking-[0.28em] text-primary uppercase">
           personal index
         </p>

@@ -10,6 +10,9 @@ function applyThemeClass(theme: Theme) {
   root.classList.remove('dark', 'light');
   root.classList.add(theme);
   root.style.colorScheme = theme;
+  document
+    .querySelector<HTMLLinkElement>('#site-favicon')
+    ?.setAttribute('href', `/hm-${theme}.svg?v=1`);
 }
 
 /** 主题偏好：读写 jotai 持久化原子（localStorage + 旧 key 迁移），并把 class 应用到根元素。 */
