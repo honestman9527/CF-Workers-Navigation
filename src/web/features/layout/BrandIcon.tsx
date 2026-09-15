@@ -1,13 +1,11 @@
-import { useAtomValue } from 'jotai';
-
 import { cn } from '@/lib/utils';
-import { themeAtom } from '@nav/features/settings/store';
+import { useTheme } from '@nav/hooks/useTheme';
 
 export function BrandIcon({ className }: { className?: string }) {
-  const theme = useAtomValue(themeAtom);
+  const { resolvedTheme } = useTheme();
   return (
     <img
-      src={`/hm-${theme}.svg?v=1`}
+      src={`/hm-${resolvedTheme}.svg?v=1`}
       alt=""
       className={cn('size-7 shrink-0 rounded-md', className)}
     />

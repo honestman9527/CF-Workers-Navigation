@@ -53,7 +53,7 @@ function openLink(url: string) {
 /** 启动台（/launch）：搜索胶囊（URL 驱动），搜索结果展示在「常用网站」同一主区域位置。 */
 export function LauncherPage() {
   const auth = useAuthContext();
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const navigate = useNavigate();
   const search = routeApi.useSearch();
   const [pinned, setPinned] = useState<Bookmark[]>([]);
@@ -168,6 +168,7 @@ export function LauncherPage() {
         menu={
           <HeaderMenu
             theme={theme}
+            resolvedTheme={resolvedTheme}
             onThemeChange={setTheme}
             onOpenWorkspace={() => void navigate({ to: '/workspace' })}
             onOpenAdmin={() => void navigate({ to: '/admin' })}

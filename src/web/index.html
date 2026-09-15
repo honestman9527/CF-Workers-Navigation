@@ -18,11 +18,17 @@
           const key = 'lacquer-shift-theme';
           const current = localStorage.getItem(key);
           const legacy = localStorage.getItem('nav-theme');
-          const theme =
-            current === 'light' || current === 'dark'
+          const preference =
+            current === 'light' || current === 'dark' || current === 'system'
               ? current
-              : legacy === 'light' || legacy === 'dark'
+              : legacy === 'light' || legacy === 'dark' || legacy === 'system'
                 ? legacy
+                : 'light';
+          const theme =
+            preference === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : preference === 'dark'
+                ? 'dark'
                 : 'light';
           const root = document.documentElement;
           root.classList.remove('dark', 'light');

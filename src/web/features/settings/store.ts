@@ -1,6 +1,6 @@
 import type { Settings } from '@shared/api/types';
 
-import { DEFAULT_THEME, THEME_STORAGE_KEY, type Theme } from '@shared';
+import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY, type Theme } from '@shared';
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
@@ -37,9 +37,9 @@ export function getPreferredFrontRoute(): '/launch' | '/workspace' {
 const themeStorage = {
   getItem: (key: string): Theme => {
     const current = window.localStorage.getItem(key);
-    if (current === 'light' || current === 'dark') return current;
+    if (isTheme(current)) return current;
     const legacy = window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
-    return legacy === 'dark' ? 'dark' : DEFAULT_THEME;
+    return isTheme(legacy) ? legacy : DEFAULT_THEME;
   },
   setItem: (key: string, value: Theme) => {
     window.localStorage.setItem(key, value);

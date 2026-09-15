@@ -1,8 +1,10 @@
+import { isTheme, type ResolvedTheme, type Theme } from '@shared';
 import {
   Bookmark,
   ChevronDown,
   LayoutDashboard,
   LogOut,
+  Monitor,
   Moon,
   Rocket,
   Sun,
@@ -16,21 +18,28 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
 /** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。归档/回收站只存在于管理后台。 */
 export function HeaderMenu({
   theme,
+  resolvedTheme,
   onThemeChange,
   onOpenLauncher,
   onOpenWorkspace,
   onOpenAdmin,
   onLogout,
 }: {
-  theme: 'dark' | 'light';
-  onThemeChange: (theme: 'dark' | 'light') => void;
+  theme: Theme;
+  resolvedTheme: ResolvedTheme;
+  onThemeChange: (theme: Theme) => void;
   onOpenLauncher?: () => void;
   onOpenWorkspace?: () => void;
   onOpenAdmin: () => void;
@@ -74,10 +83,33 @@ export function HeaderMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}>
-          {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          {theme === 'dark' ? '切换为亮色' : '切换为暗色'}
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
+            主题
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup
+              value={theme}
+              onValueChange={(value) => {
+                if (isTheme(value)) onThemeChange(value);
+              }}
+            >
+              <DropdownMenuRadioItem value="light">
+                <Sun />
+                亮色
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <Moon />
+                暗色
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <Monitor />
+                跟随系统
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuItem onClick={onOpenAdmin}>
           <LayoutDashboard className="size-4 text-primary" />
           管理后台

@@ -51,7 +51,7 @@ const VIEW_MODE_KEY = 'nav-view-mode';
 
 export function WorkspacePage() {
   const auth = useAuthContext();
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
@@ -291,6 +291,7 @@ export function WorkspacePage() {
       menu={
         <HeaderMenu
           theme={theme}
+          resolvedTheme={resolvedTheme}
           onThemeChange={setTheme}
           onOpenLauncher={() => void navigate({ to: '/launch' })}
           onOpenAdmin={() => void navigate({ to: '/admin' })}

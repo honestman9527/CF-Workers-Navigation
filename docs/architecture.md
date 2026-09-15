@@ -32,7 +32,7 @@ Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功�
 
 Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台在 `/launch`，根路径 `/` 按前台偏好重定向，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/launch`）提供搜索首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜裸 `/workspace` 直接展示全部活动书签；分类、标签、无标签及旧置顶链接互斥，搜索词独立保留。工作区和后台共用 1024px 断点的 Sidebar/Sheet，导航内容使用单一滚动区域。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态在初始会话请求完成后注入 `RouterProvider` context，因此刷新受保护的深层 URL 不会被默认未登录状态提前改写；未登录访问或退出、401 过期时，守卫与 `App` 会将当前的 pathname、search 和 hash 作为登录页 `redirect` 保留，登录成功后仅恢复以单个 `/` 开头且非 `//` 的站内目标，其他值回退到前台偏好。
 
-Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题持久化到 localStorage 并自动迁移旧 key，设置首次请求后全局复用、不再逐页重复 `GET /settings`；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
+Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题偏好（亮色、暗色或跟随系统）持久化到 localStorage 并自动迁移旧 key；跟随系统时监听 `prefers-color-scheme` 并应用解析后的主题。设置首次请求后全局复用、不再逐页重复 `GET /settings`；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
 
 ## 依赖方向
 
