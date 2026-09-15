@@ -30,7 +30,7 @@ API 资源以 `/api/v1/*` 下的独立路由表达：`bookmarks`、`categories`�
 
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 
-Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台首页在 `/`，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/`）是默认首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜无筛选的裸 `/workspace` 会在分类加载后以 `replace` 补写默认分类（本地记忆 → 第一个根分类 → 未分类），不再有「全部网站」落地视图，URL 始终反映当前位置。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态在初始会话请求完成后注入 `RouterProvider` context，因此刷新受保护的深层 URL 不会被默认未登录状态提前改写；未登录访问或退出、401 过期时，守卫与 `App` 会将当前的 pathname、search 和 hash 作为登录页 `redirect` 保留，登录成功后仅恢复以单个 `/` 开头且非 `//` 的站内目标，其他值回退到前台偏好。
+Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台在 `/launch`，根路径 `/` 按前台偏好重定向，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/launch`）提供搜索首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜裸 `/workspace` 直接展示全部活动书签；分类、标签、无标签及旧置顶链接互斥，搜索词独立保留。工作区和后台共用 1024px 断点的 Sidebar/Sheet，导航内容使用单一滚动区域。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态在初始会话请求完成后注入 `RouterProvider` context，因此刷新受保护的深层 URL 不会被默认未登录状态提前改写；未登录访问或退出、401 过期时，守卫与 `App` 会将当前的 pathname、search 和 hash 作为登录页 `redirect` 保留，登录成功后仅恢复以单个 `/` 开头且非 `//` 的站内目标，其他值回退到前台偏好。
 
 Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题持久化到 localStorage 并自动迁移旧 key，设置首次请求后全局复用、不再逐页重复 `GET /settings`；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
 
@@ -70,6 +70,6 @@ Worker 不能混入 DOM，因此保留这些小配置比合并成一个会污染
 - Web 构建启用 React Compiler；业务代码不需要为普通派生值手工堆叠 `memo`、`useMemo` 或 `useCallback`。
 - Web 用 HttpOnly session cookie 登录，并通过同源请求访问 API。
 
-Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（上限 100）；工作区按当前筛选（默认分类等）一次取完全部匹配书签（游标循环，单页 100 条）并加载标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。
+Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（游标循环，单页 100）；工作区按当前筛选（全部/分类/标签/无标签等）一次取完全部匹配书签（游标循环，单页 100 条）并加载标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。
 
 `pnpm dev` 先生成 `dist/web`，再并行启动 Wrangler 和 Web watch。

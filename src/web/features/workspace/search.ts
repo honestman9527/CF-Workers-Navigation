@@ -1,92 +1,62 @@
-import type { Category } from '@shared/api/types';
-
-import { UNCATEGORIZED_SLUG } from '@shared/api/types';
-
-import { buildCategoryTree } from '../categories/tree';
-
-/** 工作区 URL 路由状态：解析与序列化。纯函数，便于单元测试。 */
-
-/**
- * URL 中的工作区筛选状态（最小形式：省略字段表示默认值，从而保持 URL 精简）。
- * `pinned` 省略（或 false）= 非「常用入口」，只有「常用入口」显式写 `pinned=true`。
- * 归档/回收站仅存在于管理后台，不再作为工作区视图；旧 `view` 参数会被忽略。
- */
+/** 工作区只保留一个导航条件；搜索词独立，清空后恢复该导航位置。 */
 export type WorkspaceSearch = {
+  category?: string;
+  tag?: string;
+  untagged?: boolean;
+  /** 兼容旧常用入口链接。 */
   pinned?: boolean;
-  category?: string;
-  tag?: string;
-  q?: string;
-};
-
-/** 供页面逻辑消费的完整形态（已套用默认值）。 */
-export type ResolvedWorkspaceSearch = {
-  pinned: boolean;
-  category?: string;
-  tag?: string;
   q?: string;
 };
 
 function rawString(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : undefined;
-  }
-  // qss decode 会把纯数字/布尔字符串转成 number/boolean，这里还原为字符串。
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
+  if (typeof value === 'string') return value.trim() || undefined;
+  // 路由解析器会将纯数字、布尔字符串转成相应类型。
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return undefined;
 }
 
-/**
- * 把 URL search 对象（qss decode 后的原始值，含 number/boolean）解析为最小 WorkspaceSearch。
- * 非法值一律忽略（视为默认），绝不抛错；旧 `view` 参数忽略（工作区只展示活动书签）。
- */
+function isTrue(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true';
+}
+
+/** 旧组合链接按分类、标签、无标签、置顶的优先级收敛；忽略旧 view 参数。 */
 export function parseWorkspaceSearch(search: Record<string, unknown>): WorkspaceSearch {
   const result: WorkspaceSearch = {};
-
-  const pinned = search.pinned;
-  if (pinned === '1' || pinned === 1 || pinned === true) {
-    result.pinned = true;
-  }
-
   const category = rawString(search.category);
-  if (category) result.category = category;
   const tag = rawString(search.tag);
-  if (tag) result.tag = tag;
+  if (category) result.category = category;
+  else if (tag) result.tag = tag;
+  else if (isTrue(search.untagged)) result.untagged = true;
+  else if (isTrue(search.pinned)) result.pinned = true;
   const q = rawString(search.q);
   if (q) result.q = q;
-
   return result;
 }
 
-/** 套用默认值，供工作区页面直接消费。 */
-export function resolveWorkspaceSearch(search: WorkspaceSearch): ResolvedWorkspaceSearch {
-  return {
-    // 只有「常用入口」显式 pinned=true；省略或 false 一律视为非常用入口。
-    pinned: search.pinned === true,
-    category: search.category,
-    tag: search.tag,
-    q: search.q,
-  };
+/** 导航替换整个查询状态，清除原来的筛选和搜索词。空对象代表全部网站。 */
+export function selectWorkspaceFilter(filter: Omit<WorkspaceSearch, 'q'>): WorkspaceSearch {
+  const search = parseWorkspaceSearch(filter);
+  delete search.q;
+  return search;
 }
 
-/**
- * 裸入口：URL 没有任何筛选形态（也非「常用入口」/搜索），是需要注入默认分类的状态。
- * 取代旧的「全部网站」落地语义——书签柜不再有「展示全部」的落地视图。
- */
-export function isDefaultLanding(resolved: ResolvedWorkspaceSearch): boolean {
-  return !resolved.pinned && !resolved.category && !resolved.tag && !resolved.q;
+export function setWorkspaceQuery(search: WorkspaceSearch, query: string): WorkspaceSearch {
+  return parseWorkspaceSearch({ ...search, q: query });
 }
 
-/**
- * 解析默认分类：记忆的分类仍存在则用之（未分类是常驻合法值），否则取按树序的第一个根分类；
- * 完全没有分类时降级到「未分类」。返回的 slug 一定可作为 `category` 筛选参数。
- */
-export function resolveDefaultCategorySlug(categories: Category[], remembered?: string): string {
-  if (remembered === UNCATEGORIZED_SLUG) return remembered;
-  if (remembered && categories.some((item) => item.slug === remembered)) return remembered;
-  const firstRoot = buildCategoryTree(categories)[0];
-  if (firstRoot) return firstRoot.slug;
-  return UNCATEGORIZED_SLUG;
+/** 比较路由解码后的值，兼容数字/布尔查询词，避免规范化重定向循环。 */
+export function isCanonicalWorkspaceSearch(
+  raw: Record<string, unknown>,
+  search: WorkspaceSearch,
+): boolean {
+  const entries = Object.entries(raw);
+  return (
+    entries.length === Object.keys(search).length &&
+    entries.every(
+      ([key, value]) =>
+        (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') &&
+        Object.hasOwn(search, key) &&
+        String(value) === String(search[key as keyof WorkspaceSearch]),
+    )
+  );
 }

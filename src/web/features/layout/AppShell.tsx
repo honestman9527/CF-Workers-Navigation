@@ -1,71 +1,33 @@
 import type { ReactNode } from 'react';
 
 import { Sidebar, SidebarContent, SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
 
 export function AppShell({
   header,
   sidebar,
-  navOpen,
-  onCloseNav,
   children,
 }: {
   header: ReactNode;
   sidebar: ReactNode;
-  navOpen: boolean;
-  onCloseNav: () => void;
   children: ReactNode;
 }) {
   return (
-    <div className="app-root min-h-[100dvh] w-full max-w-full overflow-x-clip bg-background text-foreground">
+    <SidebarProvider className="app-root min-h-dvh w-full max-w-full flex-col overflow-x-clip bg-background text-foreground">
       {header}
-
-      <SidebarProvider className="min-h-[calc(100dvh-var(--header-h)-var(--safe-t))]">
-        {/* 桌面端（lg+）由 Sidebar 原语渲染常驻索引栏；`hidden lg:contents` 同时屏蔽原语
-            自带的内部状态抽屉（openMobile），避免与下方受 navOpen 控制的抽屉重复。 */}
-        <div className="hidden lg:contents">
-          <Sidebar
-            collapsible="offcanvas"
-            variant="floating"
-            className="top-[calc(var(--header-h)+var(--safe-t)+1rem)] bottom-4 left-4 h-auto w-[15rem] xl:w-[16rem]"
-          >
-            <SidebarContent className="p-4">{sidebar}</SidebarContent>
-          </Sidebar>
-        </div>
-
-        <SidebarInset className="app-inset overflow-x-clip">
+      <div className="flex min-h-[calc(100dvh-var(--header-h)-var(--safe-t))] flex-1">
+        <Sidebar
+          collapsible="offcanvas"
+          variant="floating"
+          className="top-[calc(var(--header-h)+var(--safe-t)+1rem)] bottom-4 left-4 h-auto w-[15rem] xl:w-[16rem]"
+        >
+          <SidebarContent className="p-4">{sidebar}</SidebarContent>
+        </Sidebar>
+        <SidebarInset className="app-inset min-w-0 overflow-x-clip">
           <div className="mx-auto w-full max-w-[60rem] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             {children}
           </div>
         </SidebarInset>
-      </SidebarProvider>
-
-      {/* 移动端抽屉：受 navOpen/onCloseNav 控制；常驻挂载以保留滑入滑出过渡，
-          关闭时用 inert 阻止焦点与读屏进入，替代原 AnimatePresence 卸载。 */}
-      <div
-        className={cn('fixed inset-0 z-50 lg:hidden', !navOpen && 'pointer-events-none')}
-        role="presentation"
-      >
-        <div
-          className={cn(
-            'absolute inset-0 bg-black/50 transition-opacity duration-200',
-            navOpen ? 'opacity-100' : 'opacity-0',
-          )}
-          onClick={onCloseNav}
-          aria-hidden
-        />
-        <aside
-          className={cn(
-            'absolute top-0 left-0 flex h-full w-[min(18rem,88vw)] flex-col border-r border-border bg-card pt-[var(--safe-t)] transition-transform duration-200 ease-out',
-            navOpen ? 'translate-x-0' : '-translate-x-full',
-          )}
-          onClick={(event) => event.stopPropagation()}
-          inert={!navOpen}
-          aria-label="导航索引"
-        >
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{sidebar}</div>
-        </aside>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

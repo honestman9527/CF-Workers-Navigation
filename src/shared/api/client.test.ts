@@ -24,6 +24,21 @@ describe('nav shared api client', () => {
     expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer secret');
   });
 
+  it('serializes untagged for both listing and search without consuming tag slugs', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockImplementation(
+        async () => new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }),
+      );
+    const client = createApiClient({ baseUrl: 'https://nav.example.com', fetch });
+    await client.getBookmarks(undefined, { untagged: true });
+    await client.searchBookmarks(undefined, 'demo', { untagged: true, tag: 'untagged' });
+    expect(fetch.mock.calls[0]?.[0]).toBe('https://nav.example.com/api/v1/bookmarks?untagged=true');
+    const query = new URL(String(fetch.mock.calls[1]?.[0])).searchParams;
+    expect(query.get('untagged')).toBe('true');
+    expect(query.get('tag')).toBe('untagged');
+  });
+
   it('forwards an abort signal to read requests', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ items: [], nextCursor: null }), {

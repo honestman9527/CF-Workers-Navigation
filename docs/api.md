@@ -22,6 +22,7 @@ Web 通过 `/api/v1/*` 访问 Worker。共享 DTO、端点和 fetch client 位�
 | `view`     | `active`、`archive`、`trash`、`all` | 默认 `active`                                                     |
 | `category` | 分类 slug 或保留字 `uncategorized`  | 规范化后筛选，包含该分类整棵子树；`uncategorized` 筛未分类书签    |
 | `tag`      | 标签 slug 或名称                    | 规范化后筛选（与分类叠加）                                        |
+| `untagged` | `true` / `1`、`false` / `0`         | 真值仅返回无任何标签的书签；省略或假值不限制                      |
 | `pinned`   | `1`、`0`、`true`、`false`           | 置顶筛选                                                          |
 | `limit`    | `1..100`                            | 默认 24                                                           |
 | `cursor`   | 上次响应返回的游标                  | 获取下一页                                                        |
@@ -56,9 +57,11 @@ Web 通过 `/api/v1/*` 访问 Worker。共享 DTO、端点和 fetch client 位�
 
 `total` 仅在携带 `offset` 的分页模式下返回，表示当前筛选条件下的记录总数；游标模式不返回该字段。游标是不透明值，客户端只应原样回传；不要解析、修改或跨不同筛选条件复用，也不要与 `offset` 同时使用。
 
+`untagged=true` 使用 `NOT EXISTS bookmark_tags` 判断，列表、搜索、游标分页与 `total` 统计共用过滤条件。不占用标签 slug，真实 `tag=untagged` 仍按普通标签查询。API 的条件可以叠加；`tag=<slug>&untagged=true` 返回空集。`category=uncategorized` 与无标签独立，非法布尔值返回 400。无需数据库迁移。
+
 ## 搜索与标签
 
-- `GET /api/v1/bookmarks/search?q=&category=&view=&tag=&pinned=&limit=&cursor=&offset=`：FTS5 搜索标题、网址和描述，支持与列表相同的筛选，响应同样为游标页（携带 `offset` 时为页码分页并返回 `total`）。
+- `GET /api/v1/bookmarks/search?q=&category=&view=&tag=&untagged=&pinned=&limit=&cursor=&offset=`：FTS5 搜索标题、网址和描述，支持与列表相同的筛选，响应同样为游标页（携带 `offset` 时为页码分页并返回 `total`）。
 - `GET /api/v1/tags`：返回标签及活动书签数量（标签的规范列表接口）。
 - `GET /api/v1/bookmarks/tags`：过时别名，行为与 `GET /api/v1/tags` 相同，仅用于向后兼容。
 

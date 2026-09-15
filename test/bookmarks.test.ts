@@ -453,3 +453,150 @@ describe('bookmark search', () => {
     expect(archive.page?.items.map(({ id }) => id)).toContain(archived.id);
   });
 });
+
+describe('untagged bookmark filter', () => {
+  it('distinguishes uncategorized and untagged, including a real untagged tag', async () => {
+    const categoryResponse = await exports.default.fetch(`${API}/categories`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: 'Empty tag checks' }),
+    });
+    expect(categoryResponse.status).toBe(201);
+    const category = await categoryResponse.json<{ id: number }>();
+    const empty = await createBookmark({
+      title: 'No labels',
+      url: 'https://untagged.test/empty',
+      categoryId: category.id,
+    });
+    const tagged = await createBookmark({
+      title: 'With labels',
+      url: 'https://untagged.test/tagged',
+      tags: ['untagged'],
+    });
+    const both = await createBookmark({ title: 'Neither', url: 'https://untagged.test/both' });
+    const ids = (page: BookmarkPage) => page.items.map((item) => item.id);
+    expect(ids((await listBookmarks('?untagged=true')).page)).toEqual(
+      expect.arrayContaining([empty.id, both.id]),
+    );
+    expect(ids((await listBookmarks('?untagged=true')).page)).not.toContain(tagged.id);
+    const uncategorized = ids((await listBookmarks('?category=uncategorized')).page);
+    expect(uncategorized).toContain(tagged.id);
+    expect(uncategorized).not.toContain(empty.id);
+    expect(ids((await listBookmarks('?tag=untagged')).page)).toContain(tagged.id);
+    expect((await listBookmarks('?tag=untagged&untagged=true')).page.items).toEqual([]);
+    expect(ids((await listBookmarks('?untagged=false')).page)).toContain(tagged.id);
+    const update = await exports.default.fetch(`${API}/bookmarks/${tagged.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ tags: [] }),
+    });
+    expect(update.status).toBe(200);
+    expect(ids((await listBookmarks('?untagged=true')).page)).toContain(tagged.id);
+  });
+
+  it('applies the same filter to list/search cursors, totals and lifecycle states', async () => {
+    const categoryResponse = await exports.default.fetch(`${API}/categories`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: 'Emptyfilter pagination' }),
+    });
+    expect(categoryResponse.status).toBe(201);
+    const category = await categoryResponse.json<{ id: number; slug: string }>();
+    const scopedListBookmarks = (query: string) =>
+      listBookmarks(`?category=${category.slug}&${query.slice(1)}`);
+    const first = await createBookmark({
+      categoryId: category.id,
+      title: 'Emptyfilter first',
+      url: 'https://emptyfilter.test/first',
+    });
+    const second = await createBookmark({
+      categoryId: category.id,
+      title: 'Emptyfilter second',
+      url: 'https://emptyfilter.test/second',
+    });
+    await createBookmark({
+      categoryId: category.id,
+      title: 'Emptyfilter tagged',
+      url: 'https://emptyfilter.test/tagged',
+      tags: ['label'],
+    });
+    const archived = await createBookmark({
+      categoryId: category.id,
+      title: 'Emptyfilter archive',
+      url: 'https://emptyfilter.test/archive',
+    });
+    const trash = await createBookmark({
+      categoryId: category.id,
+      title: 'Emptyfilter trash',
+      url: 'https://emptyfilter.test/trash',
+    });
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${archived.id}/archive`, {
+          method: 'POST',
+          headers: adminHeaders,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${trash.id}`, {
+          method: 'DELETE',
+          headers: adminHeaders,
+        })
+      ).status,
+    ).toBe(204);
+
+    const list = (await scopedListBookmarks('?untagged=1&limit=1')).page;
+    expect(list.items).toHaveLength(1);
+    expect(list.nextCursor).toBeTruthy();
+    const next = (
+      await scopedListBookmarks(
+        `?untagged=1&limit=1&cursor=${encodeURIComponent(list.nextCursor!)}`,
+      )
+    ).page;
+    expect(new Set([...list.items, ...next.items].map((item) => item.id))).toEqual(
+      new Set([first.id, second.id]),
+    );
+    const offset = (await scopedListBookmarks('?untagged=true&offset=1&limit=1')).page;
+    expect(offset.total).toBe(2);
+    expect(offset.items).toHaveLength(1);
+    expect(offset.nextCursor).toBeNull();
+
+    const search = (await searchBookmarks('Emptyfilter', { untagged: 'true', limit: '1' })).page!;
+    expect(search.nextCursor).toBeTruthy();
+    const searchNext = (
+      await searchBookmarks('Emptyfilter', {
+        untagged: 'true',
+        limit: '1',
+        cursor: search.nextCursor!,
+      })
+    ).page!;
+    expect(new Set([...search.items, ...searchNext.items].map((item) => item.id))).toEqual(
+      new Set([first.id, second.id]),
+    );
+    const searchOffset = (
+      await searchBookmarks('Emptyfilter', { untagged: 'true', offset: '1', limit: '1' })
+    ).page!;
+    expect(searchOffset.total).toBe(2);
+    expect(searchOffset.items).toHaveLength(1);
+    expect(searchOffset.nextCursor).toBeNull();
+    expect(
+      (await searchBookmarks('Emptyfilter', { tag: 'label', untagged: 'true' })).page!.items,
+    ).toEqual([]);
+    expect(
+      (await scopedListBookmarks('?untagged=true&view=archive')).page.items.map((item) => item.id),
+    ).toEqual([archived.id]);
+    expect(
+      (await scopedListBookmarks('?untagged=true&view=trash')).page.items.map((item) => item.id),
+    ).toEqual([trash.id]);
+    expect(
+      (await searchBookmarks('Emptyfilter', { untagged: 'true', view: 'all', offset: '0' })).page!
+        .total,
+    ).toBe(4);
+    expect((await scopedListBookmarks('?untagged=invalid')).response.status).toBe(400);
+    expect((await searchBookmarks('Emptyfilter', { untagged: 'invalid' })).response.status).toBe(
+      400,
+    );
+  });
+});

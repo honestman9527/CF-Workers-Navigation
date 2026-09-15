@@ -109,10 +109,3 @@ export const settings = sqliteTable('settings', {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
 });
-
-export type Bookmark = typeof bookmarks.$inferSelect;
-export type NewBookmark = typeof bookmarks.$inferInsert;
-export type Category = typeof categories.$inferSelect;
-export type NewCategory = typeof categories.$inferInsert;
-export type Tag = typeof tags.$inferSelect;
-export type Setting = typeof settings.$inferSelect;

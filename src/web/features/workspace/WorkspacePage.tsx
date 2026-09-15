@@ -1,20 +1,11 @@
 import type { Bookmark, BookmarkInput, Category, Tag } from '@shared/api/types';
 
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
-import {
-  Bookmark as BookmarkIcon,
-  FolderTree,
-  LayoutGrid,
-  List,
-  Menu,
-  Plus,
-  Search,
-  Star,
-  X,
-} from 'lucide-react';
+import { Bookmark as BookmarkIcon, LayoutGrid, List, Plus, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -25,20 +16,18 @@ import { BookmarkCard } from '@nav/features/bookmarks/BookmarkCard';
 import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { useBookmarkPage } from '@nav/features/bookmarks/useBookmarkPage';
-import { CategorySidebar } from '@nav/features/categories/CategorySidebar';
 import { AppHeader } from '@nav/features/layout/AppHeader';
 import { AppShell } from '@nav/features/layout/AppShell';
 import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
 import { setPreferredFrontView } from '@nav/features/settings/store';
-import { TagFilter } from '@nav/features/tags/TagFilter';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
-import { isDefaultLanding, resolveDefaultCategorySlug, resolveWorkspaceSearch } from './search';
-import { getRememberedCategory, rememberCategory } from './storage';
+import { selectWorkspaceFilter, setWorkspaceQuery, type WorkspaceSearch } from './search';
+import { WorkspaceSidebar } from './WorkspaceSidebar';
 
 const routeApi = getRouteApi('/workspace');
 
@@ -56,9 +45,7 @@ export function WorkspacePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
-  const { pinned, category, tag, q: query } = resolveWorkspaceSearch(search);
-  /** 裸入口：URL 无任何筛选（也非常用入口/搜索），等待默认分类注入，不再有「全部网站」落地。 */
-  const bare = isDefaultLanding({ pinned, category, tag, q: query });
+  const { pinned, category, tag, untagged, q: query } = search;
 
   const handleUnauthorized = useCallback(() => {
     void auth.logout();
@@ -72,7 +59,7 @@ export function WorkspacePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
-  const [navOpen, setNavOpen] = useState(false);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     try {
       return window.localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'grid';
@@ -100,7 +87,7 @@ export function WorkspacePage() {
     const timer = window.setTimeout(() => {
       void navigate({
         to: '/workspace',
-        search: (prev) => ({ ...prev, q: draft || undefined }),
+        search: (prev) => setWorkspaceQuery(prev, draft),
         replace: true,
       });
     }, 250);
@@ -115,10 +102,9 @@ export function WorkspacePage() {
     view: 'active',
     category,
     tag,
-    pinned: pinned && !tag && !category,
+    pinned: pinned === true,
+    untagged,
     query: query ?? '',
-    // 裸入口（URL 尚无分类位置）时暂缓取数：等默认分类注入 URL 后再取，避免先全量取一次再按分类重取。
-    pending: bare,
     onUnauthorized: handleUnauthorized,
     onError: reportError,
   });
@@ -126,6 +112,7 @@ export function WorkspacePage() {
   async function loadTags() {
     try {
       setTags(await api.getTags());
+      setTagsLoaded(true);
     } catch (error) {
       reportError(error instanceof Error ? error.message : '标签加载失败');
     }
@@ -135,12 +122,11 @@ export function WorkspacePage() {
     try {
       const result = await api.getCategories();
       setCategories(result);
+      setCategoriesLoaded(true);
       return result;
     } catch (error) {
       reportError(error instanceof Error ? error.message : '分类加载失败');
       return null;
-    } finally {
-      setCategoriesLoaded(true);
     }
   }
 
@@ -149,28 +135,6 @@ export function WorkspacePage() {
     void loadCategories();
     setPreferredFrontView('workspace');
   }, []);
-
-  /**
-   * 裸入口注入默认分类：URL 无任何筛选时，等分类加载后落到「记忆分类 → 第一个根分类 → 未分类」，
-   * 以 replace 写回 URL（保持深链/回退语义），取代旧的「全部网站」落地视图。
-   */
-  useEffect(() => {
-    if (!categoriesLoaded || !bare) return;
-    const slug = resolveDefaultCategorySlug(categories, getRememberedCategory());
-    void navigate({
-      to: '/workspace',
-      search: (prev) => ({ ...prev, category: slug }),
-      replace: true,
-    });
-  }, [bare, categories, categoriesLoaded, navigate]);
-
-  /** 记录最近浏览的分类位置：点击、深链、注入路径统一在此记忆（含「未分类」）。 */
-  useEffect(() => {
-    if (!categoriesLoaded || !category) return;
-    if (category === UNCATEGORIZED_SLUG || categories.some((item) => item.slug === category)) {
-      rememberCategory(category);
-    }
-  }, [categories, categoriesLoaded, category]);
 
   useEffect(() => {
     document.title = '书签柜';
@@ -187,87 +151,38 @@ export function WorkspacePage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  /** 管理后台删除了当前筛选的分类时，跳到新的默认分类（记忆 → 第一个根分类 → 未分类），保留标签。 */
+  // 仅在成功加载索引后判断失效，网络错误不会改写导航位置。
   useEffect(() => {
-    if (
+    const missingCategory =
       categoriesLoaded &&
       category &&
       category !== UNCATEGORIZED_SLUG &&
-      !categories.some((item) => item.slug === category)
-    ) {
-      const slug = resolveDefaultCategorySlug(categories, getRememberedCategory());
-      void navigate({
-        to: '/workspace',
-        search: (prev) => ({ ...prev, category: slug }),
-        replace: true,
-      });
+      !categories.some((item) => item.slug === category);
+    const missingTag = tagsLoaded && tag && !tags.some((item) => item.slug === tag);
+    if (missingCategory || missingTag) {
+      setQueryDraft('');
+      void navigate({ to: '/workspace', search: {}, replace: true });
     }
-  }, [categories, categoriesLoaded, category, navigate]);
+  }, [categories, categoriesLoaded, category, tags, tagsLoaded, tag, navigate]);
 
-  /** 进入「常用入口」：显式 pinned=true。 */
-  function goCommon() {
-    setNavOpen(false);
-    void navigate({
-      to: '/workspace',
-      search: { pinned: true, category: undefined, tag: undefined, q: undefined },
-    });
+  function selectFilter(filter: Omit<WorkspaceSearch, 'q'>) {
+    setQueryDraft('');
+    void navigate({ to: '/workspace', search: selectWorkspaceFilter(filter) });
   }
 
-  /** 「常用入口」切换：已在常用入口时回到默认分类（不再写 pinned=false，也没有「全部网站」可回）。 */
-  function toggleCommon() {
-    if (pinned && !category && !tag) {
-      setNavOpen(false);
-      const slug = categoriesLoaded
-        ? resolveDefaultCategorySlug(categories, getRememberedCategory())
-        : undefined;
-      void navigate({
-        to: '/workspace',
-        search: {
-          category: slug,
-          tag: undefined,
-          q: undefined,
-        },
-      });
-      return;
-    }
-    goCommon();
-  }
-
-  /** 选择分类筛选：保留已选标签，二者可叠加；点击当前分类保持选中（不再有「取消筛选回全部」）。 */
   function selectCategory(slug: string) {
-    setNavOpen(false);
-    if (slug === category) return;
-    void navigate({
-      to: '/workspace',
-      search: (prev) => ({
-        ...prev,
-        // 进入分类筛选即离开「常用入口」，清除 pinned（写 undefined 表示省略，不产生 pinned=false）。
-        pinned: undefined,
-        category: slug,
-        q: undefined,
-      }),
-    });
+    selectFilter({ category: slug });
   }
 
-  /** 选择/清除标签筛选：保留已选分类，二者可叠加。 */
-  function selectTagFilter(next: string | undefined) {
-    setNavOpen(false);
-    void navigate({
-      to: '/workspace',
-      search: (prev) => ({
-        ...prev,
-        pinned: undefined,
-        tag: next,
-        q: undefined,
-      }),
-    });
+  function selectTagFilter(slug: string) {
+    selectFilter({ tag: slug });
   }
 
   function clearSearch() {
     setQueryDraft('');
     void navigate({
       to: '/workspace',
-      search: (prev) => ({ ...prev, q: undefined }),
+      search: (prev) => setWorkspaceQuery(prev, ''),
       replace: true,
     });
   }
@@ -292,9 +207,11 @@ export function WorkspacePage() {
       ? (selectedCategoryName ?? category)
       : tag
         ? (selectedTagName ?? tag)
-        : pinned
-          ? '常用入口'
-          : '加载中…';
+        : untagged
+          ? '无标签'
+          : pinned
+            ? '常用入口'
+            : '全部网站';
 
   /** 书签卡片统一渲染：单分类/常用入口/标签/搜索共用的操作与筛选回调（恢复/永久删除只在管理后台）。 */
   const renderCard = (bookmark: Bookmark) => (
@@ -335,16 +252,8 @@ export function WorkspacePage() {
 
   const header = (
     <AppHeader
-      navButton={
-        <button
-          className="grid size-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground lg:hidden"
-          onClick={() => setNavOpen(true)}
-          aria-label="打开索引"
-        >
-          <Menu />
-        </button>
-      }
-      brand={<Brand onClick={goCommon} />}
+      navButton={<SidebarTrigger className="lg:hidden" aria-label="打开索引" />}
+      brand={<Brand onClick={() => selectFilter({})} />}
       actions={
         <Button size="sm" onClick={() => setEditor('new')}>
           <Plus />
@@ -363,52 +272,20 @@ export function WorkspacePage() {
     />
   );
 
-  const sidebar = (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex items-center justify-between lg:hidden">
-        <span className="font-display text-lg font-semibold">索引</span>
-        <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(false)}>
-          <X />
-        </Button>
-      </div>
-      <div className="grid gap-1">
-        <button
-          onClick={toggleCommon}
-          className={cn('nav-item', pinned && !tag && !category && 'nav-item-active')}
-        >
-          <Star />
-          常用入口
-        </button>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col border-t border-border/80 pt-5">
-        <div className="mb-3 flex items-center gap-2 px-2 text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-          <FolderTree className="size-3.5" />
-          分类
-          <span className="ml-auto font-mono text-[10px] font-normal tracking-normal">
-            {categories.length}
-          </span>
-        </div>
-        <CategorySidebar
-          categories={categories}
-          selectedSlug={category}
-          onSelect={selectCategory}
-        />
-      </div>
-      <div className="mt-auto border-t border-border pt-3">
-        <p className="px-2 text-[11px] text-muted-foreground">私人索引 · 自动保存</p>
-      </div>
-    </div>
-  );
-
   return (
     <>
       <AppShell
         header={header}
-        sidebar={sidebar}
-        navOpen={navOpen}
-        onCloseNav={() => setNavOpen(false)}
+        sidebar={
+          <WorkspaceSidebar
+            categories={categories}
+            tags={tags}
+            search={search}
+            onSelect={selectFilter}
+          />
+        }
       >
-        <div className="mx-auto w-full space-y-7 px-1 sm:px-2">
+        <div className="mx-auto flex w-full flex-col gap-7 px-1 sm:px-2">
           <div className="flex h-11 items-center gap-3 rounded-full border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="size-4.5 text-muted-foreground" />
             <input
@@ -432,7 +309,6 @@ export function WorkspacePage() {
               </kbd>
             )}
           </div>
-          <TagFilter tags={tags} selected={tag} onSelect={selectTagFilter} />
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <p className="mb-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">

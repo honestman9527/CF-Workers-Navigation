@@ -21,7 +21,6 @@ export function CategoryTree({
   showCount = false,
   includeUncategorized = false,
   className,
-  rowClass,
 }: {
   categories: Category[];
   selectedSlug?: string;
@@ -33,8 +32,6 @@ export function CategoryTree({
   /** 顶部附加「未分类」入口。 */
   includeUncategorized?: boolean;
   className?: string;
-  /** 选择行附加样式（覆盖默认观感，如侧栏 nav-item 系）。 */
-  rowClass?: string;
 }) {
   const tree = useMemo(() => buildCategoryTree(categories), [categories]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -68,7 +65,6 @@ export function CategoryTree({
           className={cn(
             'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
             selectedSlug === UNCATEGORIZED_SLUG && 'bg-primary/10 font-medium text-primary',
-            rowClass,
           )}
         >
           <FolderPlus className="size-3.5 shrink-0" />
@@ -84,7 +80,6 @@ export function CategoryTree({
           selectedSlug={selectedSlug}
           showLevel={showLevel}
           showCount={showCount}
-          rowClass={rowClass}
           onSelect={onSelect}
           onToggle={toggle}
         />
@@ -100,7 +95,6 @@ function TreeNode({
   selectedSlug,
   showLevel,
   showCount,
-  rowClass,
   onSelect,
   onToggle,
 }: {
@@ -110,7 +104,6 @@ function TreeNode({
   selectedSlug?: string;
   showLevel: boolean;
   showCount: boolean;
-  rowClass?: string;
   onSelect: (slug: string) => void;
   onToggle: (id: number) => void;
 }) {
@@ -125,11 +118,11 @@ function TreeNode({
         <button
           type="button"
           onClick={() => onSelect(node.slug)}
+          aria-current={isSelected ? 'page' : undefined}
           className={cn(
             'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
             depth > 0 && 'py-1.5 text-xs',
             isSelected && 'bg-primary/10 font-medium text-primary',
-            rowClass,
           )}
         >
           <Icon
@@ -168,7 +161,7 @@ function TreeNode({
         ) : null}
       </div>
       {hasChildren && isExpanded ? (
-        <div className="relative mt-0.5 ml-4 space-y-0.5 border-l border-border/70 pl-2.5">
+        <div className="relative mt-0.5 ml-4 flex flex-col gap-0.5 border-l border-border/70 pl-2.5">
           {node.children.map((child) => (
             <TreeNode
               key={child.id}
@@ -178,7 +171,6 @@ function TreeNode({
               selectedSlug={selectedSlug}
               showLevel={showLevel}
               showCount={showCount}
-              rowClass={rowClass}
               onSelect={onSelect}
               onToggle={onToggle}
             />

@@ -150,12 +150,10 @@ function categoryConditions(category: string | undefined): {
   };
 }
 
-type BookmarkFilter = {
-  view?: BookmarkView;
-  category?: string;
-  tag?: string;
-  pinned?: boolean;
-};
+type BookmarkFilter = Pick<
+  BookmarkListOptions,
+  'view' | 'category' | 'tag' | 'untagged' | 'pinned'
+>;
 
 /** 列表与搜索共用的过滤片段：condition 以 AND 开头，可接在 WHERE 主表达式之后。 */
 function buildFilter(filter: BookmarkFilter): {
@@ -170,10 +168,13 @@ function buildFilter(filter: BookmarkFilter): {
         WHERE filter_bt.bookmark_id = b.id AND filter_t.slug = ${slugify(filter.tag)}
       )`
     : sql``;
+  const untaggedCondition = filter.untagged
+    ? sql`AND NOT EXISTS (SELECT 1 FROM bookmark_tags empty_bt WHERE empty_bt.bookmark_id = b.id)`
+    : sql``;
   const pinnedCondition = filter.pinned ? sql`AND b.is_pinned = 1` : sql``;
   return {
     cte: categoryCte,
-    condition: sql`AND ${viewCondition(filter.view ?? 'active')} ${tagCondition} ${categoryCondition} ${pinnedCondition}`,
+    condition: sql`AND ${viewCondition(filter.view ?? 'active')} ${tagCondition} ${untaggedCondition} ${categoryCondition} ${pinnedCondition}`,
   };
 }
 

@@ -5,27 +5,26 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@nav/api/client';
 
 /**
- * 工作区的「一次取全部」数据源：按当前筛选（常用入口/分类/标签）游标循环取全部；
+ * 工作区的「一次取全部」数据源：按当前筛选（全部/分类/标签/无标签/旧常用链接）游标循环取全部；
  * 输入搜索关键词时只按关键词全量匹配（忽略分类/标签/置顶）。不提供分页。
  */
 export function useBookmarkPage({
   view,
   category,
   tag,
+  untagged,
   pinned,
   query,
-  pending = false,
   onUnauthorized,
   onError,
 }: {
   view: BookmarkView;
   category?: string;
   tag?: string;
+  untagged?: boolean;
   pinned: boolean;
   /** 搜索关键词（已由 URL 层防抖，此处直接使用）。 */
   query: string;
-  /** 裸入口等待默认分类解析期间暂缓取数，避免先全量取一次再按分类重取。 */
-  pending?: boolean;
   onUnauthorized: () => void;
   onError: (message: string) => void;
 }) {
@@ -39,7 +38,6 @@ export function useBookmarkPage({
   }, [onUnauthorized, onError]);
 
   useEffect(() => {
-    if (pending) return;
     const controller = new AbortController();
     setLoading(true);
     const request = (async () => {
@@ -60,6 +58,7 @@ export function useBookmarkPage({
                 view,
                 category,
                 tag,
+                untagged: untagged || undefined,
                 pinned: pinned || undefined,
                 cursor: cursor ?? undefined,
                 limit: 100,
@@ -73,7 +72,7 @@ export function useBookmarkPage({
     })();
     void request
       .then((next) => {
-        setItems(next);
+        if (!controller.signal.aborted) setItems(next);
       })
       .catch((caught: unknown) => {
         if (caught instanceof DOMException && caught.name === 'AbortError') return;
@@ -87,7 +86,7 @@ export function useBookmarkPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [category, pending, pinned, query, refreshKey, tag, view]);
+  }, [category, pinned, query, refreshKey, tag, untagged, view]);
 
   return {
     items,

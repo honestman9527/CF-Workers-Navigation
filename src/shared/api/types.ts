@@ -38,6 +38,8 @@ export type BookmarkListOptions = {
   view?: BookmarkView;
   category?: string;
   tag?: string;
+  /** 仅返回没有任何标签的书签。 */
+  untagged?: boolean;
   pinned?: boolean;
   cursor?: string;
   limit?: number;
