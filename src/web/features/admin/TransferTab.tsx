@@ -18,15 +18,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -84,6 +75,7 @@ export function TransferTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState<TransferFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -103,6 +95,7 @@ export function TransferTab() {
 
   async function handleExport(format: TransferFormat) {
     setExporting(true);
+    setExportFormat(format);
     setExportError(null);
     try {
       const result = await api.exportData(format);
@@ -112,6 +105,7 @@ export function TransferTab() {
       setExportError(caught instanceof ApiError ? friendlyError(caught) : '导出失败');
     } finally {
       setExporting(false);
+      setExportFormat(null);
     }
   }
 
@@ -193,46 +187,44 @@ export function TransferTab() {
             <Download size={16} />
             导出
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
+          <div className="grid gap-2">
+            <Button
+              className="h-auto min-h-14 justify-start gap-3 px-3 py-2.5 text-left"
               disabled={busy}
-              render={
-                <Button className="w-full" type="button" variant="secondary">
-                  {exporting ? (
-                    <>
-                      <LoaderCircle className="animate-spin" data-icon="inline-start" />
-                      导出中…
-                    </>
-                  ) : (
-                    <>
-                      <Download data-icon="inline-start" />
-                      选择格式
-                    </>
-                  )}
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>导出备份</DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void handleExport('html')}>
-                <FileCode className="text-primary" />
-                <span className="flex flex-col">
-                  <span>HTML 浏览器书签</span>
-                  <span className="text-xs text-muted-foreground">Chrome / Firefox / Safari</span>
+              onClick={() => void handleExport('html')}
+              type="button"
+              variant="secondary"
+            >
+              {exportFormat === 'html' ? (
+                <LoaderCircle className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <FileCode className="text-primary" data-icon="inline-start" />
+              )}
+              <span className="flex min-w-0 flex-col items-start">
+                <span>HTML 浏览器书签</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Chrome / Firefox / Safari
                 </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleExport('json')}>
-                <Braces className="text-primary" />
-                <span className="flex flex-col">
-                  <span>JSON 完整备份</span>
-                  <span className="text-xs text-muted-foreground">保留全部字段</span>
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </span>
+            </Button>
+            <Button
+              className="h-auto min-h-14 justify-start gap-3 px-3 py-2.5 text-left"
+              disabled={busy}
+              onClick={() => void handleExport('json')}
+              type="button"
+              variant="secondary"
+            >
+              {exportFormat === 'json' ? (
+                <LoaderCircle className="animate-spin" data-icon="inline-start" />
+              ) : (
+                <Braces className="text-primary" data-icon="inline-start" />
+              )}
+              <span className="flex min-w-0 flex-col items-start">
+                <span>JSON 完整备份</span>
+                <span className="text-xs font-normal text-muted-foreground">保留全部字段</span>
+              </span>
+            </Button>
+          </div>
           {exportError ? (
             <div className="mt-2 flex items-start gap-2 text-xs text-destructive">
               <TriangleAlert size={14} className="mt-0.5 shrink-0" />
