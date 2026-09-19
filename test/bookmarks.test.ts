@@ -86,7 +86,7 @@ describe('bookmarks api', () => {
     );
   });
 
-  it('requires auth for reads and writes', async () => {
+  it('allows public reads but requires auth for writes', async () => {
     const created = await createBookmark({
       title: 'Protected',
       url: 'https://protected.example.com',
@@ -105,7 +105,7 @@ describe('bookmarks api', () => {
       }),
     ]);
 
-    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200, 401, 401]);
   });
 
   it('validates malformed input and query parameters', async () => {

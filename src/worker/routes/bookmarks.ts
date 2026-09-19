@@ -29,6 +29,7 @@ import { listTags } from '../services/tags';
 import { getSettings } from '../settings';
 
 const bookmarkInputSchema = z.object({
+  visibility: z.enum(['public', 'private']).optional(),
   title: z.string().trim().min(1),
   url: z.string().trim().url(),
   description: z.string().nullable().optional(),
@@ -58,23 +59,28 @@ const bookmarksRoutes = new Hono<AppEnv>();
 bookmarksRoutes.get('/search', async (c) => {
   try {
     const query = z.string().trim().min(1).max(100).parse(c.req.query('q'));
-    const page = await searchBookmarks(c.get('db'), query, {
-      view: viewSchema.parse(c.req.query('view')),
-      category: slugQuerySchema.parse(c.req.query('category')),
-      tag: slugQuerySchema.parse(c.req.query('tag')),
-      untagged: parseBooleanQuery(c.req.query('untagged')),
-      pinned: parseBooleanQuery(c.req.query('pinned')),
-      cursor: cursorSchema.parse(c.req.query('cursor')),
-      limit: limitSchema.parse(c.req.query('limit')),
-      offset: offsetSchema.parse(c.req.query('offset')),
-    });
+    const page = await searchBookmarks(
+      c.get('db'),
+      query,
+      {
+        view: viewSchema.parse(c.req.query('view')),
+        category: slugQuerySchema.parse(c.req.query('category')),
+        tag: slugQuerySchema.parse(c.req.query('tag')),
+        untagged: parseBooleanQuery(c.req.query('untagged')),
+        pinned: parseBooleanQuery(c.req.query('pinned')),
+        cursor: cursorSchema.parse(c.req.query('cursor')),
+        limit: limitSchema.parse(c.req.query('limit')),
+        offset: offsetSchema.parse(c.req.query('offset')),
+      },
+      c.get('authed'),
+    );
     return c.json(page);
   } catch (error) {
     return handleServiceError(c, error);
   }
 });
 
-bookmarksRoutes.get('/tags', async (c) => c.json(await listTags(c.get('db'))));
+bookmarksRoutes.get('/tags', async (c) => c.json(await listTags(c.get('db'), c.get('authed'))));
 
 bookmarksRoutes.get('/metadata', async (c) => {
   const url = metadataQuerySchema.parse(c.req.query('url'));
@@ -95,16 +101,20 @@ bookmarksRoutes.get('/favicon', async (c) => {
 bookmarksRoutes.get('/', async (c) => {
   try {
     return c.json(
-      await listBookmarks(c.get('db'), {
-        view: viewSchema.parse(c.req.query('view')),
-        category: slugQuerySchema.parse(c.req.query('category')),
-        tag: slugQuerySchema.parse(c.req.query('tag')),
-        untagged: parseBooleanQuery(c.req.query('untagged')),
-        pinned: parseBooleanQuery(c.req.query('pinned')),
-        cursor: cursorSchema.parse(c.req.query('cursor')),
-        limit: limitSchema.parse(c.req.query('limit')),
-        offset: offsetSchema.parse(c.req.query('offset')),
-      }),
+      await listBookmarks(
+        c.get('db'),
+        {
+          view: viewSchema.parse(c.req.query('view')),
+          category: slugQuerySchema.parse(c.req.query('category')),
+          tag: slugQuerySchema.parse(c.req.query('tag')),
+          untagged: parseBooleanQuery(c.req.query('untagged')),
+          pinned: parseBooleanQuery(c.req.query('pinned')),
+          cursor: cursorSchema.parse(c.req.query('cursor')),
+          limit: limitSchema.parse(c.req.query('limit')),
+          offset: offsetSchema.parse(c.req.query('offset')),
+        },
+        c.get('authed'),
+      ),
     );
   } catch (error) {
     return handleServiceError(c, error);
@@ -127,7 +137,9 @@ bookmarksRoutes.post('/', async (c) => {
 
 bookmarksRoutes.get('/:id', async (c) => {
   try {
-    return c.json(await getBookmark(c.get('db'), idParamSchema.parse(c.req.param('id'))));
+    return c.json(
+      await getBookmark(c.get('db'), idParamSchema.parse(c.req.param('id')), c.get('authed')),
+    );
   } catch (error) {
     return handleServiceError(c, error);
   }

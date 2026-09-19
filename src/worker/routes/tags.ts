@@ -16,7 +16,7 @@ const mergeSchema = z.object({
 
 const tagsRoutes = new Hono<AppEnv>();
 
-tagsRoutes.get('/', async (c) => c.json(await listTags(c.get('db'))));
+tagsRoutes.get('/', async (c) => c.json(await listTags(c.get('db'), c.get('authed'))));
 
 tagsRoutes.post('/', async (c) => {
   const body = await parseJson(c);

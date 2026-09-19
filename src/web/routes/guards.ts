@@ -14,7 +14,7 @@ type GuardContext = {
   };
 };
 
-/** 未登录一律转登录页，并记录当前完整站内地址（工作区与管理后台共用）。 */
+/** 后台未登录转登录页，并记录当前完整站内地址。 */
 export function requireAuth({ context, location }: GuardContext) {
   if (!context.auth.authed) {
     throw redirect({

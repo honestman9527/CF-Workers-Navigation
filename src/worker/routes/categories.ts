@@ -13,6 +13,7 @@ import {
 } from '../services/categories';
 
 const categoryInputSchema = z.object({
+  visibility: z.enum(['public', 'private']).optional(),
   name: z.string().trim().min(1).max(40),
   parentId: z.number().int().positive().nullable().optional(),
   icon: z.string().trim().min(1).max(40).nullable().optional(),
@@ -30,7 +31,7 @@ const reorderSchema = z.object({
 
 const categoriesRoutes = new Hono<AppEnv>();
 
-categoriesRoutes.get('/', async (c) => c.json(await listCategories(c.get('db'))));
+categoriesRoutes.get('/', async (c) => c.json(await listCategories(c.get('db'), c.get('authed'))));
 
 categoriesRoutes.post('/', async (c) => {
   const body = await parseJson(c);

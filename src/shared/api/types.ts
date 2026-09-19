@@ -5,7 +5,11 @@ import type { SearchEngine } from '../search';
 /** 保留的「未分类」筛选值：任何分类 slug 不得与之相同。 */
 export const UNCATEGORIZED_SLUG = 'uncategorized';
 
+export type Visibility = 'public' | 'private';
+
 export type Bookmark = {
+  visibility: Visibility;
+  effectiveVisibility: Visibility;
   id: number;
   title: string;
   url: string;
@@ -23,6 +27,7 @@ export type Bookmark = {
 };
 
 export type BookmarkInput = {
+  visibility?: Visibility;
   title: string;
   url: string;
   description?: string | null;
@@ -57,6 +62,8 @@ export type BookmarkPage = {
 export type Tag = { id: number; name: string; slug: string; bookmarkCount: number };
 
 export type Category = {
+  visibility: Visibility;
+  effectiveVisibility: Visibility;
   id: number;
   parentId: number | null;
   name: string;
@@ -68,6 +75,7 @@ export type Category = {
 };
 
 export type CategoryInput = {
+  visibility?: Visibility;
   name: string;
   parentId?: number | null;
   icon?: string | null;
@@ -97,6 +105,8 @@ export type FaviconPreview = {
 };
 
 export type Settings = {
+  defaultCategoryVisibility: Visibility;
+  defaultBookmarkVisibility: Visibility;
   faviconProxyUrl: string;
   faviconProxyEnabled: boolean;
   /** 搜索引擎列表（Web 启动台使用）。 */
@@ -130,3 +140,8 @@ export type ImportSummary = {
   bookmarksUpdated: number;
   errors: string[];
 };
+
+export type PublicSettings = Pick<
+  Settings,
+  'searchEngines' | 'defaultEngineId' | 'backgroundImageUrl' | 'backgroundImageEnabled'
+>;

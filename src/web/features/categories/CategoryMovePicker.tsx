@@ -55,6 +55,9 @@ export function CategoryMovePicker({
       </Button>
       {open ? (
         <div className="animate-panel-enter absolute top-full right-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2">
+          <p className="px-2.5 py-2 text-xs text-muted-foreground">
+            移动会重新计算权限，移出私有分类可能公开内容。
+          </p>
           <button
             type="button"
             onClick={() => select(null)}

@@ -20,6 +20,8 @@ const engineSchema = z.object({
 
 const settingsUpdateSchema = z
   .object({
+    defaultCategoryVisibility: z.enum(['public', 'private']).optional(),
+    defaultBookmarkVisibility: z.enum(['public', 'private']).optional(),
     faviconProxyUrl: z
       .string()
       .trim()
@@ -75,6 +77,12 @@ const settingsUpdateSchema = z
   });
 
 const settingsRoutes = new Hono<AppEnv>();
+
+settingsRoutes.get('/public', async (c) => {
+  const { searchEngines, defaultEngineId, backgroundImageUrl, backgroundImageEnabled } =
+    await getSettings(c.get('db'));
+  return c.json({ searchEngines, defaultEngineId, backgroundImageUrl, backgroundImageEnabled });
+});
 
 settingsRoutes.get('/', async (c) => {
   const config = await getSettings(c.get('db'));

@@ -1,4 +1,4 @@
-import type { Category } from '@shared/api/types';
+import type { Category, Visibility } from '@shared/api/types';
 
 import {
   Check,
@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronUp,
   Folder,
+  LockKeyhole,
   FolderPlus,
   Pencil,
   Plus,
@@ -27,7 +28,13 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
+import { DialogPanel } from '@nav/components/DialogPanel';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import {
+  VisibilityField,
+  VisibilityBadge,
+  useVisibilityDefaults,
+} from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
 
 import { CategoryMovePicker } from '../categories/CategoryMovePicker';
@@ -45,6 +52,10 @@ type CreateTarget = { parentId: number | 'root' };
 
 export function CategoriesTab() {
   const auth = useAuthContext();
+  const defaults = useVisibilityDefaults();
+  const [createVisibility, setCreateVisibility] = useState<Visibility | undefined>();
+  const [permissionTarget, setPermissionTarget] = useState<Category | null>(null);
+  const [permission, setPermission] = useState<Visibility>('public');
   const [create, setCreate] = useState<CreateTarget | null>(null);
   const [createName, setCreateName] = useState('');
   const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
@@ -73,6 +84,7 @@ export function CategoriesTab() {
 
   function startCreate(parentId: number | 'root') {
     setCreate({ parentId });
+    setCreateVisibility(undefined);
     setCreateName('');
   }
 
@@ -89,13 +101,16 @@ export function CategoriesTab() {
   }
 
   async function commitCreate() {
-    if (create === null) return;
+    if (create === null || (!createVisibility && !defaults.data)) return;
     const name = createName.trim();
     setCreate(null);
     setCreateName('');
     if (!name) return;
     const parentId = create.parentId === 'root' ? null : create.parentId;
-    await run(() => api.createCategory('', { name, parentId }), { message: '分类已创建', refresh });
+    await run(() => api.createCategory('', { name, parentId, visibility: createVisibility }), {
+      message: '分类已创建',
+      refresh,
+    });
   }
 
   async function commitRename() {
@@ -142,11 +157,10 @@ export function CategoriesTab() {
 
   const confirmDeleteMeta = useMemo(() => {
     if (!confirmDelete) return null;
-    const ids = subtreeIds(categories ?? [], confirmDelete.id);
-    const children = ids.length - 1;
-    const bookmarks = totals.get(confirmDelete.id) ?? confirmDelete.bookmarkCount;
+    const children = (categories ?? []).filter((item) => item.parentId === confirmDelete.id).length;
+    const bookmarks = confirmDelete.bookmarkCount;
     return { children, bookmarks };
-  }, [categories, confirmDelete, totals]);
+  }, [categories, confirmDelete]);
 
   const createRow = (parentId: number | 'root', depth: number) => (
     <div
@@ -157,45 +171,66 @@ export function CategoriesTab() {
           'relative ml-6 before:absolute before:top-1/2 before:-left-3.5 before:h-px before:w-3 before:bg-border/80',
       )}
     >
-      <FolderPlus className="size-4 shrink-0 text-primary" />
-      <Input
-        autoFocus
-        value={createName}
-        onChange={(event) => setCreateName(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            void commitCreate();
-          } else if (event.key === 'Escape') {
-            setCreate(null);
-            setCreateName('');
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <VisibilityField
+          label="新分类权限"
+          value={createVisibility ?? defaults.data?.defaultCategoryVisibility}
+          onChange={setCreateVisibility}
+          inherited={
+            parentId !== 'root' &&
+            categories?.find((item) => item.id === parentId)?.effectiveVisibility === 'private'
           }
-        }}
-        placeholder={parentId === 'root' ? '新一级分类名称' : '子分类名称'}
-        className="h-8 bg-card text-xs"
-        aria-label="分类名称"
-      />
-      <Button
-        variant="default"
-        size="xs"
-        disabled={busy || !createName.trim()}
-        onClick={() => void commitCreate()}
-        aria-label="确认创建"
-      >
-        <Check className="size-3.5" />
-        创建
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={() => {
-          setCreate(null);
-          setCreateName('');
-        }}
-        aria-label="取消"
-      >
-        <X className="size-3.5" />
-      </Button>
+        />
+        {defaults.error ? (
+          <p role="alert" className="text-sm text-destructive">
+            默认权限加载失败，请选择权限或
+            <Button variant="link" onClick={defaults.refresh}>
+              重试
+            </Button>
+          </p>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <FolderPlus className="size-4 shrink-0 text-primary" />
+          <Input
+            autoFocus
+            value={createName}
+            onChange={(event) => setCreateName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void commitCreate();
+              } else if (event.key === 'Escape') {
+                setCreate(null);
+                setCreateName('');
+              }
+            }}
+            placeholder={parentId === 'root' ? '新一级分类名称' : '子分类名称'}
+            className="h-8 bg-card text-xs"
+            aria-label="分类名称"
+          />
+          <Button
+            variant="default"
+            size="xs"
+            disabled={busy || !createName.trim() || (!createVisibility && !defaults.data)}
+            onClick={() => void commitCreate()}
+            aria-label="确认创建"
+          >
+            <Check className="size-3.5" />
+            创建
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {
+              setCreate(null);
+              setCreateName('');
+            }}
+            aria-label="取消"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 
@@ -252,6 +287,19 @@ export function CategoriesTab() {
           title="重命名"
         >
           <Pencil className="size-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          disabled={busy}
+          aria-label={`设置 ${node.name} 访问权限`}
+          title="访问权限"
+          onClick={() => {
+            setPermissionTarget(node);
+            setPermission(node.visibility);
+          }}
+        >
+          <LockKeyhole />
         </Button>
         <CategoryMovePicker
           categories={categories ?? []}
@@ -387,6 +435,7 @@ export function CategoriesTab() {
             </div>
           )}
 
+          <VisibilityBadge item={node} />
           {/* 书签统计徽章 */}
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums">
             <span className="font-medium text-foreground">{node.bookmarkCount}</span>
@@ -447,9 +496,44 @@ export function CategoriesTab() {
       )}
 
       <p className="text-xs leading-5 text-muted-foreground">
-        小提示：点击图标可自定义图标；点击右侧文件夹图标「调整层级」可自由把分类移入其他父分类下，或移动到根目录。
+        小提示：点击图标可自定义图标；点击右侧文件夹图标「调整层级」可自由把分类移入其他父分类下，或移动到根目录。移动会重新计算继承权限，移出私有分类可能公开内容。
       </p>
 
+      <DialogPanel
+        open={permissionTarget !== null}
+        onClose={() => setPermissionTarget(null)}
+        title="分类访问权限"
+      >
+        <div className="flex flex-col gap-5">
+          <p>{permissionTarget?.name}</p>
+          <VisibilityField
+            value={permission}
+            onChange={setPermission}
+            inherited={
+              categories?.find((item) => item.id === permissionTarget?.parentId)
+                ?.effectiveVisibility === 'private'
+            }
+          />
+          <p className="text-sm text-muted-foreground">
+            设为私有后，全部子分类和网站仅登录可见。改为公开不会修改后代自身的私有设置。
+          </p>
+          <Button
+            disabled={busy}
+            onClick={() => {
+              if (!permissionTarget) return;
+              void run(
+                async () => {
+                  await api.updateCategory('', permissionTarget.id, { visibility: permission });
+                  setPermissionTarget(null);
+                },
+                { message: '分类权限已更新', refresh },
+              );
+            }}
+          >
+            保存权限
+          </Button>
+        </div>
+      </DialogPanel>
       <ConfirmDialog
         open={confirmDelete !== null}
         onOpenChange={(nextOpen) => {
@@ -458,7 +542,7 @@ export function CategoriesTab() {
         title={confirmDelete ? `删除分类「${confirmDelete.name}」？` : ''}
         description={
           confirmDeleteMeta
-            ? `将 ${confirmDeleteMeta.children} 个子分类上移一级，${confirmDeleteMeta.bookmarks} 个书签变为未分类。此操作不会删除书签，且不可直接撤销。`
+            ? `将 ${confirmDeleteMeta.children} 个子分类上移一级，${confirmDeleteMeta.bookmarks} 个书签变为未分类。此操作不会删除书签，原有私有保护将保留，且不可直接撤销。`
             : undefined
         }
         confirmLabel="删除"

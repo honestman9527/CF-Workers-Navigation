@@ -1,4 +1,6 @@
+import type { Visibility } from '../../shared/api/types';
 export type TransferBookmark = {
+  visibility?: Visibility;
   title: string;
   url: string;
   description?: string | null;
@@ -12,6 +14,7 @@ export type TransferBookmark = {
 };
 
 export type TransferCategory = {
+  visibility?: Visibility;
   name: string;
   slug?: string;
   icon?: string | null;
@@ -19,7 +22,7 @@ export type TransferCategory = {
 };
 
 export type TransferData = {
-  version: 1;
+  version: 1 | 2;
   exportedAt: string;
   bookmarks: TransferBookmark[];
   categories?: TransferCategory[];

@@ -1,6 +1,6 @@
 # 概述
 
-CF Workers Navigation 是部署在 Cloudflare Workers + D1 上的私人书签柜：同源 React Web 必须登录才能打开。
+CF Workers Navigation 是部署在 Cloudflare Workers + D1 上的私人书签柜：同源 React Web 可免登录浏览公开内容，私有内容仅管理员登录可见。
 
 分类与标签共同组织书签：分类是可嵌套的粗粒度归属（每个书签一个分类，亦可归为未分类），标签是细粒度标注。首页是启动台（中部搜索框 + 可配置搜索引擎 + 常用网站），侧边栏工作区在 `/workspace` 提供完整浏览与整理。书签支持搜索、分类/标签筛选、置顶、归档、回收站、重复网址检查和导入导出。API 列表与搜索支持游标分页；前台以每页 100 条循环加载全部匹配数据，后台按页码分页。工作区默认展示全部活动书签，侧栏按分类、标签、全部网站组织，全部网站下提供未分类与无标签入口；导航互斥，侧栏内容过长时整体滚动。
 
@@ -15,7 +15,7 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-在 `.dev.vars` 中设置 `ADMIN_PASSWORD` 和 `SESSION_SECRET`。浏览器访问 `http://localhost:8787`，先登录再进入书签柜。根 `dev` 命令会先构建 Web，再并行运行 Wrangler 与 Web watch。
+在 `.dev.vars` 中设置 `ADMIN_PASSWORD` 和 `SESSION_SECRET`。浏览器访问 `http://localhost:8787`，可直接浏览公开内容，登录后查看私有内容并管理。根 `dev` 命令会先构建 Web，再并行运行 Wrangler 与 Web watch。
 
 ## 构建目标
 

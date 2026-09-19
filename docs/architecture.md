@@ -8,14 +8,14 @@ src/
 │   ├── routes/     # 薄路由：解析参数与 body、zod 校验、把结果与错误映射为 HTTP 响应
 │   ├── services/   # 业务逻辑与数据访问：书签、标签、分类、管理概览、导入导出
 │   └── transfer/   # 导入导出格式的探测、解析与序列化
-├── web/        # 必须登录的 React 书签柜，通过同源 /api/v1/* 访问 Worker
+├── web/        # 公开与私有结合的 React 书签柜，通过同源 /api/v1/* 访问 Worker
 │   ├── features/   # 业务模块按功能聚合：auth、bookmarks、admin、layout、workspace 等
 │   ├── components/ # 功能无关的通用组件；ui/ 是项目本地 shadcn/base-nova 组件
 │   ├── pages/      # 整页入口（登录页）
 │   └── hooks/ lib/ api/ utils/   # 跨功能复用的基础代码
 └── shared/     # API DTO、端点、fetch client、错误与偏好契约
 public/icons/   # Web 图标
-migrations/     # D1 初始基线迁移
+migrations/     # D1 基线与递增迁移
 ```
 
 仓库只有一个根 `package.json` 和一套依赖。目录表示运行时与源码边界，不是 workspace。
@@ -30,9 +30,9 @@ API 资源以 `/api/v1/*` 下的独立路由表达：`bookmarks`、`categories`�
 
 Web 内部按功能而非按层组织：业务模块以 `src/web/features/<功能>` 聚合，界面与状态随功能走；只有被多个功能复用的基础代码才提升到 `components/ui`、`hooks`、`lib`、`api`、`utils`，不为潜在复用新增顶层模块。
 
-Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台在 `/launch`，根路径 `/` 按前台偏好重定向，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/launch`）提供搜索首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜裸 `/workspace` 直接展示全部活动书签；分类、标签、无标签及旧置顶链接互斥，搜索词独立保留。工作区和后台共用 1024px 断点的 Sidebar/Sheet，导航内容使用单一滚动区域。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态在初始会话请求完成后注入 `RouterProvider` context，因此刷新受保护的深层 URL 不会被默认未登录状态提前改写；未登录访问或退出、401 过期时，守卫与 `App` 会将当前的 pathname、search 和 hash 作为登录页 `redirect` 保留，登录成功后仅恢复以单个 `/` 开头且非 `//` 的站内目标，其他值回退到前台偏好。
+Web 用 TanStack Router（code-based 配置，不引入代码生成插件）以路由驱动模块视图：启动台在 `/launch`，根路径 `/` 按前台偏好重定向，工作区筛选（视图/分类/标签/搜索/置顶）与登录态、管理后台路径全部编码进 URL，`src/web/routes/` 只做路由声明（含 `validateSearch`、`beforeLoad` 认证守卫），业务组件仍在 `features/`。启动台（`/launch`）提供搜索首页：中部搜索框（可配置搜索引擎）+ 常用网站瓦片；原侧边栏工作区在 `/workspace`，两种布局经顶栏从页面自由切换。书签柜裸 `/workspace` 直接展示全部活动书签；分类、标签、无标签及旧置顶链接互斥，搜索词独立保留。工作区和后台共用 1024px 断点的 Sidebar/Sheet，导航内容使用单一滚动区域。管理后台 `/admin` 是侧边栏式布局（shadcn Sidebar 原语，桌面常驻浮动栏 + 移动端抽屉），其 tab（概览/网站/分类/标签/设置/导入导出）是独立懒加载 chunk；工作区内的添加/编辑表单与危险操作确认仍是本地瞬态对话框、不进路由。认证状态在初始会话请求完成后注入 `RouterProvider` context，因此刷新受保护的深层 URL 不会被默认未登录状态提前改写；匿名访问后台时，守卫将 pathname、search 和 hash 作为登录页 `redirect` 保留；公开前台不强制登录，后台退出后回到公开前台，登录成功后仅恢复以单个 `/` 开头且非 `//` 的站内目标，其他值回退到前台偏好。
 
-Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题偏好（亮色、暗色或跟随系统）持久化到 localStorage 并自动迁移旧 key；跟随系统时监听 `prefers-color-scheme` 并应用解析后的主题。设置首次请求后全局复用、不再逐页重复 `GET /settings`；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
+Web 状态管理分层：跨页共享状态（主题、服务端设置）用 jotai 原子缓存（`src/web/features/settings/store.ts`），主题偏好（亮色、暗色或跟随系统）持久化到 localStorage 并自动迁移旧 key；跟随系统时监听 `prefers-color-scheme` 并应用解析后的主题。公开设置首次请求后全局复用（`GET /settings/public`），后台完整设置独立加载；保存时只将公开投影同步至共享缓存；页面自有资源用 `src/web/hooks/useApiData` 收敛「挂载取数 + loading/error + 401」样板；后台写操作统一经 `useAdminRun`，书签写操作与危险二次确认统一经 `useBookmarkMutations` + `ConfirmStateDialog`，工作区与「网站管理」共用。
 
 ## 依赖方向
 
@@ -73,3 +73,9 @@ Worker 不能混入 DOM，因此保留这些小配置比合并成一个会污染
 Web 首屏（启动台）只请求设置（搜索引擎）与置顶书签（游标循环，单页 100）；工作区按当前筛选（全部/分类/标签/无标签等）按 offset 页码读取匹配书签（默认 24 条，可选 48/96，响应包含 total）并加载标签；添加/编辑表单按需加载，管理后台整体及每个 tab（含导入导出）都是独立路由 chunk，进入对应页面时才加载。
 
 `pnpm dev` 先生成 `dist/web`，再并行启动 Wrangler 和 Web watch。
+
+## 可见性边界
+
+`src/worker/visibility.ts` 统一维护递归私有分类集合、网站公开条件及实际权限投影。列表、FTS 搜索、详情、分类/标签计数都在数据库中应用条件后分页。私有祖先优先于后代公开设置；分类删除通过 D1 batch 原子保留继承保护。公开读取使用明确白名单，其余请求仍经 `requireAuth`。
+
+Web 在身份变化时重建路由组件子树、取消旧 API 请求，页面卸载时清空私有状态。启动台搜索同时取消防抖和已发出的查询。内容响应身份标记、窗口聚焦和定期会话检查用于发现过期会话；退出后迟到响应不能恢复私有内容。共享设置缓存仅保存公开字段，不存储管理员默认权限。

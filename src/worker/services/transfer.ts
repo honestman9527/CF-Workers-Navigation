@@ -7,16 +7,17 @@ import type {
 } from '../transfer/types';
 import type { Db } from '../types';
 
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
-import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
+import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
-import { listBookmarks, normalizeUrl, replaceTags } from './bookmarks';
+import { getBookmark, listBookmarks, normalizeUrl, replaceTags } from './bookmarks';
 import { listCategories } from './categories';
+import { ServiceError } from './errors';
 
 // D1 limits the number of bound parameters per statement. Each bookmark insert
-// currently binds ten values (including category_id), so nine rows stay below
+// currently binds eleven values (including category_id and visibility), so nine rows stay below
 // the limit with headroom.
 const INSERT_CHUNK_SIZE = 9;
 const UPDATE_CHUNK_SIZE = 25;
@@ -30,10 +31,11 @@ function chunks<T>(items: T[], size: number): T[][] {
 }
 
 export async function exportTransferData(db: Db): Promise<TransferData> {
-  const categoriesList = await listCategories(db);
+  const categoriesList = await listCategories(db, true);
   const idToSlug = new Map(categoriesList.map((category) => [category.id, category.slug]));
   const exportedCategories: TransferCategory[] = categoriesList.map((category) => ({
     name: category.name,
+    visibility: category.visibility,
     slug: category.slug,
     icon: category.icon,
     parentSlug: category.parentId !== null ? (idToSlug.get(category.parentId) ?? null) : null,
@@ -42,10 +44,11 @@ export async function exportTransferData(db: Db): Promise<TransferData> {
   const exported: TransferBookmark[] = [];
   let cursor: string | undefined;
   do {
-    const page = await listBookmarks(db, { view: 'all', cursor, limit: 100 });
+    const page = await listBookmarks(db, { view: 'all', cursor, limit: 100 }, true);
     exported.push(
       ...page.items.map((bookmark) => ({
         title: bookmark.title,
+        visibility: bookmark.visibility,
         url: bookmark.url,
         description: bookmark.description,
         iconUrl: bookmark.iconUrl,
@@ -60,7 +63,7 @@ export async function exportTransferData(db: Db): Promise<TransferData> {
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   return {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     categories: exportedCategories,
     bookmarks: exported,
@@ -71,31 +74,63 @@ export async function exportTransferData(db: Db): Promise<TransferData> {
 async function upsertCategoriesForImport(
   db: Db,
   transferCategories: TransferCategory[] | undefined,
+  strictReferences: boolean,
 ): Promise<Map<string, number>> {
   const slugToId = new Map<string, number>();
-  if (!transferCategories || transferCategories.length === 0) return slugToId;
 
   const bySlug = new Map<
     string,
-    { name: string; slug: string; icon: string | null; parentSlug: string | null }
+    {
+      name: string;
+      slug: string;
+      icon: string | null;
+      parentSlug: string | null;
+      visibility: Visibility;
+    }
   >();
-  for (const raw of transferCategories) {
+  for (const raw of transferCategories ?? []) {
     const name = raw.name.trim();
     const slug = (raw.slug?.trim() || slugify(name)) as string;
     if (!slug || slug === UNCATEGORIZED_SLUG || bySlug.has(slug)) continue;
     bySlug.set(slug, {
       name,
       slug,
+      visibility: raw.visibility ?? 'private',
       icon: raw.icon ?? null,
       parentSlug: raw.parentSlug?.trim() || null,
     });
   }
-  if (bySlug.size === 0) return slugToId;
 
   const existing = await db
-    .select({ id: categories.id, slug: categories.slug })
-    .from(categories)
-    .where(inArray(categories.slug, [...bySlug.keys()]));
+    .select({ id: categories.id, slug: categories.slug, parentId: categories.parentId })
+    .from(categories);
+  // Existing categories retain their hierarchy and privacy when reused.
+  const existingSlugs = new Set(existing.map((row) => row.slug));
+  const idToSlug = new Map(existing.map((row) => [row.id, row.slug]));
+  const parents = new Map(
+    existing.map((row) => [
+      row.slug,
+      row.parentId === null ? null : (idToSlug.get(row.parentId) ?? null),
+    ]),
+  );
+  for (const entry of bySlug.values())
+    if (!existingSlugs.has(entry.slug)) parents.set(entry.slug, entry.parentSlug);
+  if (strictReferences) {
+    for (const entry of bySlug.values()) {
+      if (entry.parentSlug && !parents.has(entry.parentSlug))
+        throw new ServiceError(400, 'validation_error', '备份引用了不存在的父分类');
+    }
+  }
+  for (const slug of parents.keys()) {
+    const seen = new Set<string>();
+    let current: string | null = slug;
+    while (current && parents.has(current)) {
+      if (seen.has(current))
+        throw new ServiceError(400, 'validation_error', '分类层级不能形成循环');
+      seen.add(current);
+      current = parents.get(current) ?? null;
+    }
+  }
   for (const row of existing) slugToId.set(row.slug, row.id);
 
   let sortOrder = 0;
@@ -103,14 +138,20 @@ async function upsertCategoriesForImport(
     if (slugToId.has(entry.slug)) continue;
     const [created] = await db
       .insert(categories)
-      .values({ name: entry.name, slug: entry.slug, icon: entry.icon, sortOrder })
+      .values({
+        name: entry.name,
+        slug: entry.slug,
+        icon: entry.icon,
+        sortOrder,
+        visibility: entry.visibility,
+      })
       .returning({ id: categories.id });
     slugToId.set(entry.slug, created.id);
     sortOrder += 1;
   }
 
   const parentUpdates = [...bySlug.values()].flatMap((entry) => {
-    if (!entry.parentSlug) return [];
+    if (!entry.parentSlug || existingSlugs.has(entry.slug)) return [];
     const id = slugToId.get(entry.slug);
     if (id === undefined) return [];
     const parentId = slugToId.get(entry.parentSlug) ?? null;
@@ -145,17 +186,37 @@ export async function importTransferData(
   const existing = new Map(
     existingRows.map((row) => [row.urlNormalized || normalizeUrl(row.url), row.id]),
   );
-  const categorySlugToId = await upsertCategoriesForImport(db, data.categories);
-  const resolveCategoryId = (bookmark: TransferBookmark): number | null =>
-    bookmark.categorySlug ? (categorySlugToId.get(bookmark.categorySlug) ?? null) : null;
+  const categorySlugToId = await upsertCategoriesForImport(db, data.categories, data.version === 2);
+  const categoryPrivacy = new Map(
+    (await listCategories(db, true)).map((item) => [item.id, item.effectiveVisibility]),
+  );
+  const resolveCategoryId = (bookmark: TransferBookmark): number | null => {
+    const id = bookmark.categorySlug ? categorySlugToId.get(bookmark.categorySlug) : undefined;
+    if (data.version === 2 && bookmark.categorySlug && id === undefined)
+      throw new ServiceError(400, 'validation_error', '备份引用了不存在的分类');
+    return id ?? null;
+  };
   const inserts: TransferBookmark[] = [];
   const updates: Array<{ id: number; bookmark: TransferBookmark }> = [];
 
-  for (const bookmark of data.bookmarks) {
+  for (let bookmark of data.bookmarks) {
+    resolveCategoryId(bookmark);
     const normalized = normalizeUrl(bookmark.url);
     const id = existing.get(normalized);
+    if (id === -1) {
+      summary.bookmarksSkipped += 1;
+      continue;
+    }
     if (id !== undefined) {
       if (strategy === 'update') {
+        if (bookmark.visibility === undefined) {
+          const current = await getBookmark(db, id, true);
+          const targetId = resolveCategoryId(bookmark);
+          const losesProtection =
+            current.effectiveVisibility === 'private' &&
+            (targetId === null || categoryPrivacy.get(targetId) !== 'private');
+          bookmark = { ...bookmark, visibility: losesProtection ? 'private' : current.visibility };
+        }
         updates.push({ id, bookmark });
         summary.bookmarksUpdated += 1;
       } else {
@@ -179,6 +240,7 @@ export async function importTransferData(
           iconUrl: bookmark.iconUrl ?? null,
           isPinned: bookmark.isPinned ?? false,
           categoryId: resolveCategoryId(bookmark),
+          visibility: bookmark.visibility ?? 'private',
           archivedAt: bookmark.archivedAt ?? null,
           deletedAt: bookmark.deletedAt ?? null,
           createdAt: bookmark.addedAt ?? undefined,
@@ -201,6 +263,7 @@ export async function importTransferData(
           iconUrl: bookmark.iconUrl ?? null,
           isPinned: bookmark.isPinned ?? false,
           categoryId: resolveCategoryId(bookmark),
+          ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
           archivedAt: bookmark.archivedAt ?? null,
           deletedAt: bookmark.deletedAt ?? null,
           updatedAt: sql`CURRENT_TIMESTAMP`,

@@ -20,11 +20,11 @@ describe('database schema', () => {
     ]);
   });
 
-  it('keeps categories with bookmark lookup columns but no manual sorting or visibility', async () => {
+  it('keeps categories with bookmark lookup columns but visibility but no manual sorting', async () => {
     const columns = await env.DB.prepare(`PRAGMA table_info(bookmarks)`).all<{ name: string }>();
     expect(columns.results.some((column) => column.name === 'category_id')).toBe(true);
     expect(columns.results.some((column) => column.name === 'sort_order')).toBe(false);
-    expect(columns.results.some((column) => column.name === 'is_public')).toBe(false);
+    expect(columns.results.some((column) => column.name === 'visibility')).toBe(true);
 
     const categoriesTable = await env.DB.prepare(
       `SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'categories'`,

@@ -53,7 +53,8 @@ describe('tags api', () => {
         body: JSON.stringify({ targetId: 2 }),
       }),
     ]);
-    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(responses[0].status).toBe(200);
+    expect(responses.slice(1).every((response) => response.status === 401)).toBe(true);
   });
 
   it('creates tags and lists them with active bookmark counts', async () => {

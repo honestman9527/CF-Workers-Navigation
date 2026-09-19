@@ -60,7 +60,8 @@ describe('categories api', () => {
         body: JSON.stringify({ ids: [1] }),
       }),
     ]);
-    expect(responses.every((response) => response.status === 401)).toBe(true);
+    expect(responses[0].status).toBe(200);
+    expect(responses.slice(1).every((response) => response.status === 401)).toBe(true);
   });
 
   it('creates a nested category tree with counts', async () => {

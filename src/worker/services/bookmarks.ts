@@ -1,3 +1,4 @@
+import type { Visibility } from '../../shared/api/types';
 import type {
   Bookmark as BookmarkDto,
   BookmarkListOptions,
@@ -16,11 +17,15 @@ import {
   encodeSearchCursor,
 } from '../cursor';
 import { bookmarkTags, bookmarks, tags } from '../schema';
+import { getSettings } from '../settings';
 import { slugify } from '../slug';
+import { publicBookmarkCondition, bookmarkEffectiveVisibility } from '../visibility';
 import { assertCategoryExists } from './categories';
 import { ServiceError } from './errors';
 
 type BookmarkRow = {
+  visibility: Visibility;
+  effective_visibility: Visibility;
   id: number;
   title: string;
   url: string;
@@ -40,6 +45,7 @@ type BookmarkRow = {
 type SearchRow = BookmarkRow & { rank: number };
 
 export type BookmarkWrite = {
+  visibility?: Visibility;
   title: string;
   url: string;
   description?: string | null;
@@ -76,6 +82,8 @@ function parseTags(raw: string): string[] {
 function toDto(row: BookmarkRow): BookmarkDto {
   return {
     id: row.id,
+    visibility: row.visibility,
+    effectiveVisibility: row.effective_visibility,
     title: row.title,
     url: row.url,
     description: row.description,
@@ -156,7 +164,10 @@ type BookmarkFilter = Pick<
 >;
 
 /** 列表与搜索共用的过滤片段：condition 以 AND 开头，可接在 WHERE 主表达式之后。 */
-function buildFilter(filter: BookmarkFilter): {
+function buildFilter(
+  filter: BookmarkFilter,
+  authed: boolean,
+): {
   cte: ReturnType<typeof sql>;
   condition: ReturnType<typeof sql>;
 } {
@@ -174,7 +185,7 @@ function buildFilter(filter: BookmarkFilter): {
   const pinnedCondition = filter.pinned ? sql`AND b.is_pinned = 1` : sql``;
   return {
     cte: categoryCte,
-    condition: sql`AND ${viewCondition(filter.view ?? 'active')} ${tagCondition} ${untaggedCondition} ${categoryCondition} ${pinnedCondition}`,
+    condition: sql`${authed ? sql`` : sql`AND ${publicBookmarkCondition}`} AND ${viewCondition(filter.view ?? 'active')} ${tagCondition} ${untaggedCondition} ${categoryCondition} ${pinnedCondition}`,
   };
 }
 
@@ -196,7 +207,7 @@ async function countByFilter(
 }
 
 const listSelect = sql`
-  SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+  SELECT b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
     b.archived_at, b.deleted_at, b.created_at, b.updated_at,
     b.category_id, c.name AS category_name, c.slug AS category_slug,
     ${tagProjection} AS tag_names
@@ -207,7 +218,7 @@ const listSelect = sql`
 `;
 
 const searchSelect = sql`
-  SELECT b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+  SELECT b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
     b.archived_at, b.deleted_at, b.created_at, b.updated_at,
     b.category_id, c.name AS category_name, c.slug AS category_slug,
     bookmarks_fts.rank AS rank, ${tagProjection} AS tag_names
@@ -221,10 +232,11 @@ const searchSelect = sql`
 async function queryRows(
   db: Db,
   options: BookmarkListOptions & { id?: number } = {},
+  authed: boolean,
 ): Promise<BookmarkRow[]> {
   const cursor = decodeListCursor(options.cursor);
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
-  const { cte, condition } = buildFilter(options);
+  const { cte, condition } = buildFilter(options, authed);
   const cursorCondition = cursor
     ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
     : sql``;
@@ -242,12 +254,13 @@ async function queryRows(
 export async function listBookmarks(
   db: Db,
   options: BookmarkListOptions = {},
+  authed: boolean,
 ): Promise<BookmarkPage> {
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
 
   // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
   if (options.offset !== undefined) {
-    const { cte, condition } = buildFilter(options);
+    const { cte, condition } = buildFilter(options, authed);
     const rows = await db.all<BookmarkRow>(sql`
       ${cte}
       ${listSelect}
@@ -260,7 +273,7 @@ export async function listBookmarks(
     return { items: rows.map(toDto), nextCursor: null, total };
   }
 
-  const rows = await queryRows(db, { ...options, limit });
+  const rows = await queryRows(db, { ...options, limit }, authed);
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toDto);
   const last = rows[limit - 1];
@@ -284,11 +297,12 @@ export async function searchBookmarks(
   db: Db,
   query: string,
   options: BookmarkListOptions = {},
+  authed: boolean,
 ): Promise<BookmarkPage> {
   const ftsQuery = buildFtsQuery(query);
   if (!ftsQuery) return { items: [], nextCursor: null };
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
-  const { cte, condition } = buildFilter(options);
+  const { cte, condition } = buildFilter(options, authed);
 
   // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
   if (options.offset !== undefined) {
@@ -329,8 +343,8 @@ export async function searchBookmarks(
   };
 }
 
-export async function getBookmark(db: Db, id: number): Promise<BookmarkDto> {
-  const [row] = await queryRows(db, { view: 'all', id });
+export async function getBookmark(db: Db, id: number, authed: boolean): Promise<BookmarkDto> {
+  const [row] = await queryRows(db, { view: authed ? 'all' : 'active', id }, authed);
   if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
   return toDto(row);
 }
@@ -360,11 +374,12 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       iconUrl: input.iconUrl,
       isPinned: input.isPinned,
       categoryId: input.categoryId ?? null,
+      visibility: input.visibility ?? (await getSettings(db)).defaultBookmarkVisibility,
       urlNormalized: normalizeUrl(input.url),
     })
     .returning();
   await replaceTags(db, bookmark.id, input.tags);
-  return getBookmark(db, bookmark.id);
+  return getBookmark(db, bookmark.id, true);
 }
 
 export async function updateBookmark(
@@ -391,13 +406,14 @@ export async function updateBookmark(
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.iconUrl !== undefined ? { iconUrl: input.iconUrl } : {}),
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
+      ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(bookmarks.id, id))
     .returning();
   await replaceTags(db, id, input.tags);
-  return getBookmark(db, bookmark.id);
+  return getBookmark(db, bookmark.id, true);
 }
 
 export async function archiveBookmark(db: Db, id: number): Promise<BookmarkDto> {
@@ -407,7 +423,7 @@ export async function archiveBookmark(db: Db, id: number): Promise<BookmarkDto> 
     .where(and(eq(bookmarks.id, id), isNull(bookmarks.deletedAt)))
     .returning({ id: bookmarks.id });
   if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  return getBookmark(db, id);
+  return getBookmark(db, id, true);
 }
 
 export async function restoreBookmark(db: Db, id: number): Promise<BookmarkDto> {
@@ -423,7 +439,7 @@ export async function restoreBookmark(db: Db, id: number): Promise<BookmarkDto> 
     .where(eq(bookmarks.id, id))
     .returning({ id: bookmarks.id });
   if (!row) throw new ServiceError(404, 'not_found', 'Bookmark not found');
-  return getBookmark(db, id);
+  return getBookmark(db, id, true);
 }
 
 export async function deleteBookmark(db: Db, id: number): Promise<void> {

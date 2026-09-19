@@ -1,49 +1,71 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api, ApiError } from '@nav/api/client';
+import { api, ApiError, invalidateApiRequests } from '@nav/api/client';
 
 export function useAuth() {
   const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    try {
-      await api.me(undefined, signal);
-      setAuthed(true);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
-      }
-      setAuthed(false);
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
+  const generation = useRef(0);
+  const authRef = useRef(false);
+  const transition = useCallback((value: boolean) => {
+    authRef.current = value;
+    generation.current += 1;
+    invalidateApiRequests();
+    setAuthed(value);
   }, []);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      const current = generation.current;
+      try {
+        await api.me(undefined, signal);
+        if (current === generation.current && !signal?.aborted && !authRef.current)
+          transition(true);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (current === generation.current && !signal?.aborted && authRef.current)
+          transition(false);
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [transition],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
-    return () => controller.abort();
-  }, [refresh]);
+    const check = () => {
+      if (document.visibilityState === 'visible') void refresh(controller.signal);
+    };
+    const expired = () => {
+      if (authRef.current) transition(false);
+    };
+    window.addEventListener('focus', check);
+    window.addEventListener('nav-session-expired', expired);
+    const timer = window.setInterval(check, 60_000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+      window.removeEventListener('focus', check);
+      window.removeEventListener('nav-session-expired', expired);
+    };
+  }, [refresh, transition]);
 
   return {
     authed,
     loading,
     async login(password: string) {
       await api.login(password);
-      setAuthed(true);
+      transition(true);
     },
     async logout() {
       try {
         await api.logout();
       } catch (error) {
-        if (!(error instanceof ApiError)) {
-          throw error;
-        }
+        if (!(error instanceof ApiError && error.status === 401)) throw error;
       }
-      setAuthed(false);
+      transition(false);
     },
   };
 }

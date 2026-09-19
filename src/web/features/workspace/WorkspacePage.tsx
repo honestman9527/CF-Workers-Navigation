@@ -246,6 +246,7 @@ export function WorkspacePage() {
     <BookmarkCard
       key={bookmark.id}
       bookmark={bookmark}
+      readOnly={!auth.authed}
       viewMode={viewMode}
       onEdit={setEditor}
       onDelete={(item) =>
@@ -283,10 +284,12 @@ export function WorkspacePage() {
       navButton={<SidebarTrigger className="lg:hidden" aria-label="打开索引" />}
       brand={<Brand onClick={() => selectFilter({})} />}
       actions={
-        <Button size="sm" onClick={() => setEditor('new')}>
-          <Plus />
-          <span className="hidden sm:inline">添加书签</span>
-        </Button>
+        auth.authed ? (
+          <Button size="sm" onClick={() => setEditor('new')}>
+            <Plus />
+            <span className="hidden sm:inline">添加书签</span>
+          </Button>
+        ) : null
       }
       menu={
         <HeaderMenu
@@ -384,9 +387,15 @@ export function WorkspacePage() {
                 <EmptyMedia variant="icon">
                   <BookmarkIcon />
                 </EmptyMedia>
-                <EmptyTitle>{query ? '没有找到匹配的书签' : '这里还没有书签'}</EmptyTitle>
+                <EmptyTitle>
+                  {query ? '没有找到匹配的书签' : auth.authed ? '这里还没有书签' : '暂无公开网站'}
+                </EmptyTitle>
                 <EmptyDescription>
-                  {query ? '换一个关键词试试。' : '添加一个网址，开始整理。'}
+                  {query
+                    ? '换一个关键词试试。'
+                    : auth.authed
+                      ? '添加一个网址，开始整理。'
+                      : '登录后可查看私有内容。'}
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>

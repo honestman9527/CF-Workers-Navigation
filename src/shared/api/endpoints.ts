@@ -10,6 +10,7 @@ export const ENDPOINTS = {
   bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,
   categories: `${API_V1_PREFIX}/categories`,
   categoriesReorder: `${API_V1_PREFIX}/categories/reorder`,
+  publicSettings: `${API_V1_PREFIX}/settings/public`,
   settings: `${API_V1_PREFIX}/settings`,
   tags: `${API_V1_PREFIX}/tags`,
   tagsMerge: (id: number) => `${API_V1_PREFIX}/tags/${id}/merge`,

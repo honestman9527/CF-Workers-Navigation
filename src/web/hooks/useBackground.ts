@@ -1,4 +1,4 @@
-import type { Settings } from '@shared/api/types';
+import type { PublicSettings } from '@shared/api/types';
 
 import { useLayoutEffect } from 'react';
 
@@ -7,7 +7,7 @@ import { useLayoutEffect } from 'react';
  * 样式见 `src/web/styles.css`。启动台与工作区各挂一次，页面切换时重设避免闪底色。
  * 卸载或禁用/清空时恢复纯色纸面。
  */
-export function useBackground(settings: Settings | null) {
+export function useBackground(settings: PublicSettings | null) {
   useLayoutEffect(() => {
     const root = document.documentElement;
     const url = settings?.backgroundImageUrl?.trim();

@@ -5,6 +5,7 @@ import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { bookmarkTags, tags } from '../schema';
 import { slugify } from '../slug';
+import { publicBookmarkCondition } from '../visibility';
 import { ServiceError } from './errors';
 
 type TagRow = {
@@ -34,10 +35,10 @@ function normalizeName(input: string | undefined): string {
   return name;
 }
 
-function tagSelect() {
+function tagSelect(authed = true) {
   return sql`
     SELECT t.id, t.name, t.slug,
-      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count
+      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL ${authed ? sql`` : sql`AND ${publicBookmarkCondition}`} THEN 1 END) AS bookmark_count
     FROM tags t
     LEFT JOIN bookmark_tags bt ON bt.tag_id = t.id
     LEFT JOIN bookmarks b ON b.id = bt.bookmark_id
@@ -54,10 +55,11 @@ async function getTagDto(db: Db, id: number): Promise<TagDto> {
   return toDto(row);
 }
 
-export async function listTags(db: Db): Promise<TagDto[]> {
+export async function listTags(db: Db, authed: boolean): Promise<TagDto[]> {
   const rows = await db.all<TagRow>(sql`
-    ${tagSelect()}
+    ${tagSelect(authed)}
     GROUP BY t.id
+    ${authed ? sql`` : sql`HAVING bookmark_count > 0`}
     ORDER BY t.name COLLATE NOCASE, t.id
   `);
   return rows.map(toDto);

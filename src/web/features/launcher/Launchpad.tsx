@@ -4,6 +4,7 @@ import { ArrowRight, RefreshCw, Star } from 'lucide-react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { domainOf } from '@shared/search';
 
 function Tile({ bookmark }: { bookmark: Bookmark }) {
@@ -53,6 +54,7 @@ export function Launchpad({
   onRetry: () => void;
   onOpenWorkspace: () => void;
 }) {
+  const { authed } = useAuthContext();
   if (loading) {
     return (
       <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
@@ -80,9 +82,11 @@ export function Launchpad({
     return (
       <div className="w-full rounded-lg border border-dashed border-border bg-card/60 px-6 py-10 text-center">
         <Star className="mx-auto size-6 text-muted-foreground/40" />
-        <p className="mt-3 text-sm font-medium">还没有常用网站</p>
+        <p className="mt-3 text-sm font-medium">{authed ? '还没有常用网站' : '暂无公开常用网站'}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          在书签柜里把书签「置顶」，它就会出现在这里。
+          {authed
+            ? '在书签柜里把书签「置顶」，它就会出现在这里。'
+            : '前往书签柜浏览公开网站，或登录查看私有内容。'}
         </p>
         <Button size="sm" className="mt-4" onClick={onOpenWorkspace}>
           前往书签柜

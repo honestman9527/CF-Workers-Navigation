@@ -24,11 +24,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { TagChip } from '@nav/features/tags/TagChip';
+import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { domainOf } from '@shared/search';
 
 export function BookmarkCard({
   bookmark,
   viewMode = 'grid',
+  readOnly = false,
   onEdit,
   onDelete,
   onTogglePin,
@@ -40,6 +42,7 @@ export function BookmarkCard({
 }: {
   bookmark: Bookmark;
   viewMode?: 'grid' | 'list';
+  readOnly?: boolean;
   onEdit: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;
   onTogglePin: (bookmark: Bookmark) => void;
@@ -180,10 +183,11 @@ export function BookmarkCard({
             <h2 title={bookmark.title} className="line-clamp-2 text-sm font-semibold">
               {bookmark.title}
             </h2>
+            <VisibilityBadge item={bookmark} />
             <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{domain}</p>
           </div>
         </div>
-        {actions}
+        {!readOnly ? actions : null}
       </div>
       {viewMode === 'grid' ? (
         <>

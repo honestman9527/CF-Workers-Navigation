@@ -4,6 +4,7 @@ import { ChevronRight, FolderPlus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
+import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
 import { categoryIcon } from './icons';
@@ -132,6 +133,7 @@ function TreeNode({
             )}
           />
           <span className="min-w-0 flex-1 truncate">{node.name}</span>
+          <VisibilityBadge item={node} />
           {showLevel ? (
             <span className="shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-4 text-muted-foreground/80">
               LV{depth + 1}

@@ -20,6 +20,8 @@ vi.mock('@nav/features/auth/useAuthContext', () => ({
 }));
 vi.mock('@nav/components/Toast', () => ({ pushToast: vi.fn() }));
 const saved: Settings = {
+  defaultCategoryVisibility: 'public',
+  defaultBookmarkVisibility: 'public',
   faviconProxyUrl: 'https://icon.horse/icon/{domain}',
   faviconProxyEnabled: true,
   backgroundImageUrl: '',
@@ -93,7 +95,12 @@ it('保存失败保留草稿，重试保存更新快照和共享缓存', async (
   const updated = { ...saved, backgroundImageUrl: 'https://example.com/new.jpg' };
   vi.mocked(api.updateSettings).mockResolvedValue(updated);
   await click('保存设置');
-  expect(store.get(settingsStateAtom).settings).toEqual(updated);
+  expect(store.get(settingsStateAtom).settings).toEqual({
+    searchEngines: updated.searchEngines,
+    defaultEngineId: updated.defaultEngineId,
+    backgroundImageUrl: updated.backgroundImageUrl,
+    backgroundImageEnabled: updated.backgroundImageEnabled,
+  });
   expect(container.textContent).toContain('所有修改已保存');
   await change('background-url', 'https://example.com/other.jpg');
   await click('撤销修改');
@@ -115,4 +122,28 @@ it('保存时切换到无效字段所在标签页', async () => {
   await click('保存设置');
   expect(container.querySelector('#background-url')?.getAttribute('aria-invalid')).toBe('true');
   expect(api.updateSettings).not.toHaveBeenCalled();
+});
+
+it('默认权限参与设置草稿和保存，且不进入公开缓存', async () => {
+  await render();
+  await click('访问与隐私');
+  const selectPrivate = () =>
+    container.querySelector<HTMLElement>('[aria-label="新网站默认权限"] [id$="-private"]')!;
+  await act(() => selectPrivate().click());
+  await click('外观');
+  await click('访问与隐私');
+  expect((selectPrivate() as HTMLInputElement).checked).toBe(true);
+  await click('撤销修改');
+  expect((selectPrivate() as HTMLInputElement).checked).toBe(false);
+  await act(() => selectPrivate().click());
+  vi.mocked(api.updateSettings).mockResolvedValue({
+    ...saved,
+    defaultBookmarkVisibility: 'private',
+  });
+  await click('保存设置');
+  expect(api.updateSettings).toHaveBeenCalledWith(
+    '',
+    expect.objectContaining({ defaultBookmarkVisibility: 'private' }),
+  );
+  expect(store.get(settingsStateAtom).settings).not.toHaveProperty('defaultBookmarkVisibility');
 });

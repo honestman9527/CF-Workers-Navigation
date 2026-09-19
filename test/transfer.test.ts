@@ -64,7 +64,7 @@ describe('transfer api', () => {
       bookmarks: Array<{ url: string; tags: string[] }>;
       categories?: unknown;
     };
-    expect(data.version).toBe(1);
+    expect(data.version).toBe(2);
     expect(data.categories).toEqual([]);
     expect(data.bookmarks.find((bookmark) => bookmark.url.includes('tagged'))?.tags).toEqual([
       '开发',

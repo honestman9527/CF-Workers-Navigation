@@ -44,6 +44,7 @@ import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
+import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 import { domainOf } from '@shared/search';
@@ -283,6 +284,7 @@ export function WebsitesTab() {
                             <span className="truncate text-xs font-medium text-foreground">
                               {bookmark.title}
                             </span>
+                            <VisibilityBadge item={bookmark} />
                             {bookmark.isPinned ? (
                               <span title="常用书签" className="shrink-0 text-primary">
                                 <Star className="size-3 fill-current" />

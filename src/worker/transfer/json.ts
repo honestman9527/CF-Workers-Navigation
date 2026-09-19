@@ -1,5 +1,11 @@
 import type { TransferBookmark, TransferCategory, TransferData } from './types';
 
+function visibility(value: unknown): 'public' | 'private' | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'public' || value === 'private') return value;
+  throw new Error('权限必须为 public 或 private');
+}
+
 const UNNAMED_BOOKMARK = '未命名书签';
 
 function syntaxError(input: string, error: SyntaxError): never {
@@ -51,6 +57,7 @@ function normalizeCategory(raw: unknown, index: number, errors: string[]): Trans
   return {
     name,
     slug,
+    visibility: visibility(record.visibility),
     icon: typeof record.icon === 'string' && record.icon.trim() ? record.icon.trim() : null,
     parentSlug: normalizeCategorySlug(record.parentSlug),
   };
@@ -87,6 +94,7 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
   return {
     title,
     url,
+    visibility: visibility(record.visibility),
     description,
     iconUrl,
     isPinned,
@@ -128,7 +136,7 @@ export function parseJson(input: string): TransferData {
   if (record.categories !== undefined && !Array.isArray(record.categories)) {
     throw new Error('分类字段格式有误');
   }
-  if (record.version !== undefined && record.version !== 1) {
+  if (record.version !== undefined && record.version !== 1 && record.version !== 2) {
     throw new Error('不支持的 JSON 备份版本');
   }
   if (!Array.isArray(record.bookmarks)) {
@@ -145,7 +153,7 @@ export function parseJson(input: string): TransferData {
   if (bookmarks.length === 0 && errors.length > 0) throw new Error(errors[0]);
 
   return {
-    version: 1,
+    version: record.version === 2 ? 2 : 1,
     exportedAt:
       typeof record.exportedAt === 'string' ? record.exportedAt : new Date().toISOString(),
     categories,
@@ -156,7 +164,7 @@ export function parseJson(input: string): TransferData {
 export function serializeJson(data: TransferData): string {
   return JSON.stringify(
     {
-      version: 1,
+      version: 2,
       exportedAt: data.exportedAt,
       categories: data.categories,
       bookmarks: data.bookmarks,

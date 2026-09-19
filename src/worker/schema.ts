@@ -12,6 +12,9 @@ export const categories = sqliteTable(
   'categories',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
+    visibility: text('visibility', { enum: ['public', 'private'] })
+      .notNull()
+      .default('private'),
     parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id, {
       onDelete: 'cascade',
     }),
@@ -36,6 +39,9 @@ export const bookmarks = sqliteTable(
   'bookmarks',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
+    visibility: text('visibility', { enum: ['public', 'private'] })
+      .notNull()
+      .default('private'),
     categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     url: text('url').notNull(),

@@ -26,13 +26,40 @@ api.route('/settings', settingsRoutes);
 api.route('/tags', tagsRoutes);
 api.route('/transfer', transferRoutes);
 
+app.use(`${API_V1_PREFIX}/*`, async (c, next) => {
+  c.header('Cache-Control', 'private, no-store');
+  await next();
+});
 app.use(`${API_V1_PREFIX}/*`, authContext);
 app.use(`${API_V1_PREFIX}/*`, async (c, next) => {
   c.set('db', getDb(c.env));
   await next();
 });
 app.use(`${API_V1_PREFIX}/*`, async (c, next) => {
-  const path = new URL(c.req.url).pathname;
+  const path = new URL(c.req.url).pathname.replace(/\/$/, '');
+  const publicRead =
+    c.req.method === 'GET' &&
+    ([
+      'bookmarks',
+      'bookmarks/search',
+      'bookmarks/tags',
+      'categories',
+      'tags',
+      'settings/public',
+    ].some((route) => path === `${API_V1_PREFIX}/${route}`) ||
+      /^\/api\/v1\/bookmarks\/\d+$/.test(path));
+  if (publicRead) {
+    if (
+      !c.get('authed') &&
+      path.startsWith(`${API_V1_PREFIX}/bookmarks`) &&
+      c.req.query('view') &&
+      c.req.query('view') !== 'active'
+    ) {
+      return requireAuth(c, next);
+    }
+    await next();
+    return;
+  }
   if (path === `${API_V1_PREFIX}/auth/login` || path === `${API_V1_PREFIX}/auth/logout`) {
     await next();
     return;

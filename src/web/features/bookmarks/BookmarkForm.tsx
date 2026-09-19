@@ -1,4 +1,11 @@
-import type { Bookmark, BookmarkInput, Category, MetadataPreview, Tag } from '@shared/api/types';
+import type {
+  Bookmark,
+  BookmarkInput,
+  Category,
+  MetadataPreview,
+  Tag,
+  Visibility,
+} from '@shared/api/types';
 
 import { Image, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -10,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { CategoryPicker } from '@nav/features/categories/CategoryPicker';
+import { VisibilityField, useVisibilityDefaults } from '@nav/features/visibility/VisibilityField';
 
 export function BookmarkForm({
   open,
@@ -28,7 +36,9 @@ export function BookmarkForm({
   onClose: () => void;
   onSubmit: (input: BookmarkInput) => Promise<void>;
 }) {
+  const defaults = useVisibilityDefaults();
   const [form, setForm] = useState({
+    visibility: undefined as Visibility | undefined,
     title: '',
     url: '',
     description: '',
@@ -47,6 +57,7 @@ export function BookmarkForm({
     setForm(
       bookmark
         ? {
+            visibility: bookmark.visibility,
             title: bookmark.title,
             url: bookmark.url,
             description: bookmark.description ?? '',
@@ -55,6 +66,7 @@ export function BookmarkForm({
             categoryId: bookmark.categoryId,
           }
         : {
+            visibility: undefined,
             title: '',
             url: '',
             description: '',
@@ -148,6 +160,7 @@ export function BookmarkForm({
           try {
             const iconUrl = form.iconUrl.trim() || (await fetchFavicon(false));
             await onSubmit({
+              visibility: form.visibility,
               title: form.title.trim(),
               url: form.url.trim(),
               description: form.description.trim() || null,
@@ -301,6 +314,29 @@ export function BookmarkForm({
             />
           </div>
         </div>
+        <VisibilityField
+          value={form.visibility ?? defaults.data?.defaultBookmarkVisibility}
+          onChange={(visibility) => setForm((current) => ({ ...current, visibility }))}
+          inherited={
+            availableCategories.find((item) => item.id === form.categoryId)?.effectiveVisibility ===
+            'private'
+          }
+        />
+        {defaults.error && !bookmark ? (
+          <p role="alert" className="text-sm text-destructive">
+            默认权限加载失败，请明确选择公开或私有。
+            <Button type="button" variant="link" onClick={defaults.refresh}>
+              重试
+            </Button>
+          </p>
+        ) : null}
+        {bookmark?.effectiveVisibility === 'private' &&
+        bookmark.visibility === 'public' &&
+        bookmark.categoryId !== form.categoryId ? (
+          <p className="text-sm text-muted-foreground">
+            移动会重新计算权限；移出私有分类后，此网站可能公开。
+          </p>
+        ) : null}
         <div>
           <Label htmlFor="bookmark-description">描述</Label>
           <Textarea
@@ -337,7 +373,10 @@ export function BookmarkForm({
           <Button type="button" variant="ghost" onClick={onClose}>
             取消
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button
+            type="submit"
+            disabled={loading || (!bookmark && !form.visibility && !defaults.data)}
+          >
             {loading ? '保存中…' : '保存书签'}
           </Button>
         </div>

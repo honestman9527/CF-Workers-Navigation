@@ -1,3 +1,4 @@
+import type { Visibility } from '../../shared/api/types';
 import type { Category as CategoryDto, CategoryInput } from '../../shared/api/types';
 import type { Db } from '../types';
 
@@ -5,10 +6,18 @@ import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import { bookmarks, categories } from '../schema';
+import { getSettings } from '../settings';
 import { slugify } from '../slug';
+import {
+  publicBookmarkCondition,
+  privateCategoryIds,
+  categoryEffectiveVisibility,
+} from '../visibility';
 import { ServiceError } from './errors';
 
 type CategoryRow = {
+  visibility: Visibility;
+  effective_visibility: Visibility;
   id: number;
   parent_id: number | null;
   name: string;
@@ -21,6 +30,8 @@ type CategoryRow = {
 function toDto(row: CategoryRow): CategoryDto {
   return {
     id: row.id,
+    visibility: row.visibility,
+    effectiveVisibility: row.effective_visibility,
     parentId: row.parent_id,
     name: row.name,
     slug: row.slug,
@@ -31,6 +42,7 @@ function toDto(row: CategoryRow): CategoryDto {
 }
 
 export type CategoryWrite = {
+  visibility?: Visibility;
   name?: string;
   parentId?: number | null;
   icon?: string | null;
@@ -52,10 +64,10 @@ function normalizeName(input: string | undefined, label: string): string {
   return name;
 }
 
-function categorySelect() {
+function categorySelect(authed = true) {
   return sql`
-    SELECT c.id, c.parent_id, c.name, c.slug, c.icon, c.sort_order,
-      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL THEN 1 END) AS bookmark_count
+    SELECT c.visibility, ${categoryEffectiveVisibility} AS effective_visibility, c.id, c.parent_id, c.name, c.slug, c.icon, c.sort_order,
+      COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL ${authed ? sql`` : sql`AND ${publicBookmarkCondition}`} THEN 1 END) AS bookmark_count
     FROM categories c
     LEFT JOIN bookmarks b ON b.category_id = c.id
   `;
@@ -71,9 +83,10 @@ async function getCategoryDto(db: Db, id: number): Promise<CategoryDto> {
   return toDto(row);
 }
 
-export async function listCategories(db: Db): Promise<CategoryDto[]> {
+export async function listCategories(db: Db, authed: boolean): Promise<CategoryDto[]> {
   const rows = await db.all<CategoryRow>(sql`
-    ${categorySelect()}
+    ${categorySelect(authed)}
+    ${authed ? sql`` : sql`WHERE c.id NOT IN ${privateCategoryIds}`}
     GROUP BY c.id
     ORDER BY c.sort_order, c.name COLLATE NOCASE, c.id
   `);
@@ -111,7 +124,14 @@ export async function createCategory(db: Db, input: CategoryInput): Promise<Cate
 
   const [created] = await db
     .insert(categories)
-    .values({ name, slug, parentId, icon: input.icon ?? null, sortOrder })
+    .values({
+      name,
+      slug,
+      parentId,
+      icon: input.icon ?? null,
+      sortOrder,
+      visibility: input.visibility ?? (await getSettings(db)).defaultCategoryVisibility,
+    })
     .returning({ id: categories.id });
   return getCategoryDto(db, created.id);
 }
@@ -173,6 +193,8 @@ export async function updateCategory(
     updates.parentId = targetParent;
   }
 
+  if (input.visibility !== undefined) updates.visibility = input.visibility;
+
   if (input.icon !== undefined) {
     updates.icon = input.icon;
   }
@@ -194,13 +216,26 @@ export async function deleteCategory(db: Db, id: number): Promise<void> {
     .where(eq(categories.id, id));
   if (!current) throw new ServiceError(404, 'not_found', '分类不存在');
 
-  // 子分类上移一级，书签改为未分类（不依赖外键动作，避免部分环境外键为 NO ACTION 时报错）。
-  await db
-    .update(categories)
-    .set({ parentId: current.parentId, updatedAt: sql`CURRENT_TIMESTAMP` })
-    .where(eq(categories.parentId, id));
-  await db.update(bookmarks).set({ categoryId: null }).where(eq(bookmarks.categoryId, id));
-  await db.delete(categories).where(eq(categories.id, id));
+  // Protect inherited privacy before detaching children, in one atomic batch.
+  await db.batch([
+    db
+      .update(categories)
+      .set({
+        parentId: current.parentId,
+        visibility: sql`CASE WHEN ${categories.id} IN ${privateCategoryIds} THEN 'private' ELSE ${categories.visibility} END`,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(categories.parentId, id)),
+    db
+      .update(bookmarks)
+      .set({
+        categoryId: null,
+        visibility: sql`CASE WHEN ${bookmarks.categoryId} IN ${privateCategoryIds} THEN 'private' ELSE ${bookmarks.visibility} END`,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(bookmarks.categoryId, id)),
+    db.delete(categories).where(eq(categories.id, id)),
+  ]);
 }
 
 export async function reorderCategories(db: Db, ids: number[]): Promise<void> {

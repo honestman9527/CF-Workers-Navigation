@@ -11,6 +11,7 @@ import type {
   FaviconPreview,
   MetadataPreview,
   Settings,
+  PublicSettings,
   Tag,
 } from './types';
 
@@ -90,6 +91,7 @@ export interface ApiClient {
     signal?: AbortSignal,
   ): Promise<MetadataPreview>;
   getFavicon(token: string | undefined, url: string, signal?: AbortSignal): Promise<FaviconPreview>;
+  getPublicSettings(signal?: AbortSignal): Promise<PublicSettings>;
   getSettings(token?: string, signal?: AbortSignal): Promise<Settings>;
   updateSettings(token: string, input: Partial<Settings>): Promise<Settings>;
   createBookmark(token: string, input: BookmarkInput): Promise<Bookmark>;
@@ -178,6 +180,9 @@ export function createApiClient(options: ClientOptions): ApiClient {
         { signal },
         token,
       );
+    },
+    getPublicSettings(signal) {
+      return request<PublicSettings>(options, ENDPOINTS.publicSettings, { signal });
     },
     getSettings(token, signal) {
       return request<Settings>(options, ENDPOINTS.settings, { signal }, token);

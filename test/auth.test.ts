@@ -110,9 +110,10 @@ describe('auth api', () => {
     expect(response.status).toBe(401);
   });
 
-  it('requires auth for personal data', async () => {
+  it('allows anonymous public lists', async () => {
     const response = await exports.default.fetch('https://example.com/api/v1/bookmarks');
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ items: [], nextCursor: null });
   });
 
   it('does not expose the legacy unversioned api alias', async () => {

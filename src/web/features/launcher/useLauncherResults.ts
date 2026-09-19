@@ -40,10 +40,11 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
     }
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
     debounceRef.current = setTimeout(async () => {
-      const controller = new AbortController();
       try {
         const items = await searchAllBookmarks(q, controller.signal);
+        if (controller.signal.aborted) return;
         setResults(items);
         setError(null);
       } catch (caught) {
@@ -59,6 +60,7 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
       }
     }, 250);
     return () => {
+      controller.abort();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [searchQuery, onUnauthorized]);

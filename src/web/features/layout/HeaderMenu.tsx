@@ -1,9 +1,11 @@
 import { isTheme, type ResolvedTheme, type Theme } from '@shared';
+import { useNavigate } from '@tanstack/react-router';
 import {
   Bookmark,
   ChevronDown,
   LayoutDashboard,
   LogOut,
+  LogIn,
   Monitor,
   Moon,
   Rocket,
@@ -26,6 +28,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 /** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。归档/回收站只存在于管理后台。 */
 export function HeaderMenu({
@@ -45,6 +48,8 @@ export function HeaderMenu({
   onOpenAdmin: () => void;
   onLogout: () => void;
 }) {
+  const { authed } = useAuthContext();
+  const navigate = useNavigate();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -65,7 +70,9 @@ export function HeaderMenu({
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">书签柜</span>
-              <span className="text-xs font-normal text-muted-foreground">已登录，可整理书签</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {authed ? '已登录，可整理书签' : '游客 · 浏览公开网站'}
+              </span>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -110,15 +117,36 @@ export function HeaderMenu({
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuItem onClick={onOpenAdmin}>
-          <LayoutDashboard className="size-4 text-primary" />
-          管理后台
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onLogout}>
-          <LogOut className="size-4" />
-          退出
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          {authed ? (
+            <>
+              <DropdownMenuItem onClick={onOpenAdmin}>
+                <LayoutDashboard className="size-4 text-primary" />
+                管理后台
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onLogout}>
+                <LogOut className="size-4" />
+                退出
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem
+              onClick={() =>
+                void navigate({
+                  to: '/login',
+                  search: {
+                    redirect:
+                      window.location.pathname + window.location.search + window.location.hash,
+                  },
+                })
+              }
+            >
+              <LogIn />
+              登录
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

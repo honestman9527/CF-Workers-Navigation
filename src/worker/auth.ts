@@ -131,6 +131,7 @@ export const authContext = createMiddleware<AppEnv>(async (c, next) => {
       return jsonError(c, 401, 'unauthorized', 'Invalid bearer token');
     }
     c.set('authed', true);
+    c.header('X-Nav-Authenticated', 'true');
     await next();
     return;
   }
@@ -140,6 +141,7 @@ export const authContext = createMiddleware<AppEnv>(async (c, next) => {
     c.set('authed', true);
   }
 
+  c.header('X-Nav-Authenticated', String(c.get('authed')));
   await next();
 });
 

@@ -1,6 +1,6 @@
 # CF Workers Navigation
 
-部署在 Cloudflare Workers 上的个人书签柜：标签组织书签，启动台首页支持搜索与常用网站，Web 必须登录。
+部署在 Cloudflare Workers 上的个人书签柜：标签组织书签，启动台首页支持搜索与常用网站，Web 支持公开浏览，私有内容和管理操作需要登录。
 
 ## 要求
 
@@ -16,7 +16,7 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-在 `.dev.vars` 中设置 `ADMIN_PASSWORD` 和 `SESSION_SECRET`，打开 `http://localhost:8787` 后先登录。
+在 `.dev.vars` 中设置 `ADMIN_PASSWORD` 和 `SESSION_SECRET`，打开 `http://localhost:8787` 后可直接浏览公开内容，登录后管理。
 
 ## 目录
 

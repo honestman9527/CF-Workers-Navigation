@@ -29,6 +29,7 @@ import { DialogPanel } from '@nav/components/DialogPanel';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { updateSettingsCacheAtom } from '@nav/features/settings/store';
+import { VisibilityField } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
 import { domainOf, faviconFor } from '@shared/search';
 
@@ -276,10 +277,40 @@ export function SettingsTab() {
           <fieldset disabled={saving} className="min-w-0">
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList>
+                <TabsTrigger value="privacy">访问与隐私</TabsTrigger>
                 <TabsTrigger value="appearance">外观</TabsTrigger>
                 <TabsTrigger value="icons">网站图标</TabsTrigger>
                 <TabsTrigger value="engines">搜索引擎</TabsTrigger>
               </TabsList>
+              <TabsContent value="privacy">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>访问与隐私</CardTitle>
+                    <CardDescription>
+                      游客只能浏览公开内容。私有分类保护全部子分类及网站；旧内容保持私有。
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-6">
+                    <VisibilityField
+                      label="新分类默认权限"
+                      value={draft.defaultCategoryVisibility}
+                      onChange={(defaultCategoryVisibility) =>
+                        update({ defaultCategoryVisibility })
+                      }
+                    />
+                    <VisibilityField
+                      label="新网站默认权限"
+                      value={draft.defaultBookmarkVisibility}
+                      onChange={(defaultBookmarkVisibility) =>
+                        update({ defaultBookmarkVisibility })
+                      }
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      默认值只影响以后新建的内容。旧 JSON 和 HTML 导入缺少权限时默认私有。
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
               <TabsContent value="appearance">
                 <Card>
                   <CardHeader>

@@ -1,4 +1,4 @@
-import type { Settings } from '@shared/api/types';
+import type { PublicSettings } from '@shared/api/types';
 
 import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY, type Theme } from '@shared';
 import { atom } from 'jotai';
@@ -53,7 +53,7 @@ export const themeAtom = atomWithStorage<Theme>(THEME_STORAGE_KEY, DEFAULT_THEME
   getOnInit: true,
 });
 
-const settingsDataAtom = atom<Settings | null>(null);
+const settingsDataAtom = atom<PublicSettings | null>(null);
 const settingsErrorAtom = atom<string | null>(null);
 const settingsLoadedAtom = atom(false);
 
@@ -66,7 +66,7 @@ export const loadSettingsAtom = atom(
   async (get, set, options?: { force?: boolean; onUnauthorized?: () => void }) => {
     if (get(settingsLoadedAtom) && !options?.force) return;
     try {
-      const data = await api.getSettings();
+      const data = await api.getPublicSettings();
       set(settingsDataAtom, data);
       set(settingsErrorAtom, null);
       set(settingsLoadedAtom, true);
@@ -88,8 +88,14 @@ export const settingsStateAtom = atom((get) => ({
 }));
 
 /** 写入服务端确认的设置，使已挂载的前台同步更新。 */
-export const updateSettingsCacheAtom = atom(null, (_get, set, settings: Settings) => {
-  set(settingsDataAtom, settings);
+export const updateSettingsCacheAtom = atom(null, (_get, set, settings: PublicSettings) => {
+  const { searchEngines, defaultEngineId, backgroundImageUrl, backgroundImageEnabled } = settings;
+  set(settingsDataAtom, {
+    searchEngines,
+    defaultEngineId,
+    backgroundImageUrl,
+    backgroundImageEnabled,
+  });
   set(settingsErrorAtom, null);
   set(settingsLoadedAtom, true);
 });

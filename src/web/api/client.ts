@@ -5,8 +5,34 @@ import { ENDPOINTS, buildQuery } from '@shared/api/endpoints';
 
 export { ApiError };
 
+const pendingRequests = new Set<AbortController>();
+export function invalidateApiRequests() {
+  for (const controller of pendingRequests) controller.abort();
+  pendingRequests.clear();
+}
+
 const client = createApiClient({
-  fetch: (input, init) => globalThis.fetch(input, { ...init, credentials: 'include' }),
+  fetch: async (input, init) => {
+    const controller = new AbortController();
+    pendingRequests.add(controller);
+    try {
+      const signal = init?.signal
+        ? AbortSignal.any([init.signal, controller.signal])
+        : controller.signal;
+      const response = await globalThis.fetch(input, { ...init, signal, credentials: 'include' });
+      signal.throwIfAborted();
+      if (
+        response.headers.get('X-Nav-Authenticated') === 'false' &&
+        !String(input).includes('/auth/')
+      ) {
+        window.dispatchEvent(new Event('nav-session-expired'));
+        signal.throwIfAborted();
+      }
+      return response;
+    } finally {
+      pendingRequests.delete(controller);
+    }
+  },
 });
 
 type ExportResult = {

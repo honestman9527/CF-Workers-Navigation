@@ -5,6 +5,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 
 import { jsonError } from '../errors';
+import { handleServiceError } from '../http';
+import { ServiceError } from '../services/errors';
 import { exportTransferData, importTransferData } from '../services/transfer';
 import { detectFormat } from '../transfer/detect';
 import { parseHtml, serializeHtml } from '../transfer/html';
@@ -91,6 +93,7 @@ transferRoutes.post('/import', async (c) => {
     const summary = await importTransferData(c.get('db'), data, strategy);
     return c.json(summary, 200);
   } catch (error) {
+    if (error instanceof ServiceError) return handleServiceError(c, error);
     console.error('Bookmark import failed', error);
     return jsonError(c, 500, 'internal_error', '数据库写入失败，请查看 Worker 日志');
   }

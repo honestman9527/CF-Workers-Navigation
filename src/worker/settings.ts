@@ -1,5 +1,6 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 
+import type { Settings } from '../shared/api/types';
 import type { SearchEngine } from '../shared/search';
 
 import { sql } from 'drizzle-orm';
@@ -8,6 +9,8 @@ import { DEFAULT_SEARCH_ENGINES } from '../shared/search';
 import { settings } from './schema';
 
 const DEFAULTS = {
+  default_category_visibility: 'public',
+  default_bookmark_visibility: 'public',
   favicon_proxy_url: 'https://www.google.com/s2/favicons?domain={domain}&sz=64',
   favicon_proxy_enabled: 'true',
   search_engines: JSON.stringify(DEFAULT_SEARCH_ENGINES),
@@ -18,20 +21,11 @@ const DEFAULTS = {
 
 export type SettingKey = keyof typeof DEFAULTS;
 
-export type SettingsConfig = {
-  faviconProxyUrl: string;
-  faviconProxyEnabled: boolean;
-  /** 搜索引擎列表（与 Web 启动台、扩展共用契约）。 */
-  searchEngines: SearchEngine[];
-  /** 默认搜索引擎 id，须存在于 searchEngines。 */
-  defaultEngineId: string;
-  /** 启动台与工作区背景图片（空串表示不启用）。 */
-  backgroundImageUrl: string;
-  /** 是否启用背景图片。 */
-  backgroundImageEnabled: boolean;
-};
+export type SettingsConfig = Settings;
 
 const KEY_MAP: Record<keyof SettingsConfig, SettingKey> = {
+  defaultCategoryVisibility: 'default_category_visibility',
+  defaultBookmarkVisibility: 'default_bookmark_visibility',
   faviconProxyUrl: 'favicon_proxy_url',
   faviconProxyEnabled: 'favicon_proxy_enabled',
   searchEngines: 'search_engines',
@@ -41,6 +35,8 @@ const KEY_MAP: Record<keyof SettingsConfig, SettingKey> = {
 };
 
 const REVERSE_MAP: Record<SettingKey, keyof SettingsConfig> = {
+  default_category_visibility: 'defaultCategoryVisibility',
+  default_bookmark_visibility: 'defaultBookmarkVisibility',
   favicon_proxy_url: 'faviconProxyUrl',
   favicon_proxy_enabled: 'faviconProxyEnabled',
   search_engines: 'searchEngines',
@@ -86,6 +82,8 @@ function withBuiltinEngines(engines: SearchEngine[]): SearchEngine[] {
 }
 
 function parseValue(key: SettingKey, raw: string): SettingValue {
+  if (key === 'default_category_visibility' || key === 'default_bookmark_visibility')
+    return raw === 'public' ? 'public' : 'private';
   if (key === 'favicon_proxy_enabled' || key === 'background_image_enabled') {
     return raw === 'true';
   }
