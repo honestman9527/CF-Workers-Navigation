@@ -148,21 +148,33 @@ export function BookmarkCard({
           className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition hover:border-primary/45 hover:text-primary"
           onClick={() => onSelectCategory(bookmark.categorySlug!)}
         >
-          <Folder className="size-3" />
-          {bookmark.categoryName}
+          <Folder className="size-3 shrink-0" />
+          <span
+            className={viewMode === 'list' ? 'min-w-0 truncate' : undefined}
+            title={bookmark.categoryName}
+          >
+            {bookmark.categoryName}
+          </span>
         </button>
       ) : (
         <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-          <Folder className="size-3" />
-          {bookmark.categoryName}
+          <Folder className="size-3 shrink-0" />
+          <span
+            className={viewMode === 'list' ? 'min-w-0 truncate' : undefined}
+            title={bookmark.categoryName}
+          >
+            {bookmark.categoryName}
+          </span>
         </span>
       )
     ) : null;
   return (
     <article
       className={cn(
-        'group relative flex min-w-0 touch-manipulation gap-3 border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary',
-        viewMode === 'grid' ? 'min-h-36 flex-col rounded-lg' : 'items-center rounded-lg py-3',
+        'group relative flex min-w-0 touch-manipulation gap-3 border border-border bg-card p-4 transition-colors hover:border-primary',
+        viewMode === 'grid'
+          ? 'min-h-36 flex-col rounded-lg transition hover:-translate-y-0.5'
+          : 'items-center rounded-lg px-3 py-2.5 sm:px-4',
       )}
     >
       {active ? (
@@ -174,21 +186,42 @@ export function BookmarkCard({
           aria-label={`打开 ${bookmark.title}`}
         />
       ) : null}
-      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted">
+      {viewMode === 'list' ? (
+        <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted">
             {icon}
           </div>
-          <div className="min-w-0">
-            <h2 title={bookmark.title} className="line-clamp-2 text-sm font-semibold">
-              {bookmark.title}
-            </h2>
-            <VisibilityBadge item={bookmark} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 title={bookmark.title} className="truncate text-sm font-semibold">
+                {bookmark.title}
+              </h2>
+              <span className="shrink-0">
+                <VisibilityBadge item={bookmark} />
+              </span>
+            </div>
             <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{domain}</p>
           </div>
         </div>
-        {!readOnly ? actions : null}
-      </div>
+      ) : (
+        <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted">
+              {icon}
+            </div>
+            <div className="min-w-0">
+              <h2 title={bookmark.title} className="line-clamp-2 text-sm font-semibold">
+                {bookmark.title}
+              </h2>
+              <VisibilityBadge item={bookmark} />
+              <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                {domain}
+              </p>
+            </div>
+          </div>
+          {!readOnly ? actions : null}
+        </div>
+      )}
       {viewMode === 'grid' ? (
         <>
           <p className="pointer-events-none relative z-10 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">
@@ -200,12 +233,17 @@ export function BookmarkCard({
           </div>
         </>
       ) : (
-        <div className="relative z-20 ml-auto hidden min-w-0 flex-1 items-center gap-2 sm:flex">
+        <div className="relative z-20 ml-auto hidden max-w-[35%] min-w-0 items-center justify-end gap-2 @[560px]:flex [&>button]:min-w-0 [&>button]:truncate [&>span]:min-w-0 [&>span]:truncate">
           {categoryChip}
-          {bookmark.tags.slice(0, 3).map(tagChip)}
+          {bookmark.tags.length ? (
+            <div className="hidden min-w-0 items-center gap-1.5 @[900px]:flex [&>*]:min-w-0 [&>*>span]:truncate">
+              {bookmark.tags.slice(0, 3).map(tagChip)}
+            </div>
+          ) : null}
         </div>
       )}
-      {active ? (
+      {viewMode === 'list' && !readOnly ? actions : null}
+      {active && viewMode === 'grid' ? (
         <ExternalLink className="pointer-events-none absolute right-4 bottom-4 z-10 size-3.5 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
       ) : null}
     </article>
