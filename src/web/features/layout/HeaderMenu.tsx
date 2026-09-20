@@ -28,10 +28,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 
 /** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。归档/回收站只存在于管理后台。 */
 export function HeaderMenu({
+  surface = 'header',
   theme,
   resolvedTheme,
   onThemeChange,
@@ -40,6 +42,7 @@ export function HeaderMenu({
   onOpenAdmin,
   onLogout,
 }: {
+  surface?: 'header' | 'workspace';
   theme: Theme;
   resolvedTheme: ResolvedTheme;
   onThemeChange: (theme: Theme) => void;
@@ -57,7 +60,10 @@ export function HeaderMenu({
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 gap-1.5 rounded-full px-2.5 text-white hover:bg-white/10 hover:text-white"
+            className={cn(
+              'h-8 gap-1.5 rounded-full px-2.5',
+              surface === 'header' && 'text-white hover:bg-white/10 hover:text-white',
+            )}
             aria-label="菜单"
           />
         }

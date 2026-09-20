@@ -1,8 +1,9 @@
 import type { Category } from '@shared/api/types';
 
-import { ChevronRight, FolderPlus } from 'lucide-react';
+import { ChevronRight, FolderPlus, LockKeyhole } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
@@ -18,6 +19,7 @@ export function CategoryTree({
   categories,
   selectedSlug,
   onSelect,
+  compact = false,
   showLevel = false,
   showCount = false,
   includeUncategorized = false,
@@ -28,6 +30,8 @@ export function CategoryTree({
   onSelect: (slug: string) => void;
   /** 显示 LV1/LV2… 层级徽标。 */
   showLevel?: boolean;
+  /** 书签柜紧凑布局，不显示层级和权限文字徽标。 */
+  compact?: boolean;
   /** 显示直属书签计数。 */
   showCount?: boolean;
   /** 顶部附加「未分类」入口。 */
@@ -75,6 +79,7 @@ export function CategoryTree({
       {tree.map((node) => (
         <TreeNode
           key={node.id}
+          compact={compact}
           node={node}
           depth={0}
           expanded={expanded}
@@ -91,6 +96,7 @@ export function CategoryTree({
 
 function TreeNode({
   node,
+  compact,
   depth,
   expanded,
   selectedSlug,
@@ -100,6 +106,7 @@ function TreeNode({
   onToggle,
 }: {
   node: CategoryNode;
+  compact: boolean;
   depth: number;
   expanded: Set<number>;
   selectedSlug?: string;
@@ -112,6 +119,87 @@ function TreeNode({
   const isExpanded = expanded.has(node.id);
   const isSelected = selectedSlug === node.slug;
   const Icon = categoryIcon(node.icon);
+
+  if (compact) {
+    const privacy =
+      node.effectiveVisibility === 'private'
+        ? node.visibility === 'private'
+          ? '私有'
+          : '受上级分类限制'
+        : '';
+    const label = [node.name, privacy].filter(Boolean).join('，');
+    return (
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center">
+          <Tooltip>
+            <TooltipTrigger
+              render={<button type="button" />}
+              onClick={() => onSelect(node.slug)}
+              aria-label={`${label}${showCount ? `，${node.bookmarkCount} 条直属书签` : ''}`}
+              aria-current={isSelected ? 'page' : undefined}
+              className={cn(
+                'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
+                isSelected && 'bg-primary/10 font-medium text-primary',
+              )}
+            >
+              <Icon className="size-3.5 shrink-0" />
+              {privacy ? <LockKeyhole aria-hidden="true" className="size-3 shrink-0" /> : null}
+              {showCount ? (
+                <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-70">
+                  {node.bookmarkCount}
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate">{node.name}</span>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="break-words">
+              {label}
+            </TooltipContent>
+          </Tooltip>
+          {hasChildren ? (
+            <button
+              type="button"
+              aria-label={`${isExpanded ? '收起' : '展开'}分类：${node.name}`}
+              aria-expanded={isExpanded}
+              onClick={() => onToggle(node.id)}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronRight
+                className={cn(
+                  'size-3.5 transition-transform motion-reduce:transition-none',
+                  isExpanded && 'rotate-90',
+                )}
+              />
+            </button>
+          ) : (
+            <span className="w-7 shrink-0" />
+          )}
+        </div>
+        {hasChildren && isExpanded ? (
+          <div
+            className={cn(
+              'flex min-w-0 flex-col gap-0.5',
+              depth < 4 && 'ml-2 border-l border-border/70 pl-[3px]',
+            )}
+          >
+            {node.children.map((child) => (
+              <TreeNode
+                key={child.id}
+                compact
+                node={child}
+                depth={depth + 1}
+                expanded={expanded}
+                selectedSlug={selectedSlug}
+                showLevel={false}
+                showCount={showCount}
+                onSelect={onSelect}
+                onToggle={onToggle}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
@@ -167,6 +255,7 @@ function TreeNode({
           {node.children.map((child) => (
             <TreeNode
               key={child.id}
+              compact={compact}
               node={child}
               depth={depth + 1}
               expanded={expanded}

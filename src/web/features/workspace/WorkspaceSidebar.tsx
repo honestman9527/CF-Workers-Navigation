@@ -20,6 +20,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuSub,
   SidebarMenuSubItem,
@@ -51,9 +52,13 @@ export function WorkspaceSidebar({
   const [groups, setGroups] = useState<Record<string, boolean>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('nav-sidebar-groups') ?? '{}');
-      return { categories: saved?.categories !== false, tags: saved?.tags !== false };
+      return {
+        all: saved?.all !== false,
+        categories: saved?.categories !== false,
+        tags: saved?.tags !== false,
+      };
     } catch {
-      return { categories: true, tags: true };
+      return { all: true, categories: true, tags: true };
     }
   });
   useEffect(() => {
@@ -70,9 +75,66 @@ export function WorkspaceSidebar({
   useEffect(() => {
     if (search.tag) setGroups((prev) => ({ ...prev, tags: true }));
   }, [search.tag, revealSelection]);
+  useEffect(() => {
+    if (search.category === UNCATEGORIZED_SLUG || search.untagged)
+      setGroups((prev) => ({ ...prev, all: true }));
+  }, [search.category, search.untagged, revealSelection]);
   const all = !search.category && !search.tag && !search.untagged && !search.pinned;
   return (
     <nav aria-label="书签索引" className="flex shrink-0 flex-col gap-5">
+      <Collapsible
+        open={groups.all}
+        onOpenChange={(open) => setGroups((prev) => ({ ...prev, all: open }))}
+      >
+        <SidebarGroup className="p-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={all}
+                  aria-current={all ? 'page' : undefined}
+                  onClick={() => select({})}
+                >
+                  <Globe />
+                  <span>全部网站</span>
+                </SidebarMenuButton>
+                <SidebarMenuAction
+                  render={<CollapsibleTrigger />}
+                  aria-label={groups.all ? '收起全部网站子项' : '展开全部网站子项'}
+                >
+                  <ChevronDown className={cn(groups.all && 'rotate-180')} />
+                </SidebarMenuAction>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        render={<button type="button" />}
+                        isActive={search.category === UNCATEGORIZED_SLUG}
+                        aria-current={search.category === UNCATEGORIZED_SLUG ? 'page' : undefined}
+                        onClick={() => select({ category: UNCATEGORIZED_SLUG })}
+                      >
+                        <FolderPlus />
+                        <span>未分类</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        render={<button type="button" />}
+                        isActive={search.untagged === true}
+                        aria-current={search.untagged ? 'page' : undefined}
+                        onClick={() => select({ untagged: true })}
+                      >
+                        <CircleSlash />
+                        <span>无标签</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </Collapsible>
       <Collapsible
         open={groups.categories}
         onOpenChange={(open) => setGroups((prev) => ({ ...prev, categories: open }))}
@@ -93,7 +155,7 @@ export function WorkspaceSidebar({
                   categories={categories}
                   selectedSlug={search.category}
                   onSelect={(category) => select({ category })}
-                  showLevel
+                  compact
                   showCount
                 />
               ) : (
@@ -123,6 +185,8 @@ export function WorkspaceSidebar({
                   {tags.map((tag) => (
                     <SidebarMenuItem key={tag.id}>
                       <SidebarMenuButton
+                        tooltip={{ children: tag.name, hidden: false }}
+                        aria-label={`${tag.name}，${tag.bookmarkCount} 条书签`}
                         isActive={search.tag === tag.slug}
                         aria-current={search.tag === tag.slug ? 'page' : undefined}
                         onClick={() => select({ tag: tag.slug })}
@@ -143,46 +207,6 @@ export function WorkspaceSidebar({
           </CollapsibleContent>
         </SidebarGroup>
       </Collapsible>
-      <SidebarGroup className="p-0">
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={all}
-                aria-current={all ? 'page' : undefined}
-                onClick={() => select({})}
-              >
-                <Globe />
-                <span>全部网站</span>
-              </SidebarMenuButton>
-              <SidebarMenuSub>
-                <SidebarMenuSubItem>
-                  <SidebarMenuSubButton
-                    render={<button type="button" />}
-                    isActive={search.category === UNCATEGORIZED_SLUG}
-                    aria-current={search.category === UNCATEGORIZED_SLUG ? 'page' : undefined}
-                    onClick={() => select({ category: UNCATEGORIZED_SLUG })}
-                  >
-                    <FolderPlus />
-                    <span>未分类</span>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-                <SidebarMenuSubItem>
-                  <SidebarMenuSubButton
-                    render={<button type="button" />}
-                    isActive={search.untagged === true}
-                    aria-current={search.untagged ? 'page' : undefined}
-                    onClick={() => select({ untagged: true })}
-                  >
-                    <CircleSlash />
-                    <span>无标签</span>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              </SidebarMenuSub>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
     </nav>
   );
 }

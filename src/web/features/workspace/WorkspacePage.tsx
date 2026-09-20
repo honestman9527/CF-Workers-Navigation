@@ -13,7 +13,6 @@ import {
   EmptyDescription,
   EmptyMedia,
 } from '@/components/ui/empty';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/toast';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -26,7 +25,7 @@ import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 import { AppHeader } from '@nav/features/layout/AppHeader';
-import { AppShell } from '@nav/features/layout/AppShell';
+import { AppShell, WorkspaceSidebarTrigger } from '@nav/features/layout/AppShell';
 import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
 import { setPreferredFrontView } from '@nav/features/settings/store';
@@ -279,13 +278,40 @@ export function WorkspacePage() {
     />
   );
 
+  const searchField = (
+    <div className="flex h-10 items-center gap-3 rounded-lg border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+      <Search className="size-4.5 text-muted-foreground" />
+      <input
+        ref={searchRef}
+        value={queryDraft}
+        onChange={(event) => setQueryDraft(event.target.value)}
+        placeholder="搜索标题、网址或描述"
+        aria-label="搜索书签"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') clearSearch();
+        }}
+        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      />
+      {queryDraft ? (
+        <Button variant="ghost" size="icon-sm" onClick={clearSearch} aria-label="清除搜索">
+          <X />
+        </Button>
+      ) : (
+        <kbd className="hidden rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+          /
+        </kbd>
+      )}
+    </div>
+  );
+
   const header = (
     <AppHeader
-      navButton={<SidebarTrigger className="lg:hidden" aria-label="打开索引" />}
-      brand={<Brand onClick={() => selectFilter({})} />}
+      search={searchField}
+      surface="workspace"
+      navButton={<WorkspaceSidebarTrigger />}
       actions={
         auth.authed ? (
-          <Button size="sm" onClick={() => setEditor('new')}>
+          <Button size="sm" aria-label="添加书签" onClick={() => setEditor('new')}>
             <Plus />
             <span className="hidden sm:inline">添加书签</span>
           </Button>
@@ -293,6 +319,7 @@ export function WorkspacePage() {
       }
       menu={
         <HeaderMenu
+          surface="workspace"
           theme={theme}
           resolvedTheme={resolvedTheme}
           onThemeChange={setTheme}
@@ -308,6 +335,7 @@ export function WorkspacePage() {
     <>
       <AppShell
         header={header}
+        brand={<Brand surface="sidebar" onClick={() => selectFilter({})} />}
         sidebar={
           <WorkspaceSidebar
             categories={categories}
@@ -319,33 +347,13 @@ export function WorkspacePage() {
         }
       >
         <div className="@container flex w-full flex-col gap-5">
-          <div className="flex h-11 items-center gap-3 rounded-full border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-            <Search className="size-4.5 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              value={queryDraft}
-              onChange={(event) => setQueryDraft(event.target.value)}
-              placeholder="搜索标题、网址或描述"
-              aria-label="搜索书签"
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') clearSearch();
-              }}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            />
-            {queryDraft ? (
-              <Button variant="ghost" size="icon-sm" onClick={clearSearch} aria-label="清除搜索">
-                <X />
-              </Button>
-            ) : (
-              <kbd className="hidden rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
-                /
-              </kbd>
-            )}
-          </div>
-          <div ref={resultsRef} className="flex scroll-mt-20 items-end justify-between gap-3">
+          <div
+            ref={resultsRef}
+            className="flex scroll-mt-36 items-end justify-between gap-3 sm:scroll-mt-24"
+          >
             <div className="min-w-0">
-              <h1 className="font-display text-3xl font-semibold sm:text-4xl">{title}</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <h1 className="font-display text-2xl font-semibold sm:text-3xl">{title}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {page.loading ? '加载中…' : page.error ? '加载失败' : `共 ${page.total} 条书签`}
               </p>
             </div>
