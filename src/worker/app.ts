@@ -39,14 +39,9 @@ app.use(`${API_V1_PREFIX}/*`, async (c, next) => {
   const path = new URL(c.req.url).pathname.replace(/\/$/, '');
   const publicRead =
     c.req.method === 'GET' &&
-    ([
-      'bookmarks',
-      'bookmarks/search',
-      'bookmarks/tags',
-      'categories',
-      'tags',
-      'settings/public',
-    ].some((route) => path === `${API_V1_PREFIX}/${route}`) ||
+    (['bookmarks', 'bookmarks/search', 'categories', 'tags', 'settings/public'].some(
+      (route) => path === `${API_V1_PREFIX}/${route}`,
+    ) ||
       /^\/api\/v1\/bookmarks\/\d+$/.test(path));
   if (publicRead) {
     if (

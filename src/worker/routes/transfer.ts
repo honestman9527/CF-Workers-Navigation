@@ -6,11 +6,12 @@ import { z } from 'zod';
 
 import { jsonError } from '../errors';
 import { handleServiceError } from '../http';
+import { listCategories } from '../services/categories';
 import { ServiceError } from '../services/errors';
-import { exportTransferData, importTransferData } from '../services/transfer';
+import { exportTransferStream, importTransferData } from '../services/transfer';
 import { detectFormat } from '../transfer/detect';
-import { parseHtml, serializeHtml } from '../transfer/html';
-import { parseJson, serializeJson } from '../transfer/json';
+import { parseHtml } from '../transfer/html';
+import { parseJson } from '../transfer/json';
 
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
@@ -18,6 +19,15 @@ const formatQuerySchema = z.enum(['html', 'json', 'auto']);
 const strategyQuerySchema = z.enum(['skip', 'create', 'update']).default('skip');
 
 const transferRoutes = new Hono<AppEnv>();
+
+transferRoutes.get('/export/prepare', async (c) => {
+  const format = formatQuerySchema.parse(c.req.query('format'));
+  if (format === 'auto') {
+    return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
+  }
+  await listCategories(c.get('db'), true);
+  return c.json({ ready: true });
+});
 
 function timestampForFilename(): string {
   const now = new Date();
@@ -42,21 +52,11 @@ transferRoutes.get('/export', async (c) => {
   if (format === 'auto') {
     return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
   }
-  const data = await exportTransferData(c.get('db'));
-
-  if (format === 'json') {
-    return new Response(serializeJson(data), {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.json"`,
-      },
-    });
-  }
-
-  return new Response(serializeHtml(data), {
+  const body = await exportTransferStream(c.get('db'), format);
+  return new Response(body, {
     headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.html"`,
+      'Content-Type': `${format === 'json' ? 'application/json' : 'text/html'}; charset=utf-8`,
+      'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.${format}"`,
     },
   });
 });

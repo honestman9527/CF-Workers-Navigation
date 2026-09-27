@@ -25,10 +25,10 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-import { downloadBlob } from '@/lib/download';
 import { cn } from '@/lib/utils';
 import { ApiError, api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { ENDPOINTS, buildQuery } from '@shared/api/endpoints';
 
 import { handleAdminUnauthorized } from './shared';
 
@@ -98,11 +98,28 @@ export function TransferTab() {
     setExportFormat(format);
     setExportError(null);
     try {
-      const result = await api.exportData(format);
-      downloadBlob(result.blob, result.filename);
+      const url = `${ENDPOINTS.transferExport}${buildQuery({ format })}`;
+      const response = await fetch(`${ENDPOINTS.transferExportPrepare}${buildQuery({ format })}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: { code?: string; message?: string };
+        } | null;
+        throw new ApiError(
+          response.status,
+          body?.error?.message ?? '导出准备失败，请重试',
+          body?.error?.code,
+        );
+      }
+      const link = document.createElement('a');
+      link.href = url;
+      document.body.append(link);
+      link.click();
+      link.remove();
     } catch (caught) {
       if (handleAdminUnauthorized(auth, caught)) return;
-      setExportError(caught instanceof ApiError ? friendlyError(caught) : '导出失败');
+      setExportError(caught instanceof ApiError ? caught.message : '导出失败');
     } finally {
       setExporting(false);
       setExportFormat(null);

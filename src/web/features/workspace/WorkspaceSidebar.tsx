@@ -79,7 +79,7 @@ export function WorkspaceSidebar({
     if (search.category === UNCATEGORIZED_SLUG || search.untagged)
       setGroups((prev) => ({ ...prev, all: true }));
   }, [search.category, search.untagged, revealSelection]);
-  const all = !search.category && !search.tag && !search.untagged && !search.pinned;
+  const all = !search.category && !search.tag && !search.untagged;
   return (
     <nav aria-label="书签索引" className="flex shrink-0 flex-col gap-5">
       <Collapsible

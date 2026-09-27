@@ -307,13 +307,20 @@ describe('bookmark pagination and filters', () => {
       headers: adminHeaders,
     });
 
-    const response = await exports.default.fetch(`${API}/bookmarks/tags`, {
+    const response = await exports.default.fetch(`${API}/tags`, {
       headers: adminHeaders,
     });
     expect(response.status).toBe(200);
     const tags = await response.json<Tag[]>();
     expect(tags.find((tag) => tag.slug === 'testing')?.bookmarkCount).toBe(1);
     expect(active.id).toBeGreaterThan(0);
+  });
+
+  it('does not expose the removed bookmarks/tags alias', async () => {
+    const response = await exports.default.fetch(`${API}/bookmarks/tags`, {
+      headers: adminHeaders,
+    });
+    expect(response.status).toBe(404);
   });
 });
 

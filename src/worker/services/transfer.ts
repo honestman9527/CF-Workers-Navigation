@@ -1,3 +1,4 @@
+import type { Bookmark } from '../../shared/api/types';
 import type {
   ImportStrategy,
   ImportSummary,
@@ -12,7 +13,13 @@ import { eq, sql } from 'drizzle-orm';
 import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
-import { getBookmark, listBookmarks, normalizeUrl, replaceTags } from './bookmarks';
+import {
+  HTML_EXPORT_HEADER,
+  serializeHtmlBookmark,
+  serializeHtmlFolderEnd,
+  serializeHtmlFolderStart,
+} from '../transfer/html';
+import { getBookmark, listExportBookmarks, normalizeUrl, replaceTagsBatch } from './bookmarks';
 import { listCategories } from './categories';
 import { ServiceError } from './errors';
 
@@ -21,6 +28,7 @@ import { ServiceError } from './errors';
 // the limit with headroom.
 const INSERT_CHUNK_SIZE = 9;
 const UPDATE_CHUNK_SIZE = 25;
+const TAG_CHUNK_SIZE = 100;
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -30,8 +38,43 @@ function chunks<T>(items: T[], size: number): T[][] {
   return result;
 }
 
-export async function exportTransferData(db: Db): Promise<TransferData> {
-  const categoriesList = await listCategories(db, true);
+function toTransferBookmark(bookmark: Bookmark): TransferBookmark {
+  return {
+    title: bookmark.title,
+    visibility: bookmark.visibility,
+    url: bookmark.url,
+    description: bookmark.description,
+    iconUrl: bookmark.iconUrl,
+    isPinned: bookmark.isPinned,
+    categorySlug: bookmark.categorySlug,
+    tags: bookmark.tags,
+    archivedAt: bookmark.archivedAt,
+    deletedAt: bookmark.deletedAt,
+    addedAt: bookmark.createdAt,
+  };
+}
+
+function streamText(chunks: AsyncGenerator<string>): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { value, done } = await chunks.next();
+        if (done) controller.close();
+        else controller.enqueue(encoder.encode(value));
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await chunks.return('');
+    },
+  });
+}
+
+type ExportCategory = Awaited<ReturnType<typeof listCategories>>[number];
+
+async function* jsonExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
   const idToSlug = new Map(categoriesList.map((category) => [category.id, category.slug]));
   const exportedCategories: TransferCategory[] = categoriesList.map((category) => ({
     name: category.name,
@@ -40,34 +83,75 @@ export async function exportTransferData(db: Db): Promise<TransferData> {
     icon: category.icon,
     parentSlug: category.parentId !== null ? (idToSlug.get(category.parentId) ?? null) : null,
   }));
-
-  const exported: TransferBookmark[] = [];
+  yield `{"version":2,"exportedAt":${JSON.stringify(new Date().toISOString())},"categories":${JSON.stringify(exportedCategories)},"bookmarks":[`;
   let cursor: string | undefined;
+  let first = true;
   do {
-    const page = await listBookmarks(db, { view: 'all', cursor, limit: 100 }, true);
-    exported.push(
-      ...page.items.map((bookmark) => ({
-        title: bookmark.title,
-        visibility: bookmark.visibility,
-        url: bookmark.url,
-        description: bookmark.description,
-        iconUrl: bookmark.iconUrl,
-        isPinned: bookmark.isPinned,
-        categorySlug: bookmark.categorySlug,
-        tags: bookmark.tags,
-        archivedAt: bookmark.archivedAt,
-        deletedAt: bookmark.deletedAt,
-        addedAt: bookmark.createdAt,
-      })),
-    );
+    const page = await listExportBookmarks(db, cursor);
+    if (page.items.length > 0) {
+      yield `${first ? '' : ','}${page.items.map((bookmark) => JSON.stringify(toTransferBookmark(bookmark))).join(',')}`;
+      first = false;
+    }
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
-  return {
-    version: 2,
-    exportedAt: new Date().toISOString(),
-    categories: exportedCategories,
-    bookmarks: exported,
-  };
+  yield ']}\n';
+}
+
+async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
+  type Node = { category: ExportCategory; children: Node[] };
+  const nodes = new Map(
+    categoriesList.map((category) => [category.id, { category, children: [] as Node[] }]),
+  );
+  const roots: Node[] = [];
+  for (const category of categoriesList) {
+    const node = nodes.get(category.id)!;
+    const parent = category.parentId === null ? undefined : nodes.get(category.parentId);
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  async function* folder(node: Node, indent: string): AsyncGenerator<string> {
+    yield `${serializeHtmlFolderStart(node.category.name, indent)}\n`;
+    let cursor: string | undefined;
+    do {
+      const page = await listExportBookmarks(db, cursor, node.category.id);
+      if (page.items.length > 0) {
+        yield `${page.items.map((bookmark) => serializeHtmlBookmark(toTransferBookmark(bookmark), `${indent}    `)).join('\n')}\n`;
+      }
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    for (const child of node.children) yield* folder(child, `${indent}    `);
+    yield `${serializeHtmlFolderEnd(indent)}\n`;
+  }
+
+  yield `${HTML_EXPORT_HEADER}\n`;
+  for (const root of roots) yield* folder(root, '    ');
+
+  let cursor: string | undefined;
+  let opened = false;
+  do {
+    const page = await listExportBookmarks(db, cursor, null);
+    if (page.items.length > 0) {
+      if (!opened) {
+        yield `${serializeHtmlFolderStart('未分类', '    ')}\n`;
+        opened = true;
+      }
+      yield `${page.items.map((bookmark) => serializeHtmlBookmark(toTransferBookmark(bookmark), '        ')).join('\n')}\n`;
+    }
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor);
+  if (opened) yield `${serializeHtmlFolderEnd('    ')}\n`;
+  yield '</DL><p>\n';
+}
+
+export async function exportTransferStream(
+  db: Db,
+  format: 'json' | 'html',
+): Promise<ReadableStream<Uint8Array>> {
+  const categoriesList = await listCategories(db, true);
+  return streamText(
+    format === 'json' ? jsonExport(db, categoriesList) : htmlExport(db, categoriesList),
+  );
 }
 
 /** 按 slug 建立分类映射并补齐缺失分类，返回 slug → id 映射。 */
@@ -229,49 +313,71 @@ export async function importTransferData(
     summary.bookmarksCreated += 1;
   }
 
-  for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
-    const created = await db
-      .insert(bookmarks)
-      .values(
-        chunk.map((bookmark) => ({
-          title: bookmark.title,
-          url: bookmark.url,
-          description: bookmark.description ?? null,
-          iconUrl: bookmark.iconUrl ?? null,
-          isPinned: bookmark.isPinned ?? false,
-          categoryId: resolveCategoryId(bookmark),
-          visibility: bookmark.visibility ?? 'private',
-          archivedAt: bookmark.archivedAt ?? null,
-          deletedAt: bookmark.deletedAt ?? null,
-          createdAt: bookmark.addedAt ?? undefined,
-          urlNormalized: normalizeUrl(bookmark.url),
-        })),
-      )
-      .returning({ id: bookmarks.id });
-    for (let index = 0; index < created.length; index += 1) {
-      await replaceTags(db, created[index].id, chunk[index].tags);
-    }
+  let tagWrites: Array<{ bookmarkId: number; names: string[] | undefined }> = [];
+  async function flushTagWrites() {
+    if (tagWrites.length === 0) return;
+    const pending = tagWrites;
+    tagWrites = [];
+    await replaceTagsBatch(db, pending);
+  }
+  async function queueTagWrites(entries: typeof tagWrites) {
+    if (tagWrites.length + entries.length > TAG_CHUNK_SIZE) await flushTagWrites();
+    tagWrites.push(...entries);
   }
 
-  for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
-    const statements = chunk.map(({ id, bookmark }) =>
-      db
-        .update(bookmarks)
-        .set({
-          title: bookmark.title,
-          description: bookmark.description ?? null,
-          iconUrl: bookmark.iconUrl ?? null,
-          isPinned: bookmark.isPinned ?? false,
-          categoryId: resolveCategoryId(bookmark),
-          ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
-          archivedAt: bookmark.archivedAt ?? null,
-          deletedAt: bookmark.deletedAt ?? null,
-          updatedAt: sql`CURRENT_TIMESTAMP`,
-        })
-        .where(eq(bookmarks.id, id)),
-    );
-    await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-    for (const { id, bookmark } of chunk) await replaceTags(db, id, bookmark.tags);
+  try {
+    for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
+      const created = await db
+        .insert(bookmarks)
+        .values(
+          chunk.map((bookmark) => ({
+            title: bookmark.title,
+            url: bookmark.url,
+            description: bookmark.description ?? null,
+            iconUrl: bookmark.iconUrl ?? null,
+            isPinned: bookmark.isPinned ?? false,
+            categoryId: resolveCategoryId(bookmark),
+            visibility: bookmark.visibility ?? 'private',
+            archivedAt: bookmark.archivedAt ?? null,
+            deletedAt: bookmark.deletedAt ?? null,
+            createdAt: bookmark.addedAt ?? undefined,
+            urlNormalized: normalizeUrl(bookmark.url),
+          })),
+        )
+        .returning({ id: bookmarks.id });
+      await queueTagWrites(
+        created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].tags })),
+      );
+    }
+  } finally {
+    await flushTagWrites();
+  }
+
+  try {
+    for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
+      const statements = chunk.map(({ id, bookmark }) =>
+        db
+          .update(bookmarks)
+          .set({
+            title: bookmark.title,
+            description: bookmark.description ?? null,
+            iconUrl: bookmark.iconUrl ?? null,
+            isPinned: bookmark.isPinned ?? false,
+            categoryId: resolveCategoryId(bookmark),
+            ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
+            archivedAt: bookmark.archivedAt ?? null,
+            deletedAt: bookmark.deletedAt ?? null,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          })
+          .where(eq(bookmarks.id, id)),
+      );
+      await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
+      await queueTagWrites(
+        chunk.map(({ id, bookmark }) => ({ bookmarkId: id, names: bookmark.tags })),
+      );
+    }
+  } finally {
+    await flushTagWrites();
   }
 
   return summary;

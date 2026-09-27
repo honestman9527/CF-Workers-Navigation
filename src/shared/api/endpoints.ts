@@ -16,6 +16,7 @@ export const ENDPOINTS = {
   tagsMerge: (id: number) => `${API_V1_PREFIX}/tags/${id}/merge`,
   adminStats: `${API_V1_PREFIX}/admin/stats`,
   transferExport: `${API_V1_PREFIX}/transfer/export`,
+  transferExportPrepare: `${API_V1_PREFIX}/transfer/export/prepare`,
   transferImport: `${API_V1_PREFIX}/transfer/import`,
 } as const;
 

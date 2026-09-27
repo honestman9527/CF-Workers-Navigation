@@ -2,9 +2,9 @@ import type { Bookmark } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
 import { getRouteApi, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { api } from '@nav/api/client';
+import { api, ApiError } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { AppHeader } from '@nav/features/layout/AppHeader';
 import { Brand } from '@nav/features/layout/Brand';
@@ -30,20 +30,7 @@ function greeting(): string {
   return '晚上好';
 }
 
-async function fetchAllPinned(signal: AbortSignal): Promise<Bookmark[]> {
-  const items: Bookmark[] = [];
-  let cursor: string | null = null;
-  do {
-    const page = await api.getBookmarks(
-      undefined,
-      { pinned: true, cursor: cursor ?? undefined, limit: 100 },
-      signal,
-    );
-    items.push(...page.items);
-    cursor = page.nextCursor;
-  } while (cursor && !signal.aborted);
-  return items;
-}
+const PINNED_PAGE_SIZE = 24;
 
 /** Web 端一律新标签打开。 */
 function openLink(url: string) {
@@ -57,9 +44,12 @@ export function LauncherPage() {
   const navigate = useNavigate();
   const search = routeApi.useSearch();
   const [pinned, setPinned] = useState<Bookmark[]>([]);
+  const [pinnedNextCursor, setPinnedNextCursor] = useState<string | null>(null);
   const [pinnedLoading, setPinnedLoading] = useState(true);
+  const [pinnedLoadingMore, setPinnedLoadingMore] = useState(false);
   const [pinnedError, setPinnedError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const pinnedControllerRef = useRef<AbortController | null>(null);
 
   const handleUnauthorized = useCallback(() => {
     void auth.logout();
@@ -121,11 +111,14 @@ export function LauncherPage() {
   const searchQuery = bang.engineId !== undefined ? bang.query : query.trim();
   const hasBang = bang.engineId !== undefined;
 
-  // 全量书签搜索结果（在「常用网站」位置展示）
+  // 搜索结果分批展示在「常用网站」位置。
   const {
     results,
+    nextCursor: resultsNextCursor,
     loading: resultsLoading,
+    loadingMore: resultsLoadingMore,
     error: resultsError,
+    loadMore: loadMoreResults,
   } = useLauncherResults(searchQuery, handleUnauthorized);
   const [highlighted, setHighlighted] = useState(-1);
   useEffect(() => {
@@ -137,29 +130,71 @@ export function LauncherPage() {
     openLink(buildSearchUrl(activeEngine, searchQuery));
   }
 
-  // 常用网站：置顶书签（全部加载）
+  const searching = query.trim().length > 0;
+
+  // 常用网站首批置顶项；搜索时不加载隐藏的瓦片。
   useEffect(() => {
+    if (searching) return;
     const controller = new AbortController();
+    pinnedControllerRef.current = controller;
+    setPinned([]);
+    setPinnedNextCursor(null);
     setPinnedLoading(true);
     setPinnedError(null);
-    fetchAllPinned(controller.signal)
-      .then((items) => setPinned(items))
+    api
+      .getBookmarks(undefined, { pinned: true, limit: PINNED_PAGE_SIZE }, controller.signal)
+      .then((page) => {
+        if (controller.signal.aborted) return;
+        setPinned(page.items);
+        setPinnedNextCursor(page.nextCursor);
+      })
       .catch((caught) => {
-        if (caught instanceof DOMException && caught.name === 'AbortError') return;
+        if (controller.signal.aborted) return;
+        if (caught instanceof ApiError && caught.status === 401) {
+          handleUnauthorized();
+          return;
+        }
         setPinnedError(caught instanceof Error ? caught.message : '加载失败');
       })
       .finally(() => {
         if (!controller.signal.aborted) setPinnedLoading(false);
       });
-    return () => controller.abort();
-  }, [refreshKey]);
+    return () => {
+      controller.abort();
+      if (pinnedControllerRef.current === controller) pinnedControllerRef.current = null;
+    };
+  }, [refreshKey, searching, handleUnauthorized]);
+
+  const loadMorePinned = useCallback(async () => {
+    const controller = pinnedControllerRef.current;
+    if (!controller || !pinnedNextCursor || pinnedLoading || pinnedLoadingMore) return;
+    setPinnedLoadingMore(true);
+    setPinnedError(null);
+    try {
+      const page = await api.getBookmarks(
+        undefined,
+        { pinned: true, cursor: pinnedNextCursor, limit: PINNED_PAGE_SIZE },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setPinned((previous) => [...previous, ...page.items]);
+      setPinnedNextCursor(page.nextCursor);
+    } catch (caught) {
+      if (controller.signal.aborted) return;
+      if (caught instanceof ApiError && caught.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setPinnedError(caught instanceof Error ? caught.message : '加载更多失败');
+    } finally {
+      if (!controller.signal.aborted) setPinnedLoadingMore(false);
+    }
+  }, [pinnedNextCursor, pinnedLoading, pinnedLoadingMore, handleUnauthorized]);
 
   useEffect(() => {
     document.title = '启动台 · 书签柜';
     setPreferredFrontView('launcher');
   }, []);
-
-  const searching = query.trim().length > 0;
 
   return (
     <div className="app-root flex min-h-dvh flex-col bg-background text-foreground">
@@ -197,6 +232,9 @@ export function LauncherPage() {
             bangName={bang.bang}
             activeEngine={activeEngine}
             results={results}
+            hasMore={Boolean(resultsNextCursor)}
+            loadingMore={resultsLoadingMore}
+            onLoadMore={() => void loadMoreResults()}
             highlighted={highlighted}
             onHighlightChange={setHighlighted}
           />
@@ -204,6 +242,9 @@ export function LauncherPage() {
           {searching ? (
             <LauncherResults
               results={results}
+              hasMore={Boolean(resultsNextCursor)}
+              loadingMore={resultsLoadingMore}
+              onLoadMore={() => void loadMoreResults()}
               loading={resultsLoading}
               error={resultsError}
               searchQuery={searchQuery}
@@ -217,9 +258,12 @@ export function LauncherPage() {
             <div className="animate-launcher-enter w-full" style={{ animationDelay: '80ms' }}>
               <Launchpad
                 bookmarks={pinned}
+                hasMore={Boolean(pinnedNextCursor)}
                 loading={pinnedLoading}
+                loadingMore={pinnedLoadingMore}
                 error={pinnedError}
                 onRetry={() => setRefreshKey((value) => value + 1)}
+                onLoadMore={() => void loadMorePinned()}
                 onOpenWorkspace={() => void navigate({ to: '/workspace' })}
               />
             </div>

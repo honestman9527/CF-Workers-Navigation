@@ -104,7 +104,7 @@ describe('mixed visibility', () => {
     expect((await request(`/bookmarks/${f.visible.id}`)).status).toBe(200);
   });
 
-  it('filters category trees, direct counts and tags including the legacy alias', async () => {
+  it('filters category trees, direct counts and tags', async () => {
     const f = await fixture();
     const categories = await (await request('/categories')).json<Category[]>();
     expect(categories).toHaveLength(1);
@@ -113,10 +113,8 @@ describe('mixed visibility', () => {
       bookmarkCount: 1,
       effectiveVisibility: 'public',
     });
-    for (const endpoint of ['/tags', '/bookmarks/tags']) {
-      const tags = await (await request(endpoint)).json<Tag[]>();
-      expect(tags.map((tag) => [tag.name, tag.bookmarkCount])).toEqual([['Shared', 1]]);
-    }
+    const tags = await (await request('/tags')).json<Tag[]>();
+    expect(tags.map((tag) => [tag.name, tag.bookmarkCount])).toEqual([['Shared', 1]]);
     for (const [filter, expected] of [
       ['category=open', [f.visible.id]],
       ['category=hidden', []],

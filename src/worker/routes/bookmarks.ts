@@ -25,7 +25,6 @@ import {
   searchBookmarks,
   updateBookmark,
 } from '../services/bookmarks';
-import { listTags } from '../services/tags';
 import { getSettings } from '../settings';
 
 const bookmarkInputSchema = z.object({
@@ -80,8 +79,6 @@ bookmarksRoutes.get('/search', async (c) => {
   }
 });
 
-bookmarksRoutes.get('/tags', async (c) => c.json(await listTags(c.get('db'), c.get('authed'))));
-
 bookmarksRoutes.get('/metadata', async (c) => {
   const url = metadataQuerySchema.parse(c.req.query('url'));
   const result = await fetchBookmarkMetadata(url, await getSettings(c.get('db')));
@@ -135,7 +132,7 @@ bookmarksRoutes.post('/', async (c) => {
   }
 });
 
-bookmarksRoutes.get('/:id', async (c) => {
+bookmarksRoutes.get('/:id{[0-9]+}', async (c) => {
   try {
     return c.json(
       await getBookmark(c.get('db'), idParamSchema.parse(c.req.param('id')), c.get('authed')),

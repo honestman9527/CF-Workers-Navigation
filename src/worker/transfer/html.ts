@@ -119,7 +119,7 @@ export function parseHtml(input: string): TransferData {
   };
 }
 
-function serializeBookmark(bookmark: TransferBookmark, indent: string): string {
+export function serializeHtmlBookmark(bookmark: TransferBookmark, indent: string): string {
   const attrs: string[] = [`HREF="${escapeHtml(bookmark.url)}"`];
   if (bookmark.iconUrl) attrs.push(`ICON="${escapeHtml(bookmark.iconUrl)}"`);
   if (bookmark.addedAt) {
@@ -131,76 +131,21 @@ function serializeBookmark(bookmark: TransferBookmark, indent: string): string {
   return lines.join('\n');
 }
 
-function serializeFolder(name: string, content: string[], indent: string): string {
-  const lines = [`${indent}<DT><H3>${escapeHtml(name)}</H3>`, `${indent}<DL><p>`];
-  lines.push(...content);
-  lines.push(`${indent}</DL><p>`);
-  return lines.join('\n');
+export function serializeHtmlFolderStart(name: string, indent: string): string {
+  return `${indent}<DT><H3>${escapeHtml(name)}</H3>\n${indent}<DL><p>`;
 }
 
-type CategoryNode = {
-  name: string;
-  slug: string;
-  bookmarks: TransferBookmark[];
-  children: CategoryNode[];
-};
-
-function serializeNode(node: CategoryNode, indent: string): string {
-  const content: string[] = [];
-  for (const bookmark of node.bookmarks) {
-    content.push(serializeBookmark(bookmark, `${indent}    `));
-  }
-  for (const child of node.children) {
-    content.push(serializeNode(child, `${indent}    `));
-  }
-  return serializeFolder(node.name, content, indent);
+export function serializeHtmlFolderEnd(indent: string): string {
+  return `${indent}</DL><p>`;
 }
 
-function categorySlug(category: TransferCategory): string | null {
-  const slug = category.slug?.trim() || slugify(category.name);
-  return slug && slug !== UNCATEGORIZED_SLUG ? slug : null;
-}
-
-export function serializeHtml(data: TransferData): string {
-  const header = [
-    '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
-    '<!-- This is an automatically generated file.',
-    '     It will be read and overwritten.',
-    '     DO NOT EDIT. -->',
-    '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
-    '<TITLE>Bookmarks</TITLE>',
-    '<H1>Bookmarks</H1>',
-    '<DL><p>',
-  ];
-  const nodes = new Map<string, CategoryNode>();
-  const roots: CategoryNode[] = [];
-  for (const category of data.categories ?? []) {
-    const slug = categorySlug(category);
-    if (!slug) continue;
-    nodes.set(slug, { name: category.name, slug, bookmarks: [], children: [] });
-  }
-  for (const category of data.categories ?? []) {
-    const slug = categorySlug(category);
-    if (!slug) continue;
-    const node = nodes.get(slug)!;
-    const parentSlug = category.parentSlug?.trim() || null;
-    const parent = parentSlug ? nodes.get(parentSlug) : undefined;
-    if (parent && parent !== node) parent.children.push(node);
-    else roots.push(node);
-  }
-
-  const uncategorized: TransferBookmark[] = [];
-  for (const bookmark of data.bookmarks) {
-    const node = bookmark.categorySlug ? nodes.get(bookmark.categorySlug) : undefined;
-    if (node) node.bookmarks.push(bookmark);
-    else uncategorized.push(bookmark);
-  }
-
-  const body: string[] = [];
-  for (const root of roots) body.push(serializeNode(root, '    '));
-  if (uncategorized.length > 0) {
-    const content = uncategorized.map((bookmark) => serializeBookmark(bookmark, '        '));
-    body.push(serializeFolder(UNCATEGORIZED_NAME, content, '    '));
-  }
-  return `${header.join('\n')}\n${body.join('\n')}\n</DL><p>\n`;
-}
+export const HTML_EXPORT_HEADER = [
+  '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
+  '<!-- This is an automatically generated file.',
+  '     It will be read and overwritten.',
+  '     DO NOT EDIT. -->',
+  '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+  '<TITLE>Bookmarks</TITLE>',
+  '<H1>Bookmarks</H1>',
+  '<DL><p>',
+].join('\n');

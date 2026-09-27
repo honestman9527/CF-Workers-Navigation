@@ -54,7 +54,7 @@ export function WorkspacePage() {
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const search = routeApi.useSearch();
-  const { pinned, category, tag, untagged, q: query } = search;
+  const { category, tag, untagged, q: query } = search;
 
   const handleUnauthorized = useCallback(() => {
     void auth.logout();
@@ -121,7 +121,7 @@ export function WorkspacePage() {
     view: 'active',
     category: query ? undefined : category,
     tag: query ? undefined : tag,
-    pinned: !query && pinned === true,
+    pinned: false,
     untagged: query ? undefined : untagged,
     page: search.page ?? 1,
     pageSize,
@@ -236,9 +236,7 @@ export function WorkspacePage() {
         ? (selectedTagName ?? tag)
         : untagged
           ? '无标签'
-          : pinned
-            ? '常用入口'
-            : '全部网站';
+          : '全部网站';
 
   /** 书签卡片统一渲染：单分类/常用入口/标签/搜索共用的操作与筛选回调（恢复/永久删除只在管理后台）。 */
   const renderCard = (bookmark: Bookmark) => (

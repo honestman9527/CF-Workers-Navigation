@@ -128,6 +128,58 @@ export async function replaceTags(db: Db, bookmarkId: number, names: string[] | 
   }
 }
 
+/** 导入时以块为单位解析标签，避免为每条书签重复查询和写入相同标签。 */
+export async function replaceTagsBatch(
+  db: Db,
+  entries: Array<{ bookmarkId: number; names: string[] | undefined }>,
+) {
+  const cleaned = new Map<number, ReturnType<typeof cleanTagNames>>();
+  const uniqueTags = new Map<string, string>();
+  for (const { bookmarkId, names } of entries) {
+    if (names === undefined) continue;
+    const tagsForBookmark = cleanTagNames(names);
+    cleaned.set(bookmarkId, tagsForBookmark);
+    for (const tag of tagsForBookmark) {
+      if (!uniqueTags.has(tag.slug)) uniqueTags.set(tag.slug, tag.name);
+    }
+  }
+  if (cleaned.size === 0) return;
+
+  await db.delete(bookmarkTags).where(inArray(bookmarkTags.bookmarkId, [...cleaned.keys()]));
+  if (uniqueTags.size === 0) return;
+
+  // D1 statements support at most 100 bound parameters; each inserted row has two.
+  const tagEntries = [...uniqueTags].map(([slug, name]) => ({ slug, name }));
+  const tagIds = new Map<string, number>();
+  for (let index = 0; index < tagEntries.length; index += 40) {
+    const chunk = tagEntries.slice(index, index + 40);
+    await db.insert(tags).values(chunk).onConflictDoNothing({ target: tags.slug });
+    const resolved = await db
+      .select({ id: tags.id, slug: tags.slug })
+      .from(tags)
+      .where(
+        inArray(
+          tags.slug,
+          chunk.map((tag) => tag.slug),
+        ),
+      );
+    for (const tag of resolved) tagIds.set(tag.slug, tag.id);
+  }
+
+  const links = [...cleaned].flatMap(([bookmarkId, tagNames]) =>
+    tagNames.flatMap(({ slug }) => {
+      const tagId = tagIds.get(slug);
+      return tagId === undefined ? [] : [{ bookmarkId, tagId }];
+    }),
+  );
+  for (let index = 0; index < links.length; index += 40) {
+    await db
+      .insert(bookmarkTags)
+      .values(links.slice(index, index + 40))
+      .onConflictDoNothing();
+  }
+}
+
 function viewCondition(view: BookmarkView): ReturnType<typeof sql> {
   if (view === 'active') return sql`b.deleted_at IS NULL AND b.archived_at IS NULL`;
   if (view === 'archive') return sql`b.deleted_at IS NULL AND b.archived_at IS NOT NULL`;
@@ -189,7 +241,7 @@ function buildFilter(
   };
 }
 
-/** 分页模式下统计当前过滤条件的记录总数（复用同一 WHERE/GROUP BY 子查询）。 */
+/** 分页计数只扫描筛选所需的表，避免列表投影的标签连接与聚合。 */
 async function countByFilter(
   db: Db,
   filter: { cte: ReturnType<typeof sql>; condition: ReturnType<typeof sql> },
@@ -197,14 +249,18 @@ async function countByFilter(
 ): Promise<number> {
   const [row] = await db.all<{ total: number }>(sql`
     ${filter.cte}
-    SELECT COUNT(*) AS total FROM (
-      ${from}
-      WHERE 1 = 1 ${filter.condition}
-      GROUP BY b.id
-    )
+    SELECT COUNT(*) AS total
+    ${from}
+    WHERE 1 = 1 ${filter.condition}
   `);
   return row?.total ?? 0;
 }
+
+const listCountFrom = sql`FROM bookmarks b`;
+const searchCountFrom = sql`
+  FROM bookmarks_fts
+  INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
+`;
 
 const listSelect = sql`
   SELECT b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
@@ -269,7 +325,7 @@ export async function listBookmarks(
       ORDER BY b.created_at DESC, b.id DESC
       LIMIT ${limit} OFFSET ${options.offset}
     `);
-    const total = await countByFilter(db, { cte, condition }, listSelect);
+    const total = await countByFilter(db, { cte, condition }, listCountFrom);
     return { items: rows.map(toDto), nextCursor: null, total };
   }
 
@@ -277,6 +333,41 @@ export async function listBookmarks(
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toDto);
   const last = rows[limit - 1];
+  return {
+    items,
+    nextCursor:
+      hasMore && last ? encodeListCursor({ createdAt: last.created_at, id: last.id }) : null,
+  };
+}
+
+const EXPORT_PAGE_SIZE = 300;
+
+/** 导出按游标读取有界批次；分类参数只匹配直属书签。 */
+export async function listExportBookmarks(
+  db: Db,
+  cursorValue?: string,
+  categoryId?: number | null,
+): Promise<BookmarkPage> {
+  const cursor = decodeListCursor(cursorValue);
+  const categoryCondition =
+    categoryId === undefined
+      ? sql`1 = 1`
+      : categoryId === null
+        ? sql`b.category_id IS NULL`
+        : sql`b.category_id = ${categoryId}`;
+  const cursorCondition = cursor
+    ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
+    : sql``;
+  const rows = await db.all<BookmarkRow>(sql`
+    ${listSelect}
+    WHERE ${categoryCondition} ${cursorCondition}
+    GROUP BY b.id
+    ORDER BY b.created_at DESC, b.id DESC
+    LIMIT ${EXPORT_PAGE_SIZE + 1}
+  `);
+  const hasMore = rows.length > EXPORT_PAGE_SIZE;
+  const items = (hasMore ? rows.slice(0, EXPORT_PAGE_SIZE) : rows).map(toDto);
+  const last = rows[EXPORT_PAGE_SIZE - 1];
   return {
     items,
     nextCursor:
@@ -317,7 +408,7 @@ export async function searchBookmarks(
     const total = await countByFilter(
       db,
       { cte, condition: sql`AND bookmarks_fts MATCH ${ftsQuery} ${condition}` },
-      searchSelect,
+      searchCountFrom,
     );
     return { items: rows.map(toDto), nextCursor: null, total };
   }

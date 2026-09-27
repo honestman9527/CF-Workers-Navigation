@@ -1,6 +1,6 @@
 import type { Bookmark } from '@shared/api/types';
 
-import { ArrowRight, RefreshCw, Star } from 'lucide-react';
+import { ArrowRight, LoaderCircle, RefreshCw, Star } from 'lucide-react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
@@ -43,15 +43,21 @@ function Tile({ bookmark }: { bookmark: Bookmark }) {
 
 export function Launchpad({
   bookmarks,
+  hasMore,
   loading,
+  loadingMore,
   error,
   onRetry,
+  onLoadMore,
   onOpenWorkspace,
 }: {
   bookmarks: Bookmark[];
+  hasMore: boolean;
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   onRetry: () => void;
+  onLoadMore: () => void;
   onOpenWorkspace: () => void;
 }) {
   const { authed } = useAuthContext();
@@ -103,13 +109,25 @@ export function Launchpad({
         <h2 id="launchpad-heading" className="font-display text-sm font-semibold">
           常用网站
         </h2>
-        <span className="font-mono text-[10px] text-muted-foreground">{bookmarks.length}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {bookmarks.length}
+          {hasMore ? '+' : ''}
+        </span>
       </div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
         {bookmarks.map((bookmark) => (
           <Tile key={bookmark.id} bookmark={bookmark} />
         ))}
       </div>
+      {hasMore ? (
+        <div className="mt-4 flex justify-center">
+          <Button variant="outline" onClick={onLoadMore} disabled={loadingMore}>
+            {loadingMore ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}
+            {loadingMore ? '加载中…' : '加载更多网站'}
+          </Button>
+        </div>
+      ) : null}
+      {error ? <p className="mt-3 text-center text-xs text-destructive">{error}</p> : null}
     </section>
   );
 }

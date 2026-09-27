@@ -1,10 +1,8 @@
-import type { TransferData } from '../src/worker/transfer/types';
-
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import { detectFormat } from '../src/worker/transfer/detect';
-import { parseHtml, serializeHtml } from '../src/worker/transfer/html';
+import { parseHtml } from '../src/worker/transfer/html';
 import { parseJson } from '../src/worker/transfer/json';
 
 const adminHeaders = {
@@ -41,11 +39,24 @@ describe('transfer api', () => {
       'https://example.com/api/v1/transfer/export?format=json',
     );
     expect(exportResponse.status).toBe(401);
+    const prepareResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export/prepare?format=json',
+    );
+    expect(prepareResponse.status).toBe(401);
     const importResponse = await exports.default.fetch(
       'https://example.com/api/v1/transfer/import?format=html',
       { method: 'POST', headers: { 'Content-Type': 'text/html' }, body: htmlFixture },
     );
     expect(importResponse.status).toBe(401);
+  });
+
+  it('checks export readiness before starting a browser download', async () => {
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export/prepare?format=html',
+      { headers: adminHeaders },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ready: true });
   });
 
   it('exports a flat versioned json backup with tags', async () => {
@@ -154,6 +165,119 @@ describe('transfer api', () => {
       bookmarksSkipped: 0,
       bookmarksUpdated: 0,
     });
+  });
+
+  it('streams multiple pages of JSON and HTML without losing categories or tags', async () => {
+    const bookmarks = Array.from({ length: 105 }, (_, index) => ({
+      title: `Stream site ${index}`,
+      url: `https://stream-${index}.example.com`,
+      categorySlug: 'stream-root',
+      tags: ['Shared', `Tag ${index % 3}`],
+      visibility: index % 2 === 0 ? 'public' : 'private',
+    }));
+    const importResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          version: 2,
+          categories: [{ name: 'Stream root', slug: 'stream-root', visibility: 'public' }],
+          bookmarks,
+        }),
+      },
+    );
+    expect(importResponse.status).toBe(200);
+    expect((await importResponse.json()).bookmarksCreated).toBe(105);
+
+    const jsonResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: adminHeaders },
+    );
+    expect(jsonResponse.status).toBe(200);
+    expect(jsonResponse.body).not.toBeNull();
+    const json = parseJson(await jsonResponse.text());
+    expect(json.version).toBe(2);
+    const exported = json.bookmarks.filter((bookmark) => bookmark.url.includes('stream-'));
+    expect(exported).toHaveLength(105);
+    expect(exported.every((bookmark) => bookmark.tags.includes('Shared'))).toBe(true);
+    expect(exported.filter((bookmark) => bookmark.visibility === 'private')).toHaveLength(52);
+
+    const htmlResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=html',
+      { headers: adminHeaders },
+    );
+    expect(htmlResponse.status).toBe(200);
+    const html = parseHtml(await htmlResponse.text());
+    const htmlBookmarks = html.bookmarks.filter((bookmark) => bookmark.url.includes('stream-'));
+    expect(htmlBookmarks).toHaveLength(105);
+    expect(htmlBookmarks.every((bookmark) => bookmark.categorySlug === 'stream-root')).toBe(true);
+  });
+
+  it('imports more than one tag statement worth of distinct tags', async () => {
+    const bookmarks = Array.from({ length: 4 }, (_, index) => ({
+      title: `Many tags ${index}`,
+      url: `https://many-tags-${index}.example.com`,
+      tags: Array.from({ length: 30 }, (_, tag) => `Tag ${index}-${tag}`),
+    }));
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ version: 1, bookmarks }),
+      },
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).bookmarksCreated).toBe(4);
+    const tagsResponse = await exports.default.fetch('https://example.com/api/v1/tags', {
+      headers: adminHeaders,
+    });
+    const tags = await tagsResponse.json<Array<{ name: string }>>();
+    expect(tags.filter((tag) => /^Tag [0-3]-\d+$/.test(tag.name))).toHaveLength(120);
+  });
+
+  it('streams nested and empty HTML folders with uncategorized bookmarks', async () => {
+    const importResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          version: 2,
+          categories: [
+            { name: 'Stream parent', slug: 'stream-parent' },
+            { name: 'Stream child', slug: 'stream-child', parentSlug: 'stream-parent' },
+            { name: 'Stream empty', slug: 'stream-empty' },
+          ],
+          bookmarks: [
+            {
+              title: 'Nested',
+              url: 'https://nested-stream.example.com',
+              categorySlug: 'stream-child',
+            },
+            { title: 'Loose', url: 'https://loose-stream.example.com' },
+          ],
+        }),
+      },
+    );
+    expect(importResponse.status).toBe(200);
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=html',
+      { headers: adminHeaders },
+    );
+    expect(response.status).toBe(200);
+    const parsed = parseHtml(await response.text());
+    expect(parsed.categories?.find((item) => item.slug === 'stream-child')?.parentSlug).toBe(
+      'stream-parent',
+    );
+    expect(parsed.categories?.some((item) => item.slug === 'stream-empty')).toBe(true);
+    expect(parsed.bookmarks.find((item) => item.url.includes('nested-stream'))?.categorySlug).toBe(
+      'stream-child',
+    );
+    expect(
+      parsed.bookmarks.find((item) => item.url.includes('loose-stream'))?.categorySlug,
+    ).toBeNull();
   });
 
   it('exports categories and bookmark category slugs', async () => {
@@ -289,57 +413,6 @@ describe('html transfer', () => {
     const data = parseHtml(input);
     expect(data.categories).toBeUndefined();
     expect(data.bookmarks[0]).toMatchObject({ categorySlug: null, tags: [] });
-  });
-
-  it('serializeHtml groups by category tree and leaves tags out', () => {
-    const data: TransferData = {
-      version: 1,
-      exportedAt: '2024-01-01T00:00:00.000Z',
-      categories: [
-        { name: '开发', slug: 'dev', parentSlug: null },
-        { name: '前端', slug: 'frontend', parentSlug: 'dev' },
-      ],
-      bookmarks: [
-        { title: 'Loose', url: 'https://loose.example.com', tags: ['x'] },
-        { title: 'Dev site', url: 'https://dev.example.com', categorySlug: 'dev', tags: ['y'] },
-        { title: 'Fe site', url: 'https://fe.example.com', categorySlug: 'frontend', tags: [] },
-      ],
-    };
-    const html = serializeHtml(data);
-    expect(html).toContain('<DT><H3>开发</H3>');
-    expect(html).toContain('<DT><H3>前端</H3>');
-    expect(html).toContain('<DT><H3>未分类</H3>');
-    expect(html).not.toContain('TAGS=');
-    // 每个书签只出现一次（不再按标签重复），未分类书签不落入分类文件夹
-    expect(html.match(/loose\.example\.com/g)).toHaveLength(1);
-    expect(html.match(/dev\.example\.com/g)).toHaveLength(1);
-    const devBlock = html.slice(html.indexOf('<DT><H3>开发</H3>'));
-    expect(devBlock.slice(0, devBlock.indexOf('</DL><p>') + 8)).not.toContain('loose.example.com');
-  });
-
-  it('serializeHtml round-trips through parseHtml', () => {
-    const data: TransferData = {
-      version: 1,
-      exportedAt: '2024-01-01T00:00:00.000Z',
-      categories: [
-        { name: '开发', slug: 'dev', parentSlug: null },
-        { name: '前端', slug: 'frontend', parentSlug: 'dev' },
-      ],
-      bookmarks: [
-        { title: 'Loose', url: 'https://loose.example.com' },
-        { title: 'Dev site', url: 'https://dev.example.com', categorySlug: 'dev' },
-        { title: 'Fe site', url: 'https://fe.example.com', categorySlug: 'frontend' },
-      ],
-    };
-    const parsed = parseHtml(serializeHtml(data));
-    const byName = new Map((parsed.categories ?? []).map((category) => [category.name, category]));
-    expect(byName.size).toBe(2);
-    expect(byName.get('前端')?.parentSlug).toBe('开发');
-    const byUrl = new Map(parsed.bookmarks.map((bookmark) => [bookmark.url, bookmark]));
-    expect(byUrl.get('https://loose.example.com')?.categorySlug).toBeNull();
-    expect(byUrl.get('https://dev.example.com')?.categorySlug).toBe('开发');
-    expect(byUrl.get('https://fe.example.com')?.categorySlug).toBe('前端');
-    expect(parsed.bookmarks.every((bookmark) => bookmark.tags.length === 0)).toBe(true);
   });
 });
 

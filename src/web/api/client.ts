@@ -35,30 +35,6 @@ const client = createApiClient({
   },
 });
 
-type ExportResult = {
-  blob: Blob;
-  filename: string;
-};
-
-async function exportData(format: 'html' | 'json'): Promise<ExportResult> {
-  const response = await fetch(`${ENDPOINTS.transferExport}${buildQuery({ format })}`, {
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const contentType = response.headers.get('Content-Type') ?? '';
-    const body = contentType.includes('application/json')
-      ? ((await response.json()) as { error?: { code?: string; message?: string } })
-      : null;
-    throw new ApiError(response.status, body?.error?.message ?? '导出失败', body?.error?.code);
-  }
-
-  const filename =
-    response.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i)?.[1] ??
-    `nav-export.${format}`;
-  return { blob: await response.blob(), filename };
-}
-
 function safeParse(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -69,7 +45,6 @@ function safeParse(text: string): unknown {
 
 export const api = {
   ...client,
-  exportData,
   importDataAuto(
     content: string,
     strategy: ImportStrategy = 'skip',

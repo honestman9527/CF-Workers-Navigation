@@ -3,8 +3,6 @@ export type WorkspaceSearch = {
   category?: string;
   tag?: string;
   untagged?: boolean;
-  /** 兼容旧常用入口链接。 */
-  pinned?: boolean;
   q?: string;
   page?: number;
   pageSize?: number;
@@ -21,7 +19,7 @@ function isTrue(value: unknown): boolean {
   return value === true || value === 1 || value === '1' || value === 'true';
 }
 
-/** 旧组合链接按分类、标签、无标签、置顶的优先级收敛；忽略旧 view 参数。 */
+/** 组合筛选按分类、标签、无标签的优先级收敛；忽略未知参数。 */
 export function parseWorkspaceSearch(search: Record<string, unknown>): WorkspaceSearch {
   const result: WorkspaceSearch = {};
   const category = rawString(search.category);
@@ -29,7 +27,6 @@ export function parseWorkspaceSearch(search: Record<string, unknown>): Workspace
   if (category) result.category = category;
   else if (tag) result.tag = tag;
   else if (isTrue(search.untagged)) result.untagged = true;
-  else if (isTrue(search.pinned)) result.pinned = true;
   const q = rawString(search.q);
   if (q) result.q = q;
   const page =

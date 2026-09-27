@@ -1,9 +1,10 @@
 import type { Bookmark } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
-import { Globe, Search, TriangleAlert } from 'lucide-react';
+import { Globe, LoaderCircle, Search, TriangleAlert } from 'lucide-react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { domainOf } from '@shared/search';
 
@@ -60,6 +61,9 @@ function ResultTile({
  */
 export function LauncherResults({
   results,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   loading,
   error,
   searchQuery,
@@ -70,6 +74,9 @@ export function LauncherResults({
   onWebSearch,
 }: {
   results: Bookmark[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   loading: boolean;
   error: string | null;
   searchQuery: string;
@@ -89,7 +96,10 @@ export function LauncherResults({
         <h2 id="launcher-results-heading" className="font-display text-sm font-semibold">
           搜索结果
         </h2>
-        <span className="font-mono text-[10px] text-muted-foreground">{results.length}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {results.length}
+          {hasMore ? '+' : ''}
+        </span>
       </div>
 
       {loading ? (
@@ -98,7 +108,7 @@ export function LauncherResults({
             <div key={index} className="h-28 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
-      ) : error ? (
+      ) : error && results.length === 0 ? (
         <div className="w-full rounded-lg border border-border bg-card px-6 py-8 text-center">
           <TriangleAlert className="mx-auto size-6 text-destructive" />
           <p className="mt-3 text-sm font-medium">无法连接 Nav 服务</p>
@@ -165,8 +175,28 @@ export function LauncherResults({
               </span>
             </button>
           ) : null}
+          {hasMore ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loadingMore}
+              onMouseEnter={() => onHighlightChange(listLen + (showWebTile ? 1 : 0))}
+              onClick={onLoadMore}
+              className={cn(
+                'h-full min-h-28 flex-col gap-2',
+                highlighted === listLen + (showWebTile ? 1 : 0) &&
+                  'border-primary/60 ring-2 ring-primary/30',
+              )}
+            >
+              {loadingMore ? <LoaderCircle className="animate-spin" /> : <Search />}
+              {loadingMore ? '加载中…' : '加载更多结果'}
+            </Button>
+          ) : null}
         </div>
       )}
+      {error && results.length > 0 ? (
+        <p className="mt-3 text-center text-xs text-destructive">{error}，请重试加载</p>
+      ) : null}
     </section>
   );
 }

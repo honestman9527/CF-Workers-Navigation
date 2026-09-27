@@ -27,9 +27,8 @@
 
 ## Documentation
 
-- 文档位于 `docs/` 下
-- 当前行为与必要取舍直接写入对应主题文档
-- 新增或移动主题文档后同步更新 `docs`
+- 项目使用说明、当前行为与必要取舍写入根 `README.md`
+- `docs/` 只保留维护约定 `AGENTS.md`；更新功能时同步核对根 README
 
 ## Commands
 

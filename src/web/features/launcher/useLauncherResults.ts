@@ -1,52 +1,44 @@
 import type { Bookmark } from '@shared/api/types';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@nav/api/client';
 
-async function searchAllBookmarks(query: string, signal: AbortSignal): Promise<Bookmark[]> {
-  const items: Bookmark[] = [];
-  let cursor: string | null = null;
-  do {
-    const page = await api.searchBookmarks(
-      undefined,
-      query,
-      { cursor: cursor ?? undefined, limit: 100 },
-      signal,
-    );
-    items.push(...page.items);
-    cursor = page.nextCursor;
-  } while (cursor && !signal.aborted);
-  return items;
-}
+const PAGE_SIZE = 24;
 
-/**
- * 启动台书签全量搜索：防抖 + 游标循环取全部匹配；关键词为空时清空结果。
- */
+/** 启动台搜索：防抖取首批结果，后续页由用户按需加载。 */
 export function useLauncherResults(searchQuery: string, onUnauthorized: () => void) {
   const [results, setResults] = useState<Bookmark[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = searchQuery;
+    setResults([]);
+    setNextCursor(null);
+    setLoadingMore(false);
+    setError(null);
     if (!q) {
-      setResults([]);
       setLoading(false);
-      setError(null);
       return;
     }
     setLoading(true);
-    setError(null);
     const controller = new AbortController();
-    debounceRef.current = setTimeout(async () => {
+    controllerRef.current = controller;
+    const timer = setTimeout(async () => {
       try {
-        const items = await searchAllBookmarks(q, controller.signal);
+        const page = await api.searchBookmarks(
+          undefined,
+          q,
+          { limit: PAGE_SIZE },
+          controller.signal,
+        );
         if (controller.signal.aborted) return;
-        setResults(items);
-        setError(null);
+        setResults(page.items);
+        setNextCursor(page.nextCursor);
       } catch (caught) {
         if (controller.signal.aborted) return;
         if (caught instanceof ApiError && caught.status === 401) {
@@ -61,9 +53,37 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
     }, 250);
     return () => {
       controller.abort();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearTimeout(timer);
+      if (controllerRef.current === controller) controllerRef.current = null;
     };
   }, [searchQuery, onUnauthorized]);
 
-  return { results, loading, error };
+  const loadMore = useCallback(async () => {
+    const controller = controllerRef.current;
+    if (!controller || !nextCursor || loading || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.searchBookmarks(
+        undefined,
+        searchQuery,
+        { cursor: nextCursor, limit: PAGE_SIZE },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setResults((previous) => [...previous, ...page.items]);
+      setNextCursor(page.nextCursor);
+      setError(null);
+    } catch (caught) {
+      if (controller.signal.aborted) return;
+      if (caught instanceof ApiError && caught.status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setError(caught instanceof Error ? caught.message : '加载更多结果失败');
+    } finally {
+      if (!controller.signal.aborted) setLoadingMore(false);
+    }
+  }, [nextCursor, loading, loadingMore, searchQuery, onUnauthorized]);
+
+  return { results, nextCursor, loading, loadingMore, error, loadMore };
 }

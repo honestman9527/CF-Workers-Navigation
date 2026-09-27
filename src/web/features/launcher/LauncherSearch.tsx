@@ -86,6 +86,9 @@ export function LauncherSearch({
   bangName,
   activeEngine,
   results,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   highlighted,
   onHighlightChange,
 }: {
@@ -98,8 +101,11 @@ export function LauncherSearch({
   hasBang: boolean;
   bangName?: string;
   activeEngine?: SearchEngine;
-  /** 全量书签结果（来自页面 / useLauncherResults），用于键盘导航范围。 */
+  /** 当前已加载的书签结果，用于键盘导航范围。 */
   results: Bookmark[];
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   highlighted: number;
   onHighlightChange: (index: number) => void;
 }) {
@@ -120,7 +126,8 @@ export function LauncherSearch({
 
   const listLen = results.length;
   const showWebRow = Boolean(searchQuery);
-  const totalNav = listLen + (showWebRow ? 1 : 0);
+  const totalNav = listLen + (showWebRow ? 1 : 0) + (hasMore ? 1 : 0);
+  const moreIndex = listLen + (showWebRow ? 1 : 0);
 
   /** Web 端一律新标签打开。 */
   function openLink(url: string) {
@@ -170,6 +177,11 @@ export function LauncherSearch({
 
       if (showWebRow && highlighted === listLen) {
         doWebSearch();
+        return;
+      }
+
+      if (hasMore && highlighted === moreIndex) {
+        if (!loadingMore) onLoadMore();
         return;
       }
 

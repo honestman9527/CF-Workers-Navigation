@@ -160,16 +160,3 @@ export function parseJson(input: string): TransferData {
     bookmarks,
   };
 }
-
-export function serializeJson(data: TransferData): string {
-  return JSON.stringify(
-    {
-      version: 2,
-      exportedAt: data.exportedAt,
-      categories: data.categories,
-      bookmarks: data.bookmarks,
-    },
-    null,
-    2,
-  );
-}

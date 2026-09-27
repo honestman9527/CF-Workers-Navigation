@@ -13,26 +13,25 @@ describe('工作区导航', () => {
     expect(parseWorkspaceSearch({ view: 'trash' })).toEqual({});
   });
 
-  it('旧组合筛选按分类、标签、无标签、置顶排序，仅保留一个条件', () => {
+  it('组合筛选按分类、标签、无标签排序，仅保留一个条件', () => {
     expect(
       parseWorkspaceSearch({
         category: 'dev',
         tag: 'react',
         untagged: true,
-        pinned: true,
         q: 'demo',
       }),
     ).toEqual({ category: 'dev', q: 'demo' });
-    expect(parseWorkspaceSearch({ tag: 'react', untagged: true, pinned: true })).toEqual({
+    expect(parseWorkspaceSearch({ tag: 'react', untagged: true })).toEqual({
       tag: 'react',
     });
     expect(parseWorkspaceSearch({ untagged: true, pinned: true })).toEqual({ untagged: true });
-    expect(parseWorkspaceSearch({ pinned: true })).toEqual({ pinned: true });
+    expect(parseWorkspaceSearch({ pinned: true })).toEqual({});
   });
 
   it.each([true, 1, '1', 'true'])('接受布尔真值 %s', (value) => {
     expect(parseWorkspaceSearch({ untagged: value })).toEqual({ untagged: true });
-    expect(parseWorkspaceSearch({ pinned: value })).toEqual({ pinned: true });
+    expect(parseWorkspaceSearch({ pinned: value })).toEqual({});
   });
 
   it.each([false, 0, '0', 'false', 'invalid', null, {}])('忽略非真值 %s', (value) => {
@@ -61,7 +60,7 @@ describe('工作区导航', () => {
     expect(selectWorkspaceFilter({})).toEqual({});
   });
 
-  it.each([{ category: 'dev' }, { tag: 'react' }, { untagged: true }, { pinned: true }, {}])(
+  it.each([{ category: 'dev' }, { tag: 'react' }, { untagged: true }, {}])(
     '搜索与清除保留导航位置 %s',
     (filter) => {
       const search = setWorkspaceQuery(filter, ' demo ');
@@ -71,13 +70,14 @@ describe('工作区导航', () => {
   );
 
   it('规范化旧地址但不会因数字或布尔查询词产生循环', () => {
-    for (const raw of [{ q: 2024 }, { q: false }, { pinned: true }, { tag: 'untagged' }, {}]) {
+    for (const raw of [{ q: 2024 }, { q: false }, { tag: 'untagged' }, {}]) {
       expect(isCanonicalWorkspaceSearch(raw, parseWorkspaceSearch(raw))).toBe(true);
     }
     for (const raw of [
       { category: 'dev', tag: 'react' },
       { untagged: 1 },
       { view: 'trash' },
+      { pinned: true },
       { q: ['demo'] },
     ]) {
       expect(isCanonicalWorkspaceSearch(raw, parseWorkspaceSearch(raw))).toBe(false);
