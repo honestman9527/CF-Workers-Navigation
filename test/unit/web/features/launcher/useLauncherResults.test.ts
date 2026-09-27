@@ -6,8 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
-
-import { useLauncherResults } from './useLauncherResults';
+import { useLauncherResults } from '@nav/features/launcher/useLauncherResults';
 
 vi.mock('@nav/api/client', () => ({
   api: { searchBookmarks: vi.fn() },

@@ -6,7 +6,7 @@ import {
   THEME_STORAGE_KEY,
   resolveThemePreference,
   type ThemeStorageReader,
-} from './theme';
+} from '@shared/theme';
 
 function reader(values: Record<string, string | undefined>): ThemeStorageReader {
   return (key) => values[key] ?? null;

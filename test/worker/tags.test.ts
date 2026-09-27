@@ -1,4 +1,4 @@
-import type { Bookmark, Tag } from '../src/shared/api/types';
+import type { Bookmark, Tag } from '../../src/shared/api/types';
 
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';

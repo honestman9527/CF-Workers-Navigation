@@ -1,10 +1,10 @@
-import type { AppEnv } from '../src/worker/types';
+import type { AppEnv } from '../../src/worker/types';
 
 import { exports } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { authContext, requireAuth, timingSafeEqual } from '../src/worker/auth';
+import { authContext, requireAuth, timingSafeEqual } from '../../src/worker/auth';
 
 const env = {
   ADMIN_PASSWORD: 'dev-password',

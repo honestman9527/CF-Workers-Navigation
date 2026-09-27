@@ -34,7 +34,9 @@ src/
 └── shared/     # Web 与 Worker 共用的 API 与偏好契约
 public/         # Web 静态资源
 migrations/     # D1 基线与递增迁移
-test/           # Worker 集成测试
+test/
+├── unit/       # shared 与 Web 单元测试
+└── worker/     # Cloudflare Worker 集成测试
 ```
 
 这是单包仓库：根 `package.json` 管理全部依赖和任务，`pnpm-workspace.yaml` 仅保存 pnpm 的安装脚本策略。Worker 与 Web 是同一个部署单元。

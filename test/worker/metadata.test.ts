@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchBookmarkMetadata } from '../src/worker/metadata';
+import { fetchBookmarkMetadata } from '../../src/worker/metadata';
 
 const faviconOpts = {
   faviconProxyUrl: 'https://icons.example.com/{domain}.ico',

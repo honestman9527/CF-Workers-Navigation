@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getAuthReturnPath, parseLoginSearch, resolveAuthRedirect } from './redirect';
+import {
+  getAuthReturnPath,
+  parseLoginSearch,
+  resolveAuthRedirect,
+} from '@nav/features/auth/redirect';
 
 describe('认证返回地址', () => {
   it('保留管理后台子路径', () => {

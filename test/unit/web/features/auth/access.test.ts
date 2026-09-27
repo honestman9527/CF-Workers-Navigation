@@ -8,10 +8,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
 import App from '@nav/App';
+import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
 import { router } from '@nav/router';
-
-import { useAuthContext } from './useAuthContext';
 
 vi.mock('@nav/api/client', () => ({
   api: { me: vi.fn(), login: vi.fn(), logout: vi.fn(), getBookmarks: vi.fn() },

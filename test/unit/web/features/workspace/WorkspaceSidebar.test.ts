@@ -4,8 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 import { SidebarProvider } from '@/components/ui/sidebar';
-
-import { WorkspaceSidebar } from './WorkspaceSidebar';
+import { WorkspaceSidebar } from '@nav/features/workspace/WorkspaceSidebar';
 
 it('三个分组独立折叠，全部网站保持可访问，选择分类后展开分组', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

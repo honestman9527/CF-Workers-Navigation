@@ -9,7 +9,7 @@ import {
   normalizeNavigateUrl,
   parseBangQuery,
   resolveBookmarkIcon,
-} from './search';
+} from '@shared/search';
 
 describe('buildSearchUrl', () => {
   it('用 encodeURIComponent 替换 {query} 占位符', () => {

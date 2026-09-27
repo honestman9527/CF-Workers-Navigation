@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseLauncherSearch } from './search';
+import { parseLauncherSearch } from '@nav/features/launcher/search';
 
 describe('parseLauncherSearch', () => {
   it('空参数 → 空对象', () => {

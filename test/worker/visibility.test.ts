@@ -1,5 +1,5 @@
-import type { Bookmark, BookmarkPage, Category, Tag } from '../src/shared/api/types';
-import type { TransferData } from '../src/worker/transfer/types';
+import type { Bookmark, BookmarkPage, Category, Tag } from '../../src/shared/api/types';
+import type { TransferData } from '../../src/worker/transfer/types';
 
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';

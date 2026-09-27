@@ -4,8 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
-
-import { usePagedBookmarks } from './usePagedBookmarks';
+import { usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 
 vi.mock('@nav/api/client', () => ({
   api: { getBookmarks: vi.fn(), searchBookmarks: vi.fn() },

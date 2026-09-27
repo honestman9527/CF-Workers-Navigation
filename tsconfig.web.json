@@ -15,5 +15,11 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/web/**/*.ts", "src/web/**/*.tsx", "src/web/vite-env.d.ts"]
+  "include": [
+    "src/web/**/*.ts",
+    "src/web/**/*.tsx",
+    "src/web/vite-env.d.ts",
+    "test/unit/web/**/*.test.ts",
+    "test/unit/web/**/*.test.tsx"
+  ]
 }

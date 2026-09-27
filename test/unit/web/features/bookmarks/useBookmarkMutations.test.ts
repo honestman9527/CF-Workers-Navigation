@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pushToast } from '@nav/components/Toast';
-
-import { runBookmarkMutation } from './useBookmarkMutations';
+import { runBookmarkMutation } from '@nav/features/bookmarks/useBookmarkMutations';
 
 vi.mock('@nav/components/Toast', () => ({
   pushToast: vi.fn(),

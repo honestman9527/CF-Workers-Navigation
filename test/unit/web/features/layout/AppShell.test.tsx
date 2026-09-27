@@ -5,9 +5,9 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
-import { CategoryTree } from '../categories/CategoryTree';
-import { WorkspaceSidebar } from '../workspace/WorkspaceSidebar';
-import { AppShell, WorkspaceSidebarTrigger } from './AppShell';
+import { CategoryTree } from '@nav/features/categories/CategoryTree';
+import { AppShell, WorkspaceSidebarTrigger } from '@nav/features/layout/AppShell';
+import { WorkspaceSidebar } from '@nav/features/workspace/WorkspaceSidebar';
 
 async function setup(width = 1440) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

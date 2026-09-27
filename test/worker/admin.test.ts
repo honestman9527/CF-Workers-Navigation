@@ -1,4 +1,4 @@
-import type { AdminStats } from '../src/shared/api/types';
+import type { AdminStats } from '../../src/shared/api/types';
 
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';

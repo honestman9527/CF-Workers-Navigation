@@ -5,7 +5,7 @@ import {
   parseWorkspaceSearch,
   selectWorkspaceFilter,
   setWorkspaceQuery,
-} from './search';
+} from '@nav/features/workspace/search';
 
 describe('工作区导航', () => {
   it('裸入口和旧 view 参数均进入全部活动网站', () => {

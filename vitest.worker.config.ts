@@ -23,7 +23,7 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
-      include: ['test/**/*.test.ts'],
+      include: ['test/worker/**/*.test.ts'],
       setupFiles: ['./test/apply-migrations.ts'],
     },
   };

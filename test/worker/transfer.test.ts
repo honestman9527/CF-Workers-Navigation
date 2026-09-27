@@ -1,9 +1,9 @@
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
-import { detectFormat } from '../src/worker/transfer/detect';
-import { parseHtml } from '../src/worker/transfer/html';
-import { parseJson } from '../src/worker/transfer/json';
+import { detectFormat } from '../../src/worker/transfer/detect';
+import { parseHtml } from '../../src/worker/transfer/html';
+import { parseJson } from '../../src/worker/transfer/json';
 
 const adminHeaders = {
   Authorization: 'Bearer dev-password',

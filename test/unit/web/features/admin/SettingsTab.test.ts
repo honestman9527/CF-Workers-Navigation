@@ -7,9 +7,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
+import { SettingsTab } from '@nav/features/admin/SettingsTab';
 import { settingsStateAtom } from '@nav/features/settings/store';
-
-import { SettingsTab } from './SettingsTab';
 
 vi.mock('@nav/api/client', () => ({
   api: { getSettings: vi.fn(), updateSettings: vi.fn() },

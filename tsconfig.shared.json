@@ -5,5 +5,5 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/shared/**/*.ts", "vitest.unit.config.ts"]
+  "include": ["src/shared/**/*.ts", "test/unit/shared/**/*.test.ts", "vitest.unit.config.ts"]
 }

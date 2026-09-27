@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApiClient } from './client';
+import { createApiClient } from '@shared/api/client';
 
 describe('nav shared api client', () => {
   it('builds a request through the injected fetch adapter', async () => {
