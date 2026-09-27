@@ -27,8 +27,8 @@
 
 ## Documentation
 
-- 项目使用说明、当前行为与必要取舍写入根 `README.md`
-- `docs/` 只保留维护约定 `AGENTS.md`；更新功能时同步核对根 README
+- 项目使用说明、当前行为与必要取舍写入`docs/`下
+- `docs/` 保留维护 `AGENTS.md`；更新相关文档时同步。
 
 ## Commands
 
