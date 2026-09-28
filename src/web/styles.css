@@ -228,15 +228,6 @@
   .scrollbar-safe {
     scrollbar-gutter: stable;
   }
-  .nav-item {
-    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
-  }
-  .nav-item span:last-child {
-    @apply ml-auto text-[11px] text-muted-foreground tabular-nums;
-  }
-  .nav-item-active {
-    @apply bg-primary/10 font-medium text-primary;
-  }
   .animate-launcher-enter {
     animation: launcher-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
   }

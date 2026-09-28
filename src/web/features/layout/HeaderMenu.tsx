@@ -1,4 +1,5 @@
-import { isTheme, type ResolvedTheme, type Theme } from '@shared';
+import type { ResolvedTheme, Theme } from '@shared';
+
 import { useNavigate } from '@tanstack/react-router';
 import {
   Bookmark,
@@ -6,7 +7,6 @@ import {
   LayoutDashboard,
   LogOut,
   LogIn,
-  Monitor,
   Moon,
   Rocket,
   Sun,
@@ -20,8 +20,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -30,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { ThemeMenuOptions } from '@nav/features/settings/ThemeMenuOptions';
 
 /** 启动台与工作区共用的右上角菜单：按传入的回调决定展示哪些导航项。归档/回收站只存在于管理后台。 */
 export function HeaderMenu({
@@ -102,25 +101,7 @@ export function HeaderMenu({
             主题
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup
-              value={theme}
-              onValueChange={(value) => {
-                if (isTheme(value)) onThemeChange(value);
-              }}
-            >
-              <DropdownMenuRadioItem value="light">
-                <Sun />
-                亮色
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">
-                <Moon />
-                暗色
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">
-                <Monitor />
-                跟随系统
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+            <ThemeMenuOptions theme={theme} onThemeChange={onThemeChange} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuGroup>
