@@ -60,8 +60,8 @@ export function CategoriesTab() {
   const [createName, setCreateName] = useState('');
   const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Category | null>(null);
-  // 折叠集合：默认全展开，加入的 id 表示收起（反向维护，保持初次加载与旧观感一致）。
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  // 仅显示一级分类；展开状态在当前页面的数据刷新后保留。
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   const loadCategories = useCallback(
     (signal: AbortSignal) => api.getCategories(undefined, signal),
@@ -86,10 +86,13 @@ export function CategoriesTab() {
     setCreate({ parentId });
     setCreateVisibility(undefined);
     setCreateName('');
+    if (parentId !== 'root') {
+      setExpanded((prev) => new Set(prev).add(parentId));
+    }
   }
 
-  function toggleCollapse(id: number) {
-    setCollapsed((prev) => {
+  function toggleExpanded(id: number) {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -239,8 +242,8 @@ export function CategoriesTab() {
     const isEditing = editing?.id === node.id;
     const totalCount = totals.get(node.id) ?? node.bookmarkCount;
     const isRoot = depth === 0;
-    const isCollapsed = collapsed.has(node.id);
-    const showChildren = (node.children.length > 0 && !isCollapsed) || create?.parentId === node.id;
+    const isExpanded = expanded.has(node.id);
+    const showChildren = isExpanded && (node.children.length > 0 || create?.parentId === node.id);
 
     const actions = (
       <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
@@ -337,15 +340,15 @@ export function CategoriesTab() {
           {node.children.length > 0 ? (
             <button
               type="button"
-              aria-label={isCollapsed ? '展开分类' : '收起分类'}
-              aria-expanded={!isCollapsed}
-              onClick={() => toggleCollapse(node.id)}
+              aria-label={isExpanded ? '收起分类' : '展开分类'}
+              aria-expanded={isExpanded}
+              onClick={() => toggleExpanded(node.id)}
               className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <ChevronRight
                 className={cn(
                   'size-3.5 transition-transform duration-150',
-                  !isCollapsed && 'rotate-90',
+                  isExpanded && 'rotate-90',
                 )}
               />
             </button>
@@ -447,7 +450,7 @@ export function CategoriesTab() {
           {actions}
         </div>
 
-        {/* 子分类容器（带树形导轨连线）；折叠时收起，新建子分类时强制展开 */}
+        {/* 子分类容器（带树形导轨连线）；新建子分类时展开父分类 */}
         {showChildren ? (
           <div className="relative mt-1 ml-5 space-y-1 border-l-2 border-border/60 pl-3.5">
             {node.children.map((child) => renderNode(child, depth + 1))}
