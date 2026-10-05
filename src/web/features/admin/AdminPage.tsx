@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation } from '@tanstack/react-router';
 import {
   ArrowDownToLine,
   ArrowLeft,
+  ChevronUp,
   FolderTree,
   Globe,
   LayoutDashboard,
@@ -21,7 +22,6 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,12 +97,15 @@ function AdminSidebarContent({
   frontRoute,
   returnLabel,
   onLogout,
+  themeSettings,
 }: {
   frontRoute: '/launch' | '/workspace';
   returnLabel: string;
   onLogout: () => void;
+  themeSettings: ReturnType<typeof useTheme>;
 }) {
   const { open, isMobile, setOpenMobile } = useSidebar();
+  const { theme, resolvedTheme, setTheme } = themeSettings;
 
   return (
     <div
@@ -131,12 +134,12 @@ function AdminSidebarContent({
       </SidebarContent>
 
       <SidebarSeparator className="mx-3" />
-      <SidebarFooter className="px-2 pt-2 pb-3">
-        <SidebarMenu className="gap-1">
-          <SidebarMenuItem>
+      <SidebarFooter className="px-3 pt-3 pb-3">
+        <SidebarMenu className="grid grid-cols-2 gap-2">
+          <SidebarMenuItem className="col-span-2">
             <SidebarMenuButton
               render={<Link to={frontRoute} onClick={() => setOpenMobile(false)} />}
-              className="h-9 rounded-lg px-3 text-muted-foreground"
+              className="h-10 rounded-lg bg-sidebar-accent/50 px-3 text-sidebar-foreground"
             >
               <ArrowLeft />
               <span>{returnLabel}</span>
@@ -146,11 +149,40 @@ function AdminSidebarContent({
             <SidebarMenuButton
               type="button"
               onClick={onLogout}
-              className="h-9 rounded-lg px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="h-9 justify-center rounded-lg border border-border/60 px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut />
               <span>退出登录</span>
             </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
+                    type="button"
+                    className="h-9 rounded-lg border border-border/60 px-2.5 text-muted-foreground"
+                    aria-label="设置主题"
+                  />
+                }
+              >
+                {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
+                <span>主题</span>
+                <ChevronUp className="ml-auto" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side={isMobile ? 'top' : 'right'}
+                align="end"
+                sideOffset={8}
+                className="w-44"
+              >
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>主题</DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -165,10 +197,10 @@ function AdminSidebarTrigger() {
   return <SidebarTrigger aria-label={label} title={label} aria-expanded={expanded} />;
 }
 
-/** 管理后台布局：桌面侧栏可收起，移动端为抽屉；页头始终提供主题设置。 */
+/** 管理后台布局：桌面侧栏可收起，移动端为抽屉；主题设置位于侧栏底部。 */
 export function AdminPage() {
   const auth = useAuthContext();
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const themeSettings = useTheme();
   const { pathname } = useLocation();
   const currentLabel = NAV.find((item) => item.to === pathname)?.label ?? '概览';
   const frontRoute = getPreferredFrontRoute();
@@ -207,6 +239,7 @@ export function AdminPage() {
           frontRoute={frontRoute}
           returnLabel={returnLabel}
           onLogout={() => void auth.logout()}
+          themeSettings={themeSettings}
         />
       </Sidebar>
 
@@ -224,28 +257,6 @@ export function AdminPage() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="ml-auto"
-                  aria-label="设置主题"
-                  title="设置主题"
-                />
-              }
-            >
-              {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>主题</DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
-            </DropdownMenuContent>
-          </DropdownMenu>
         </header>
 
         <div className="mx-auto w-full max-w-[70rem] px-4 py-6 sm:px-6 sm:py-8">
