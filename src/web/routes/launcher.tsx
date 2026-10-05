@@ -5,7 +5,7 @@ import { parseLauncherSearch } from '@nav/features/launcher/search';
 
 import { rootRoute } from './__root';
 
-/** 启动台（命名路由）：中部搜索框 + 常用网站（置顶书签），搜索关键词/引擎由 URL 驱动。 */
+/** 启动台：本地时间、站内搜索与底部常用 Dock，关键词/引擎由 URL 驱动。 */
 export const launcherRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/launch',

@@ -74,12 +74,13 @@ function EngineSwitcher({
 
 /**
  * 启动台搜索胶囊：输入框 + 引擎切换 + 键盘导航。
- * 只负责输入与交互，书签结果由页面在「常用网站」位置用 LauncherResults 展示。
+ * 只负责输入与交互，站内书签结果由页面在搜索框下方展示。
  */
 export function LauncherSearch({
   engines,
   query,
   onQueryChange,
+  onFocusChange,
   activeEngineId,
   onEngineChange,
   searchQuery,
@@ -96,6 +97,7 @@ export function LauncherSearch({
   engines: SearchEngine[];
   query: string;
   onQueryChange: (query: string) => void;
+  onFocusChange?: (focused: boolean) => void;
   activeEngineId: string;
   onEngineChange: (id: string) => void;
   searchQuery: string;
@@ -221,8 +223,14 @@ export function LauncherSearch({
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            setFocused(true);
+            onFocusChange?.(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onFocusChange?.(false);
+          }}
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           autoComplete="off"

@@ -35,8 +35,7 @@ function ResultTile({
 }
 
 /**
- * 启动台搜索结果区：与「常用网站」瓦片同款样式（favicon 瓦片网格），
- * 占同一主区域位置；末位附「搜索引擎搜索」瓦片。
+ * 启动台站内书签结果：搜索框下方的图标网格，末位附网页搜索入口。
  */
 export function LauncherResults({
   results,
@@ -75,7 +74,7 @@ export function LauncherResults({
       <div className="mb-3 flex items-center gap-2 px-1">
         <Search className="size-4 text-primary" />
         <h2 id="launcher-results-heading" className="font-display text-sm font-semibold">
-          搜索结果
+          站内书签
         </h2>
         <span className="font-mono text-xs text-muted-foreground">
           {results.length}

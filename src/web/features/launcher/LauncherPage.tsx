@@ -10,25 +10,19 @@ import { AppHeader } from '@nav/features/layout/AppHeader';
 import { Brand } from '@nav/features/layout/Brand';
 import { HeaderMenu } from '@nav/features/layout/HeaderMenu';
 import { setPreferredFrontView } from '@nav/features/settings/store';
+import { useIsMobile } from '@nav/hooks/use-mobile';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
 import { buildSearchUrl, parseBangQuery, DEFAULT_SEARCH_ENGINES } from '@shared/search';
 
+import { LauncherClock } from './LauncherClock';
+import { LauncherDock } from './LauncherDock';
 import { LauncherResults } from './LauncherResults';
 import { LauncherSearch } from './LauncherSearch';
-import { Launchpad } from './Launchpad';
 import { useLauncherResults } from './useLauncherResults';
 
 const routeApi = getRouteApi('/launch');
-
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 6) return '夜深了，注意休息';
-  if (hour < 12) return '早上好';
-  if (hour < 18) return '下午好';
-  return '晚上好';
-}
 
 const PINNED_PAGE_SIZE = 24;
 
@@ -37,12 +31,14 @@ function openLink(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-/** 启动台（/launch）：搜索胶囊（URL 驱动），搜索结果展示在「常用网站」同一主区域位置。 */
+/** 启动台（/launch）：本地时间、URL 驱动搜索与独立常用 Dock。 */
 export function LauncherPage() {
   const auth = useAuthContext();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const navigate = useNavigate();
   const search = routeApi.useSearch();
+  const isMobile = useIsMobile();
+  const [searchFocused, setSearchFocused] = useState(false);
   const [pinned, setPinned] = useState<Bookmark[]>([]);
   const [pinnedNextCursor, setPinnedNextCursor] = useState<string | null>(null);
   const [pinnedLoading, setPinnedLoading] = useState(true);
@@ -111,7 +107,7 @@ export function LauncherPage() {
   const searchQuery = bang.engineId !== undefined ? bang.query : query.trim();
   const hasBang = bang.engineId !== undefined;
 
-  // 搜索结果分批展示在「常用网站」位置。
+  // 站内书签结果分批展示在搜索框下方。
   const {
     results,
     nextCursor: resultsNextCursor,
@@ -131,11 +127,10 @@ export function LauncherPage() {
     openLink(buildSearchUrl(activeEngine, searchQuery));
   }
 
-  const searching = query.trim().length > 0;
+  const searching = searchQuery.length > 0;
 
-  // 常用网站首批置顶项；搜索时不加载隐藏的瓦片。
+  // 常用加载独立于搜索与 Dock 的可见状态。
   useEffect(() => {
-    if (searching) return;
     const controller = new AbortController();
     pinnedControllerRef.current = controller;
     setPinned([]);
@@ -165,7 +160,7 @@ export function LauncherPage() {
       controller.abort();
       if (pinnedControllerRef.current === controller) pinnedControllerRef.current = null;
     };
-  }, [refreshKey, searching, handleUnauthorized]);
+  }, [refreshKey, handleUnauthorized]);
 
   const loadMorePinned = useCallback(async () => {
     const controller = pinnedControllerRef.current;
@@ -214,16 +209,15 @@ export function LauncherPage() {
         }
       />
 
-      <main className="flex flex-1 flex-col items-center px-4 pb-16 sm:px-6">
+      <main className="flex flex-1 flex-col items-center px-4 pb-[calc(12rem+var(--safe-b))] sm:px-6">
         <div className="flex w-full max-w-3xl flex-col items-center gap-6 pt-[clamp(1.5rem,6vh,3rem)]">
-          <div className="animate-launcher-enter text-center">
-            <h1 className="text-base font-medium text-muted-foreground">{greeting()}</h1>
-          </div>
+          <LauncherClock />
 
           <LauncherSearch
             engines={searchEngines}
             query={query}
             onQueryChange={setQuery}
+            onFocusChange={setSearchFocused}
             activeEngineId={effectiveEngineId}
             onEngineChange={handleEngineChange}
             searchQuery={searchQuery}
@@ -254,22 +248,20 @@ export function LauncherPage() {
               onOpenBookmark={(bookmark) => openLink(bookmark.url)}
               onWebSearch={doWebSearch}
             />
-          ) : (
-            <div className="animate-launcher-enter w-full" style={{ animationDelay: '80ms' }}>
-              <Launchpad
-                bookmarks={pinned}
-                hasMore={Boolean(pinnedNextCursor)}
-                loading={pinnedLoading}
-                loadingMore={pinnedLoadingMore}
-                error={pinnedError}
-                onRetry={() => setRefreshKey((value) => value + 1)}
-                onLoadMore={() => void loadMorePinned()}
-                onOpenWorkspace={() => void navigate({ to: '/workspace' })}
-              />
-            </div>
-          )}
+          ) : null}
         </div>
       </main>
+      <LauncherDock
+        bookmarks={pinned}
+        hasMore={Boolean(pinnedNextCursor)}
+        loading={pinnedLoading}
+        loadingMore={pinnedLoadingMore}
+        error={pinnedError}
+        hidden={isMobile && searchFocused}
+        onRetry={() => setRefreshKey((value) => value + 1)}
+        onLoadMore={() => void loadMorePinned()}
+        onOpenWorkspace={() => void navigate({ to: '/workspace' })}
+      />
     </div>
   );
 }
