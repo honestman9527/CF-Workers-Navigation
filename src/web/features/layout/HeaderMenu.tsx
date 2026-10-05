@@ -67,8 +67,8 @@ export function HeaderMenu({
           />
         }
       >
-        <UserRound className="size-4" />
-        <ChevronDown className="size-3 opacity-70" />
+        <UserRound data-icon="inline-start" />
+        <ChevronDown data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
@@ -80,40 +80,43 @@ export function HeaderMenu({
               </span>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {onOpenWorkspace ? (
+            <DropdownMenuItem onClick={onOpenWorkspace}>
+              <Bookmark />
+              书签柜
+            </DropdownMenuItem>
+          ) : null}
+          {onOpenLauncher ? (
+            <DropdownMenuItem onClick={onOpenLauncher}>
+              <Rocket />
+              启动台
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        {onOpenWorkspace ? (
-          <DropdownMenuItem onClick={onOpenWorkspace}>
-            <Bookmark className="size-4" />
-            书签柜
-          </DropdownMenuItem>
-        ) : null}
-        {onOpenLauncher ? (
-          <DropdownMenuItem onClick={onOpenLauncher}>
-            <Rocket className="size-4" />
-            启动台
-          </DropdownMenuItem>
-        ) : null}
+        <DropdownMenuGroup>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
+              主题
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <ThemeMenuOptions theme={theme} onThemeChange={onThemeChange} />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
-            主题
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <ThemeMenuOptions theme={theme} onThemeChange={onThemeChange} />
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         <DropdownMenuGroup>
           {authed ? (
             <>
               <DropdownMenuItem onClick={onOpenAdmin}>
-                <LayoutDashboard className="size-4 text-primary" />
+                <LayoutDashboard />
                 管理后台
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={onLogout}>
-                <LogOut className="size-4" />
+                <LogOut />
                 退出
               </DropdownMenuItem>
             </>

@@ -11,6 +11,8 @@ import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
 
+import { AdminErrorAlert } from './AdminErrorAlert';
+
 type StatCard = {
   key: string;
   label: string;
@@ -138,6 +140,7 @@ export function OverviewTab() {
     data: stats,
     loading,
     error,
+    refresh,
   } = useApiData(loadStats, {
     onUnauthorized: () => void auth.logout(),
   });
@@ -147,7 +150,7 @@ export function OverviewTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-2xl font-semibold">概览</h1>
         <p className="text-sm leading-6 text-muted-foreground">
@@ -155,9 +158,8 @@ export function OverviewTab() {
         </p>
       </div>
 
-      {error ? (
-        <p className="text-sm text-destructive">{error}</p>
-      ) : loading ? (
+      {error ? <AdminErrorAlert message={error} onRetry={refresh} retrying={loading} /> : null}
+      {loading && stats === null ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={index} className="h-28 rounded-lg" />

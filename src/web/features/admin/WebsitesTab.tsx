@@ -37,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Toaster } from '@/components/ui/toast';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
@@ -150,7 +151,7 @@ export function WebsitesTab() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold">书签管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
@@ -159,28 +160,23 @@ export function WebsitesTab() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div
-          role="group"
+        <ToggleGroup
           aria-label="状态筛选"
-          className="flex items-center rounded-lg border border-border/70 bg-card p-0.5"
+          value={[view]}
+          onValueChange={(values) => {
+            const next = VIEWS.find((item) => item.id === values[0]);
+            if (next) selectView(next.id);
+          }}
+          variant="outline"
+          size="sm"
+          spacing={0}
         >
           {VIEWS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => selectView(item.id)}
-              aria-pressed={view === item.id}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition',
-                view === item.id
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
+            <ToggleGroupItem key={item.id} value={item.id}>
               {item.label}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
 
         <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-1.5 focus-within:border-primary/50">
           <Search className="size-4 shrink-0 text-muted-foreground" />
@@ -248,7 +244,7 @@ export function WebsitesTab() {
       </div>
 
       {page.loading ? (
-        <div className="space-y-3 rounded-lg border border-border bg-card p-6">
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
           {Array.from({ length: 5 }).map((_, index) => (
             <Skeleton key={index} className="h-10 rounded-lg" />
           ))}

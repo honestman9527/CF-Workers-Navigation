@@ -2,17 +2,15 @@ import { Link, Outlet, useLocation } from '@tanstack/react-router';
 import {
   ArrowDownToLine,
   ArrowLeft,
-  ChevronUp,
+  Ellipsis,
   FolderTree,
   Globe,
   LayoutDashboard,
   LogOut,
-  Moon,
   Settings,
-  Sun,
   Tags,
 } from 'lucide-react';
-import { useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 
 import {
   Breadcrumb,
@@ -26,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -44,6 +43,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 import { getPreferredFrontRoute, getPreferredFrontView } from '@nav/features/settings/store';
@@ -84,7 +84,7 @@ function AdminNavItem({ to, label, icon: Icon, end }: (typeof NAV)[number]) {
         render={<Link to={to} onClick={() => setOpenMobile(false)} />}
         isActive={active}
         aria-current={active ? 'page' : undefined}
-        className="h-10 rounded-lg px-3 text-muted-foreground data-active:bg-primary/10 data-active:text-primary"
+        className="h-10 px-2"
       >
         <Icon />
         <span>{label}</span>
@@ -97,15 +97,17 @@ function AdminSidebarContent({
   frontRoute,
   returnLabel,
   onLogout,
+  loggingOut,
   themeSettings,
 }: {
   frontRoute: '/launch' | '/workspace';
   returnLabel: string;
   onLogout: () => void;
+  loggingOut: boolean;
   themeSettings: ReturnType<typeof useTheme>;
 }) {
   const { open, isMobile, setOpenMobile } = useSidebar();
-  const { theme, resolvedTheme, setTheme } = themeSettings;
+  const { theme, setTheme } = themeSettings;
 
   return (
     <div
@@ -114,7 +116,7 @@ function AdminSidebarContent({
       aria-hidden={!isMobile && !open ? true : undefined}
     >
       <SidebarHeader className="px-4 py-5">
-        <div className="flex items-center gap-2.5 px-1">
+        <div className="flex items-center gap-2.5">
           <BrandIcon className="size-9" />
           <div className="min-w-0">
             <strong className="block truncate font-display text-base">管理后台</strong>
@@ -133,42 +135,31 @@ function AdminSidebarContent({
         </nav>
       </SidebarContent>
 
-      <SidebarSeparator className="mx-3" />
-      <SidebarFooter className="px-3 pt-3 pb-3">
-        <SidebarMenu className="grid grid-cols-2 gap-2">
-          <SidebarMenuItem className="col-span-2">
+      <SidebarSeparator />
+      <SidebarFooter className="p-2">
+        <SidebarMenu className="flex-row items-center gap-1">
+          <SidebarMenuItem className="min-w-0 flex-1">
             <SidebarMenuButton
               render={<Link to={frontRoute} onClick={() => setOpenMobile(false)} />}
-              className="h-10 rounded-lg bg-sidebar-accent/50 px-3 text-sidebar-foreground"
+              className="h-10 px-2"
             >
               <ArrowLeft />
               <span>{returnLabel}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              type="button"
-              onClick={onLogout}
-              className="h-9 justify-center rounded-lg border border-border/60 px-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut />
-              <span>退出登录</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
+          <SidebarMenuItem className="shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
                   <SidebarMenuButton
                     type="button"
-                    className="h-9 rounded-lg border border-border/60 px-2.5 text-muted-foreground"
-                    aria-label="设置主题"
+                    className="size-10 justify-center"
+                    aria-label="更多管理操作"
+                    title="更多管理操作"
                   />
                 }
               >
-                {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
-                <span>主题</span>
-                <ChevronUp className="ml-auto" />
+                <Ellipsis />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 side={isMobile ? 'top' : 'right'}
@@ -178,9 +169,15 @@ function AdminSidebarContent({
               >
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>主题</DropdownMenuLabel>
+                  <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem variant="destructive" disabled={loggingOut} onClick={onLogout}>
+                    <LogOut />
+                    {loggingOut ? '退出中…' : '退出登录'}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
@@ -201,6 +198,8 @@ function AdminSidebarTrigger() {
 export function AdminPage() {
   const auth = useAuthContext();
   const themeSettings = useTheme();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const logoutPending = useRef(false);
   const { pathname } = useLocation();
   const currentLabel = NAV.find((item) => item.to === pathname)?.label ?? '概览';
   const frontRoute = getPreferredFrontRoute();
@@ -223,6 +222,20 @@ export function AdminPage() {
     }
   }
 
+  async function logout() {
+    if (logoutPending.current) return;
+    logoutPending.current = true;
+    setLoggingOut(true);
+    try {
+      await auth.logout();
+    } catch {
+      pushToast('退出登录失败，请重试', 'error');
+    } finally {
+      logoutPending.current = false;
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <SidebarProvider
       open={sidebarOpen}
@@ -238,7 +251,8 @@ export function AdminPage() {
         <AdminSidebarContent
           frontRoute={frontRoute}
           returnLabel={returnLabel}
-          onLogout={() => void auth.logout()}
+          onLogout={() => void logout()}
+          loggingOut={loggingOut}
           themeSettings={themeSettings}
         />
       </Sidebar>

@@ -1,32 +1,47 @@
 import type { Category } from '@shared/api/types';
 
 import { FolderInput, FolderTree } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState, type RefObject } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useDismiss } from '@nav/hooks/useDismiss';
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 
 import { CategoryTree } from './CategoryTree';
 
-/** 后台分类移动选择器：使用与分类筛选相同的可折叠树浮层。 */
+/** 支持独立按钮或分类操作菜单控制的树形移动浮层。 */
 export function CategoryMovePicker({
   categories,
   excludedIds,
   value,
   disabled = false,
   onChange,
+  open: controlledOpen,
+  onOpenChange,
+  anchorRef,
 }: {
   categories: Category[];
   excludedIds: ReadonlySet<number>;
   value: number | null;
   disabled?: boolean;
   onChange: (parentId: number | null) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  anchorRef?: RefObject<HTMLElement | null>;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  useDismiss(rootRef, open, () => setOpen(false));
-
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  function changeOpen(next: boolean) {
+    if (next && disabled) return;
+    if (controlledOpen === undefined) setLocalOpen(next);
+    onOpenChange?.(next);
+  }
   const availableCategories = useMemo(
     () => categories.filter((category) => !excludedIds.has(category.id)),
     [categories, excludedIds],
@@ -34,54 +49,57 @@ export function CategoryMovePicker({
   const selected =
     value === null ? undefined : categories.find((category) => category.id === value);
   function select(parentId: number | null) {
+    if (disabled) return;
     onChange(parentId);
-    setOpen(false);
+    changeOpen(false);
   }
 
   return (
-    <div ref={rootRef} className="relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className="size-6 text-muted-foreground hover:text-foreground"
-        disabled={disabled}
-        aria-label={`移动 ${selected ? `到 ${selected.name}` : '到根目录'}`}
-        aria-expanded={open}
-        title="调整层级 / 移动到…"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <FolderInput className="size-3.5" />
-      </Button>
-      {open ? (
-        <div className="animate-panel-enter absolute top-full right-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2">
-          <p className="px-2.5 py-2 text-xs text-muted-foreground">
-            移动会重新计算权限，移出私有分类可能公开内容。
-          </p>
-          <button
-            type="button"
-            onClick={() => select(null)}
-            className={cn(
-              'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground',
-              value === null && 'bg-primary/10 font-medium text-primary',
-            )}
-          >
-            <FolderTree className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">根目录</span>
-          </button>
-          <div className="scrollbar-safe mt-1 max-h-72 overflow-y-auto border-t border-border/60 pt-1">
-            <CategoryTree
-              categories={availableCategories}
-              selectedSlug={selected?.slug}
-              showLevel
-              onSelect={(slug) => {
-                const category = availableCategories.find((item) => item.slug === slug);
-                if (category) select(category.id);
-              }}
+    <Popover open={open} onOpenChange={changeOpen}>
+      {!anchorRef ? (
+        <PopoverTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              aria-label={'移动 ' + (selected ? '到 ' + selected.name : '到根目录')}
             />
-          </div>
-        </div>
+          }
+        >
+          <FolderInput />
+        </PopoverTrigger>
       ) : null}
-    </div>
+      <PopoverContent
+        anchor={anchorRef}
+        finalFocus={anchorRef}
+        align="end"
+        className="max-h-(--available-height) w-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
+      >
+        <PopoverTitle>移动到</PopoverTitle>
+        <PopoverDescription>移动会重新计算权限，移出私有分类可能公开内容。</PopoverDescription>
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          disabled={disabled}
+          onClick={() => select(null)}
+        >
+          <FolderTree data-icon="inline-start" />
+          根目录
+        </Button>
+        <Separator />
+        <div className="scrollbar-safe max-h-72 overflow-y-auto" inert={disabled}>
+          <CategoryTree
+            categories={availableCategories}
+            selectedSlug={selected?.slug}
+            showLevel
+            onSelect={(slug) => {
+              const category = availableCategories.find((item) => item.slug === slug);
+              if (category) select(category.id);
+            }}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

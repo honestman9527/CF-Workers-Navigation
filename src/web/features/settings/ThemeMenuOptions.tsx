@@ -12,6 +12,7 @@ export function ThemeMenuOptions({
 }) {
   return (
     <DropdownMenuRadioGroup
+      aria-label="主题"
       value={theme}
       onValueChange={(value) => {
         if (isTheme(value)) onThemeChange(value);

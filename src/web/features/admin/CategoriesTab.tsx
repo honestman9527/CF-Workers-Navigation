@@ -1,18 +1,6 @@
 import type { Category, Visibility } from '@shared/api/types';
 
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Folder,
-  LockKeyhole,
-  FolderPlus,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Check, ChevronRight, Folder, FolderPlus, Plus, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -24,7 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
@@ -38,7 +34,6 @@ import {
 } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
 
-import { CategoryMovePicker } from '../categories/CategoryMovePicker';
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
 import {
   buildCategoryTree,
@@ -47,6 +42,8 @@ import {
   subtreeIds,
   type CategoryNode,
 } from '../categories/tree';
+import { AdminErrorAlert } from './AdminErrorAlert';
+import { CategoryActions } from './CategoryActions';
 import { useAdminRun } from './shared';
 
 type CreateTarget = { parentId: number | 'root' };
@@ -76,9 +73,7 @@ export function CategoriesTab() {
   } = useApiData(loadCategories, {
     onUnauthorized: () => void auth.logout(),
   });
-  const { busy, error: runError, run } = useAdminRun();
-
-  const error = runError ?? loadError;
+  const { busy, error: runError, run, setError } = useAdminRun();
 
   const tree = useMemo(() => buildCategoryTree(categories ?? []), [categories]);
   const totals = useMemo(() => descendantTotals(categories ?? []), [categories]);
@@ -264,83 +259,22 @@ export function CategoriesTab() {
     const showChildren = isExpanded && (node.children.length > 0 || create?.parentId === node.id);
 
     const actions = (
-      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          disabled={busy}
-          onClick={() => startCreate(node.id)}
-          aria-label={`在 ${node.name} 下新建子分类`}
-          title="新建子分类"
-        >
-          <Plus className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          disabled={busy}
-          onClick={() => move(node, -1)}
-          aria-label="上移"
-          title="上移"
-        >
-          <ChevronUp className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          disabled={busy}
-          onClick={() => move(node, 1)}
-          aria-label="下移"
-          title="下移"
-        >
-          <ChevronDown className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="size-6 text-muted-foreground hover:text-foreground"
-          disabled={busy}
-          onClick={() => setEditing({ id: node.id, name: node.name })}
-          aria-label="重命名"
-          title="重命名"
-        >
-          <Pencil className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          disabled={busy}
-          aria-label={`设置 ${node.name} 访问权限`}
-          title="访问权限"
-          onClick={() => {
-            setPermissionTarget(node);
-            setPermission(node.visibility);
-          }}
-        >
-          <LockKeyhole />
-        </Button>
-        <CategoryMovePicker
-          categories={categories ?? []}
-          excludedIds={new Set(subtreeIds(categories ?? [], node.id))}
-          value={node.parentId}
-          disabled={busy}
-          onChange={(parentId) => void moveTo(node, parentId)}
-        />
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          className="size-6 text-muted-foreground hover:text-destructive"
-          disabled={busy}
-          onClick={() => setConfirmDelete(node)}
-          aria-label="删除"
-          title="删除分类"
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
-      </div>
+      <CategoryActions
+        category={node}
+        categories={categories ?? []}
+        excludedIds={new Set(subtreeIds(categories ?? [], node.id))}
+        busy={busy}
+        onCreate={() => startCreate(node.id)}
+        onRename={() => setEditing({ id: node.id, name: node.name })}
+        onReorder={(direction) => void move(node, direction)}
+        onPermission={() => {
+          setError(null);
+          setPermissionTarget(node);
+          setPermission(node.visibility);
+        }}
+        onMove={(parentId) => void moveTo(node, parentId)}
+        onDelete={() => setConfirmDelete(node)}
+      />
     );
 
     return (
@@ -489,7 +423,7 @@ export function CategoriesTab() {
 
         {/* 子分类容器（带树形导轨连线）；新建子分类时展开父分类 */}
         {showChildren ? (
-          <div className="relative mt-1 ml-5 space-y-1 border-l-2 border-border/60 pl-3.5">
+          <div className="relative mt-1 ml-5 flex flex-col gap-1 border-l-2 border-border/60 pl-3.5">
             {node.children.map((child) => renderNode(child, depth + 1))}
             {create?.parentId === node.id ? createRow(node.id, depth + 1) : null}
           </div>
@@ -499,7 +433,7 @@ export function CategoriesTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-2xl font-semibold">分类管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
@@ -509,34 +443,43 @@ export function CategoriesTab() {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <Button size="sm" disabled={busy} onClick={() => startCreate('root')}>
+        <Button
+          size="sm"
+          disabled={busy || categories === null}
+          onClick={() => startCreate('root')}
+        >
           <Plus className="size-4" />
           新建一级分类
         </Button>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
 
-      {loading ? (
-        <div className="h-44 animate-pulse rounded-lg bg-muted/60" />
-      ) : (
-        <div className="space-y-3">
+      {loadError ? (
+        <AdminErrorAlert message={loadError} onRetry={refresh} retrying={loading} />
+      ) : null}
+      {runError ? <AdminErrorAlert message={runError} /> : null}
+      {loading && categories === null ? (
+        <Skeleton className="h-44" />
+      ) : categories !== null ? (
+        <div className="flex flex-col gap-3">
           {create?.parentId === 'root' ? createRow('root', 0) : null}
           {tree.length > 0 ? (
-            <div className="space-y-2.5">{tree.map((node) => renderNode(node, 0))}</div>
+            <div className="flex flex-col gap-2.5">{tree.map((node) => renderNode(node, 0))}</div>
           ) : create === null ? (
-            <div className="rounded-lg border border-dashed border-border p-12 text-center">
-              <Folder className="mx-auto size-8 text-muted-foreground/40" />
-              <p className="mt-3 text-sm font-medium">还没有分类</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                点击上方「新建一级分类」开启整理。
-              </p>
-            </div>
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Folder />
+                </EmptyMedia>
+                <EmptyTitle>还没有分类</EmptyTitle>
+                <EmptyDescription>点击上方「新建一级分类」开启整理。</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       <p className="text-xs leading-5 text-muted-foreground">
-        小提示：点击图标可自定义图标；点击右侧文件夹图标「调整层级」可自由把分类移入其他父分类下，或移动到根目录。移动会重新计算继承权限，移出私有分类可能公开内容。
+        小提示：点击图标可自定义图标；通过右侧「更多」菜单的「移动」可调整父分类，或移动到根目录。移动会重新计算继承权限，移出私有分类可能公开内容。
       </p>
 
       <DialogPanel
@@ -546,6 +489,7 @@ export function CategoriesTab() {
       >
         <div className="flex flex-col gap-5">
           <p>{permissionTarget?.name}</p>
+          {runError ? <AdminErrorAlert message={runError} /> : null}
           <VisibilityField
             value={permission}
             onChange={setPermission}
