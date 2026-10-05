@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
@@ -38,20 +39,35 @@ export function TagsTab() {
   const error = runError ?? loadError;
 
   async function commitCreate() {
+    if (busy) return;
     const name = createName.trim();
-    setCreating(false);
-    setCreateName('');
     if (!name) return;
-    await run(() => api.createTag('', name), { message: '标签已创建', refresh });
+    await run(
+      async () => {
+        await api.createTag('', name);
+        setCreating(false);
+        setCreateName('');
+      },
+      { message: '标签已创建', refresh },
+    );
   }
 
   async function commitRename() {
-    if (editing === null) return;
+    if (busy || editing === null) return;
     const name = editing.name.trim();
     const current = (tags ?? []).find((item) => item.id === editing.id);
-    setEditing(null);
-    if (!name || !current || name === current.name) return;
-    await run(() => api.updateTag('', editing.id, name), { message: '标签已重命名', refresh });
+    if (!name || !current) return;
+    if (name === current.name) {
+      setEditing(null);
+      return;
+    }
+    await run(
+      async () => {
+        await api.updateTag('', editing.id, name);
+        setEditing(null);
+      },
+      { message: '标签已重命名', refresh },
+    );
   }
 
   async function commitMerge() {
@@ -128,8 +144,10 @@ export function TagsTab() {
               <Input
                 autoFocus
                 value={createName}
+                disabled={busy}
                 onChange={(event) => setCreateName(event.target.value)}
                 onKeyDown={(event) => {
+                  if (busy || isComposingKey(event.nativeEvent)) return;
                   if (event.key === 'Enter') {
                     event.preventDefault();
                     void commitCreate();
@@ -159,6 +177,7 @@ export function TagsTab() {
                   setCreateName('');
                 }}
                 aria-label="取消"
+                disabled={busy}
               >
                 <X className="size-4" />
               </Button>
@@ -181,10 +200,12 @@ export function TagsTab() {
                       <Input
                         autoFocus
                         value={editing.name}
+                        disabled={busy}
                         onChange={(event) =>
                           setEditing({ id: editing.id, name: event.target.value })
                         }
                         onKeyDown={(event) => {
+                          if (busy || isComposingKey(event.nativeEvent)) return;
                           if (event.key === 'Enter') {
                             event.preventDefault();
                             void commitRename();
@@ -204,41 +225,63 @@ export function TagsTab() {
                     <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
                       {tag.bookmarkCount}
                     </span>
-                    <div className="flex shrink-0 flex-wrap items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-6"
-                        disabled={busy}
-                        onClick={() => setEditing({ id: tag.id, name: tag.name })}
-                        aria-label="重命名"
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-6"
-                        disabled={busy}
-                        onClick={() => {
-                          setMergeFor(tag);
-                          setMergeTarget(null);
-                        }}
-                        aria-label="合并标签"
-                      >
-                        <GitMerge className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-6 text-destructive hover:text-destructive"
-                        disabled={busy}
-                        onClick={() => setConfirmDelete(tag)}
-                        aria-label="删除"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
+                    {isEditing ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          size="xs"
+                          disabled={busy || !editing.name.trim()}
+                          onClick={() => void commitRename()}
+                        >
+                          <Check />
+                          保存
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          disabled={busy}
+                          onClick={() => setEditing(null)}
+                        >
+                          <X />
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex shrink-0 flex-wrap items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-6"
+                          disabled={busy}
+                          onClick={() => setEditing({ id: tag.id, name: tag.name })}
+                          aria-label="重命名"
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-6"
+                          disabled={busy}
+                          onClick={() => {
+                            setMergeFor(tag);
+                            setMergeTarget(null);
+                          }}
+                          aria-label="合并标签"
+                        >
+                          <GitMerge className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="size-6 text-destructive hover:text-destructive"
+                          disabled={busy}
+                          onClick={() => setConfirmDelete(tag)}
+                          aria-label="删除"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

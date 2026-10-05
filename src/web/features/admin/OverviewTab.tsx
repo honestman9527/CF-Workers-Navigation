@@ -151,7 +151,7 @@ export function OverviewTab() {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-display text-2xl font-semibold">概览</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          书签柜的整体规模一览。分类、标签与网站的整理入口在对应侧栏。
+          书签柜的整体规模一览。分类、标签与书签的整理入口在对应侧栏。
         </p>
       </div>
 
@@ -177,7 +177,7 @@ export function OverviewTab() {
             <Globe className="size-5" />
           </span>
           <span className="min-w-0">
-            <strong className="block text-sm font-semibold">管理网站</strong>
+            <strong className="block text-sm font-semibold">管理书签</strong>
             <span className="mt-0.5 block text-xs text-muted-foreground">
               统一浏览全部书签，搜索、筛选与整理
             </span>

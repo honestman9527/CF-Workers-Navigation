@@ -18,7 +18,7 @@ export function TagChip({
     <>
       <span className="min-w-0">#{name}</span>
       {count !== undefined ? (
-        <span className="shrink-0 font-mono text-[10px] opacity-70">{count}</span>
+        <span className="shrink-0 font-mono text-xs opacity-70">{count}</span>
       ) : null}
     </>
   );

@@ -145,7 +145,7 @@ function TreeNode({
               <Icon className="size-3.5 shrink-0" />
               {privacy ? <LockKeyhole aria-hidden="true" className="size-3 shrink-0" /> : null}
               {showCount ? (
-                <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-70">
+                <span className="shrink-0 font-mono text-xs tabular-nums opacity-70">
                   {node.bookmarkCount}
                 </span>
               ) : null}
@@ -223,12 +223,12 @@ function TreeNode({
           <span className="min-w-0 flex-1 truncate">{node.name}</span>
           <VisibilityBadge item={node} />
           {showLevel ? (
-            <span className="shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-4 text-muted-foreground/80">
+            <span className="shrink-0 rounded bg-muted px-1 font-mono text-xs leading-4 text-muted-foreground/80">
               LV{depth + 1}
             </span>
           ) : null}
           {showCount ? (
-            <span className="shrink-0 font-mono text-[10px] tabular-nums opacity-70">
+            <span className="shrink-0 font-mono text-xs tabular-nums opacity-70">
               {node.bookmarkCount}
             </span>
           ) : null}

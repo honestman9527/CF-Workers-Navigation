@@ -3,10 +3,10 @@ import type { SearchEngine } from '@shared/search';
 
 import { Globe, LoaderCircle, Search, TriangleAlert } from 'lucide-react';
 
-import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { domainOf } from '@shared/search';
+
+import { LauncherBookmarkContent } from './LauncherBookmarkContent';
 
 function ResultTile({
   bookmark,
@@ -19,19 +19,6 @@ function ResultTile({
   onHighlight: () => void;
   onOpen: () => void;
 }) {
-  const icon = (
-    <ImageWithFallback
-      src={bookmark.iconUrl}
-      className="size-6 rounded"
-      loading="lazy"
-      fallback={
-        <span className="text-base font-semibold text-primary">
-          {(bookmark.title.charAt(0) || '?').toUpperCase()}
-        </span>
-      }
-    />
-  );
-
   return (
     <button
       type="button"
@@ -42,15 +29,7 @@ function ResultTile({
         highlighted && 'border-primary/60 ring-2 ring-primary/30',
       )}
     >
-      <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-muted">
-        {icon}
-      </span>
-      <span className="w-full min-w-0">
-        <span className="block truncate text-sm font-medium">{bookmark.title}</span>
-        <span className="block truncate font-mono text-[10px] text-muted-foreground">
-          {domainOf(bookmark.url)}
-        </span>
-      </span>
+      <LauncherBookmarkContent bookmark={bookmark} />
     </button>
   );
 }
@@ -64,6 +43,7 @@ export function LauncherResults({
   hasMore,
   loadingMore,
   onLoadMore,
+  onRetry,
   loading,
   error,
   searchQuery,
@@ -77,6 +57,7 @@ export function LauncherResults({
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
+  onRetry: () => void;
   loading: boolean;
   error: string | null;
   searchQuery: string;
@@ -96,7 +77,7 @@ export function LauncherResults({
         <h2 id="launcher-results-heading" className="font-display text-sm font-semibold">
           搜索结果
         </h2>
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-xs text-muted-foreground">
           {results.length}
           {hasMore ? '+' : ''}
         </span>
@@ -111,8 +92,11 @@ export function LauncherResults({
       ) : error && results.length === 0 ? (
         <div className="w-full rounded-lg border border-border bg-card px-6 py-8 text-center">
           <TriangleAlert className="mx-auto size-6 text-destructive" />
-          <p className="mt-3 text-sm font-medium">无法连接 Nav 服务</p>
+          <p className="mt-3 text-sm font-medium">书签搜索失败</p>
           <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+            重试
+          </Button>
           {showWebTile ? (
             <button
               type="button"
@@ -169,7 +153,7 @@ export function LauncherResults({
                 <span className="block truncate text-sm font-medium">
                   在 {activeEngine?.name} 中搜索
                 </span>
-                <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                <span className="block truncate font-mono text-xs text-muted-foreground">
                   «{searchQuery}»
                 </span>
               </span>

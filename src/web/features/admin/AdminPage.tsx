@@ -65,7 +65,7 @@ const NAV: Array<{
   end?: boolean;
 }> = [
   { to: '/admin', label: '概览', icon: LayoutDashboard, end: true },
-  { to: '/admin/websites', label: '网站', icon: Globe },
+  { to: '/admin/websites', label: '书签', icon: Globe },
   { to: '/admin/categories', label: '分类', icon: FolderTree },
   { to: '/admin/tags', label: '标签', icon: Tags },
   { to: '/admin/settings', label: '设置', icon: Settings },

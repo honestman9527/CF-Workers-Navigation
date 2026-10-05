@@ -40,7 +40,7 @@ export function AppShell({
     <SidebarProvider
       open={open}
       onOpenChange={changeOpen}
-      style={{ '--sidebar-width': 'clamp(17.5rem, 22vw, 20rem)' } as CSSProperties}
+      style={{ '--sidebar-width': '16rem' } as CSSProperties}
       className="app-root min-h-dvh w-full max-w-full flex-col overflow-x-clip bg-background text-foreground motion-reduce:**:transition-none"
     >
       <div className="flex min-h-dvh flex-1">

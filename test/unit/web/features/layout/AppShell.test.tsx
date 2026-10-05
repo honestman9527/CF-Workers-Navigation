@@ -86,7 +86,7 @@ it('移动抽屉选择后关闭，不改变桌面偏好', async () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     const all = [
       ...document.querySelectorAll<HTMLButtonElement>('[data-mobile="true"] button'),
-    ].find((button) => button.textContent?.includes('全部网站'))!;
+    ].find((button) => button.textContent?.includes('全部书签'))!;
     await act(() => all.click());
     expect(app.select).toHaveBeenCalledWith({});
     expect(trigger.getAttribute('aria-expanded')).toBe('false');

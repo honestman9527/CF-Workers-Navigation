@@ -78,6 +78,7 @@ export const api = {
         reject(new ApiError(xhr.status, shape.error?.message ?? '导入失败', shape.error?.code));
       };
       xhr.onerror = () => reject(new ApiError(0, '网络错误，请检查连接后重试'));
+      xhr.onabort = () => reject(new DOMException('已停止等待导入', 'AbortError'));
       xhr.ontimeout = () => reject(new ApiError(0, '请求超时，请重试'));
       xhr.send(content);
     });

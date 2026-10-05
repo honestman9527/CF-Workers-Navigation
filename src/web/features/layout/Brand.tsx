@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 import { BrandIcon } from './BrandIcon';
 
-/** 品牌标识：图标 + 名称 + 副标题。点击行为由调用方决定。 */
+/** 品牌标识：图标与名称。点击行为由调用方决定。 */
 export function Brand({
   onClick,
   surface = 'header',
@@ -23,14 +23,6 @@ export function Brand({
       <BrandIcon />
       <span className="text-left">
         <strong className="block font-display text-sm font-medium">书签柜</strong>
-        <span
-          className={cn(
-            'text-[9px] tracking-[0.18em] uppercase',
-            surface === 'sidebar' ? 'text-muted-foreground' : 'hidden text-white/55 sm:block',
-          )}
-        >
-          personal index
-        </span>
       </span>
     </button>
   );

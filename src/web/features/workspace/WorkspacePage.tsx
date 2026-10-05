@@ -12,10 +12,12 @@ import {
   EmptyTitle,
   EmptyDescription,
   EmptyMedia,
+  EmptyContent,
 } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/toast';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
@@ -164,7 +166,7 @@ export function WorkspacePage() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === '/' && !(event.target as HTMLElement)?.closest('input,textarea')) {
+      if (canFocusSearch(event)) {
         event.preventDefault();
         searchRef.current?.focus();
       }
@@ -221,7 +223,7 @@ export function WorkspacePage() {
       : (categories.find((item) => item.slug === category)?.name ?? category)
     : null;
 
-  const { confirmState, mutate, askConfirm, setConfirmState } = useBookmarkMutations({
+  const { confirmState, mutate, askConfirm, setConfirmState, pendingIds } = useBookmarkMutations({
     refreshPage: page.refresh,
     reloadTags: loadTags,
     reloadCategories: loadCategories,
@@ -236,7 +238,7 @@ export function WorkspacePage() {
         ? (selectedTagName ?? tag)
         : untagged
           ? '无标签'
-          : '全部网站';
+          : '全部书签';
 
   /** 书签卡片统一渲染：单分类/常用入口/标签/搜索共用的操作与筛选回调（恢复/永久删除只在管理后台）。 */
   const renderCard = (bookmark: Bookmark) => (
@@ -244,6 +246,7 @@ export function WorkspacePage() {
       key={bookmark.id}
       bookmark={bookmark}
       readOnly={!auth.authed}
+      pinPending={pendingIds.has(bookmark.id)}
       viewMode={viewMode}
       onEdit={setEditor}
       onDelete={(item) =>
@@ -259,6 +262,7 @@ export function WorkspacePage() {
         void mutate(
           () => api.updateBookmark('', item.id, { isPinned: !item.isPinned }),
           item.isPinned ? '已取消常用' : '已加入常用',
+          { bookmarkId: item.id, refreshRelated: false },
         )
       }
       onArchive={(item) =>
@@ -286,7 +290,7 @@ export function WorkspacePage() {
         placeholder="搜索标题、网址或描述"
         aria-label="搜索书签"
         onKeyDown={(event) => {
-          if (event.key === 'Escape') clearSearch();
+          if (!isComposingKey(event.nativeEvent) && event.key === 'Escape') clearSearch();
         }}
         className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
       />
@@ -394,7 +398,7 @@ export function WorkspacePage() {
                   <BookmarkIcon />
                 </EmptyMedia>
                 <EmptyTitle>
-                  {query ? '没有找到匹配的书签' : auth.authed ? '这里还没有书签' : '暂无公开网站'}
+                  {query ? '没有找到匹配的书签' : auth.authed ? '这里还没有书签' : '暂无公开书签'}
                 </EmptyTitle>
                 <EmptyDescription>
                   {query
@@ -404,6 +408,13 @@ export function WorkspacePage() {
                       : '登录后可查看私有内容。'}
                 </EmptyDescription>
               </EmptyHeader>
+              {query || auth.authed ? (
+                <EmptyContent>
+                  <Button onClick={query ? clearSearch : () => setEditor('new')}>
+                    {query ? '清除搜索' : '添加书签'}
+                  </Button>
+                </EmptyContent>
+              ) : null}
             </Empty>
           ) : (
             <div

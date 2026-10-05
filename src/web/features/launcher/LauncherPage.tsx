@@ -119,6 +119,7 @@ export function LauncherPage() {
     loadingMore: resultsLoadingMore,
     error: resultsError,
     loadMore: loadMoreResults,
+    retry: retryResults,
   } = useLauncherResults(searchQuery, handleUnauthorized);
   const [highlighted, setHighlighted] = useState(-1);
   useEffect(() => {
@@ -140,6 +141,7 @@ export function LauncherPage() {
     setPinned([]);
     setPinnedNextCursor(null);
     setPinnedLoading(true);
+    setPinnedLoadingMore(false);
     setPinnedError(null);
     api
       .getBookmarks(undefined, { pinned: true, limit: PINNED_PAGE_SIZE }, controller.signal)
@@ -213,12 +215,9 @@ export function LauncherPage() {
       />
 
       <main className="flex flex-1 flex-col items-center px-4 pb-16 sm:px-6">
-        <div className="flex w-full max-w-3xl flex-col items-center gap-8 pt-[clamp(3rem,12vh,7rem)]">
+        <div className="flex w-full max-w-3xl flex-col items-center gap-6 pt-[clamp(1.5rem,6vh,3rem)]">
           <div className="animate-launcher-enter text-center">
-            <p className="font-mono text-[11px] tracking-[0.3em] text-primary uppercase">
-              personal index
-            </p>
-            <h1 className="mt-2 font-display text-2xl font-semibold sm:text-3xl">{greeting()}</h1>
+            <h1 className="text-base font-medium text-muted-foreground">{greeting()}</h1>
           </div>
 
           <LauncherSearch
@@ -241,6 +240,7 @@ export function LauncherPage() {
 
           {searching ? (
             <LauncherResults
+              onRetry={retryResults}
               results={results}
               hasMore={Boolean(resultsNextCursor)}
               loadingMore={resultsLoadingMore}

@@ -14,6 +14,8 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const [version, setVersion] = useState(0);
+  const retry = useCallback(() => setVersion((value) => value + 1), []);
 
   useEffect(() => {
     const q = searchQuery;
@@ -56,7 +58,7 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
       clearTimeout(timer);
       if (controllerRef.current === controller) controllerRef.current = null;
     };
-  }, [searchQuery, onUnauthorized]);
+  }, [searchQuery, onUnauthorized, version]);
 
   const loadMore = useCallback(async () => {
     const controller = controllerRef.current;
@@ -85,5 +87,5 @@ export function useLauncherResults(searchQuery: string, onUnauthorized: () => vo
     }
   }, [nextCursor, loading, loadingMore, searchQuery, onUnauthorized]);
 
-  return { results, nextCursor, loading, loadingMore, error, loadMore };
+  return { results, nextCursor, loading, loadingMore, error, loadMore, retry };
 }

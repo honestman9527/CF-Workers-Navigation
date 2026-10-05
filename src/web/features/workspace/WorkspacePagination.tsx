@@ -28,8 +28,7 @@ export function WorkspacePagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
       <p className="text-sm text-muted-foreground">
-        共 {total} 条，当前 {total ? (page - 1) * pageSize + 1 : 0}–
-        {Math.min(page * pageSize, total)} 条
+        当前 {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} 条
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">

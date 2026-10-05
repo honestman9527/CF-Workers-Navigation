@@ -22,19 +22,16 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           try {
             await onSubmit(password);
           } catch (caught) {
-            setError(caught instanceof ApiError ? caught.message : '密码不对');
+            setError(caught instanceof ApiError ? caught.message : '连接失败，请检查网络后重试');
           } finally {
             setLoading(false);
           }
         }}
       >
         <BrandIcon className="mb-6 size-12" />
-        <p className="font-display text-[11px] tracking-[0.28em] text-primary uppercase">
-          personal index
-        </p>
-        <h1 className="mt-3 font-display text-4xl leading-none">打开你的书签柜</h1>
+        <h1 className="mt-3 font-display text-3xl leading-tight">登录书签柜</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          只保留真正有用的网络入口，输入密码开始整理。
+          输入管理员密码，查看私有书签并整理内容。
         </p>
 
         <div className="mt-8 flex flex-col gap-2">
@@ -46,14 +43,14 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="主人密码"
+            placeholder="管理员密码"
           />
         </div>
 
         {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
 
         <Button className="mt-6 w-full" disabled={loading || !password.trim()} type="submit">
-          {loading ? '开门中…' : '进入'}
+          {loading ? '登录中…' : '登录'}
         </Button>
       </form>
     </main>

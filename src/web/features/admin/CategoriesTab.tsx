@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
@@ -104,28 +105,42 @@ export function CategoriesTab() {
   }
 
   async function commitCreate() {
-    if (create === null || (!createVisibility && !defaults.data)) return;
+    if (busy || create === null || (!createVisibility && !defaults.data)) return;
     const name = createName.trim();
-    setCreate(null);
-    setCreateName('');
     if (!name) return;
     const parentId = create.parentId === 'root' ? null : create.parentId;
-    await run(() => api.createCategory('', { name, parentId, visibility: createVisibility }), {
-      message: '分类已创建',
-      refresh,
-    });
+    await run(
+      async () => {
+        await api.createCategory('', { name, parentId, visibility: createVisibility });
+        setCreate(null);
+        setCreateName('');
+      },
+      {
+        message: '分类已创建',
+        refresh,
+      },
+    );
   }
 
   async function commitRename() {
-    if (editing === null) return;
+    if (busy || editing === null) return;
     const name = editing.name.trim();
     const current = (categories ?? []).find((item) => item.id === editing.id);
-    setEditing(null);
-    if (!name || !current || name === current.name) return;
-    await run(() => api.updateCategory('', editing.id, { name }), {
-      message: '分类已重命名',
-      refresh,
-    });
+    if (!name || !current) return;
+    if (name === current.name) {
+      setEditing(null);
+      return;
+    }
+    await run(
+      async () => {
+        await api.updateCategory('', editing.id, { name });
+        setEditing(null);
+      },
+      {
+        message: '分类已重命名',
+        refresh,
+      },
+    );
   }
 
   async function setIcon(category: Category, icon: string) {
@@ -197,8 +212,10 @@ export function CategoriesTab() {
           <Input
             autoFocus
             value={createName}
+            disabled={busy}
             onChange={(event) => setCreateName(event.target.value)}
             onKeyDown={(event) => {
+              if (busy || isComposingKey(event.nativeEvent)) return;
               if (event.key === 'Enter') {
                 event.preventDefault();
                 void commitCreate();
@@ -229,6 +246,7 @@ export function CategoriesTab() {
               setCreateName('');
             }}
             aria-label="取消"
+            disabled={busy}
           >
             <X className="size-3.5" />
           </Button>
@@ -407,8 +425,10 @@ export function CategoriesTab() {
             <Input
               autoFocus
               value={editing.name}
+              disabled={busy}
               onChange={(event) => setEditing({ id: editing.id, name: event.target.value })}
               onKeyDown={(event) => {
+                if (busy || isComposingKey(event.nativeEvent)) return;
                 if (event.key === 'Enter') {
                   event.preventDefault();
                   void commitRename();
@@ -447,7 +467,24 @@ export function CategoriesTab() {
           </span>
 
           {/* 操作按钮组 */}
-          {actions}
+          {isEditing ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                size="xs"
+                disabled={busy || !editing.name.trim()}
+                onClick={() => void commitRename()}
+              >
+                <Check />
+                保存
+              </Button>
+              <Button variant="ghost" size="xs" disabled={busy} onClick={() => setEditing(null)}>
+                <X />
+                取消
+              </Button>
+            </div>
+          ) : (
+            actions
+          )}
         </div>
 
         {/* 子分类容器（带树形导轨连线）；新建子分类时展开父分类 */}
@@ -518,7 +555,7 @@ export function CategoriesTab() {
             }
           />
           <p className="text-sm text-muted-foreground">
-            设为私有后，全部子分类和网站仅登录可见。改为公开不会修改后代自身的私有设置。
+            设为私有后，全部子分类和书签仅登录可见。改为公开不会修改后代自身的私有设置。
           </p>
           <Button
             disabled={busy}

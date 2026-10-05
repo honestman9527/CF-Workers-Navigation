@@ -96,11 +96,11 @@ export function WorkspaceSidebar({
                   onClick={() => select({})}
                 >
                   <Globe />
-                  <span>全部网站</span>
+                  <span>全部书签</span>
                 </SidebarMenuButton>
                 <SidebarMenuAction
                   render={<CollapsibleTrigger />}
-                  aria-label={groups.all ? '收起全部网站子项' : '展开全部网站子项'}
+                  aria-label={groups.all ? '收起全部书签子项' : '展开全部书签子项'}
                 >
                   <ChevronDown className={cn(groups.all && 'rotate-180')} />
                 </SidebarMenuAction>
@@ -193,7 +193,7 @@ export function WorkspaceSidebar({
                       >
                         <TagIcon />
                         <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                        <span className="shrink-0 font-mono text-[10px] tabular-nums">
+                        <span className="shrink-0 font-mono text-xs tabular-nums">
                           {tag.bookmarkCount}
                         </span>
                       </SidebarMenuButton>

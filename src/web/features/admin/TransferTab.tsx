@@ -80,9 +80,14 @@ export function TransferTab() {
   const [dragging, setDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importState, setImportState] = useState<ImportState>(INITIAL_IMPORT);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const readingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       abortRef.current?.();
     };
   }, []);
@@ -127,19 +132,24 @@ export function TransferTab() {
   }
 
   function pickFile(file: File) {
+    if (busy || readingRef.current || abortRef.current) return;
     setSelectedFile(file);
     setImportState(INITIAL_IMPORT);
+    setImportNotice(null);
   }
 
   async function runImport() {
     const file = selectedFile;
-    if (!file) {
+    if (!file || busy || readingRef.current || abortRef.current) {
       return;
     }
 
+    readingRef.current = true;
+    setImportNotice(null);
     setImportState({ stage: 'reading', progress: 0, summary: null, error: null });
     try {
       const content = await file.text();
+      if (!mountedRef.current) return;
       setImportState({ stage: 'uploading', progress: 0, summary: null, error: null });
 
       const { promise, abort } = api.importDataAuto(content, 'skip', (loaded, total) => {
@@ -153,11 +163,18 @@ export function TransferTab() {
       abortRef.current = abort;
 
       const result = await promise;
+      if (!mountedRef.current) return;
       setImportState({ stage: 'done', progress: 1, summary: result, error: null });
     } catch (caught) {
+      if (!mountedRef.current) return;
+      if (caught instanceof DOMException && caught.name === 'AbortError') {
+        setImportState(INITIAL_IMPORT);
+        return;
+      }
       if (handleAdminUnauthorized(auth, caught)) return;
       setImportState({ ...INITIAL_IMPORT, error: friendlyError(caught) });
     } finally {
+      readingRef.current = false;
       abortRef.current = null;
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -263,7 +280,7 @@ export function TransferTab() {
             )}
             onDragOver={(event) => {
               event.preventDefault();
-              setDragging(true);
+              if (!busy) setDragging(true);
             }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
@@ -281,6 +298,7 @@ export function TransferTab() {
                 size="sm"
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={busy}
               >
                 选择文件
               </Button>
@@ -292,6 +310,7 @@ export function TransferTab() {
             type="file"
             accept=".html,.htm,.json,text/html,application/json"
             onChange={onInputChange}
+            disabled={busy}
           />
           {selectedFile ? (
             <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs">
@@ -387,17 +406,27 @@ export function TransferTab() {
         </div>
       ) : null}
 
+      {importNotice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {importNotice}
+        </p>
+      ) : null}
       {selectedFile && importState.stage !== 'done' ? (
         <div className="flex items-center justify-end gap-2">
           {importState.stage === 'uploading' || importState.stage === 'processing' ? (
             <Button
               variant="ghost"
               onClick={() => {
+                setImportNotice(
+                  importState.stage === 'processing'
+                    ? '已停止等待，导入可能仍在继续，可稍后查看书签'
+                    : '已取消上传',
+                );
                 abortRef.current?.();
               }}
               type="button"
             >
-              取消
+              {importState.stage === 'processing' ? '停止等待' : '取消上传'}
             </Button>
           ) : (
             <>

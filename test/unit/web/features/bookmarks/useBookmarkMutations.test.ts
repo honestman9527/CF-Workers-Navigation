@@ -52,4 +52,25 @@ describe('runBookmarkMutation', () => {
     expect(reloadCategories).not.toHaveBeenCalled();
     expect(pushToast).not.toHaveBeenCalled();
   });
+
+  it('常用切换只刷新书签列表', async () => {
+    const refreshPage = vi.fn();
+    const reloadTags = vi.fn();
+    const reloadCategories = vi.fn();
+    await runBookmarkMutation(
+      vi.fn().mockResolvedValue(undefined),
+      {
+        refreshPage,
+        reloadTags,
+        reloadCategories,
+        onError: vi.fn(),
+      },
+      '已加入常用',
+      { refreshRelated: false },
+    );
+    expect(refreshPage).toHaveBeenCalledOnce();
+    expect(reloadTags).not.toHaveBeenCalled();
+    expect(reloadCategories).not.toHaveBeenCalled();
+    expect(pushToast).toHaveBeenCalledWith('已加入常用', 'success');
+  });
 });

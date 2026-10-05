@@ -2,24 +2,12 @@ import type { Bookmark } from '@shared/api/types';
 
 import { ArrowRight, LoaderCircle, RefreshCw, Star } from 'lucide-react';
 
-import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Button } from '@/components/ui/button';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
-import { domainOf } from '@shared/search';
+
+import { LauncherBookmarkContent } from './LauncherBookmarkContent';
 
 function Tile({ bookmark }: { bookmark: Bookmark }) {
-  const icon = (
-    <ImageWithFallback
-      src={bookmark.iconUrl}
-      className="size-6 rounded"
-      loading="lazy"
-      fallback={
-        <span className="text-base font-semibold text-primary">
-          {(bookmark.title.charAt(0) || '?').toUpperCase()}
-        </span>
-      }
-    />
-  );
   return (
     <a
       href={bookmark.url}
@@ -28,15 +16,7 @@ function Tile({ bookmark }: { bookmark: Bookmark }) {
       title={bookmark.title}
       className="group flex min-w-0 flex-col items-center gap-2.5 rounded-lg border border-border bg-card p-4 text-center transition hover:-translate-y-0.5 hover:border-primary"
     >
-      <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-muted">
-        {icon}
-      </span>
-      <span className="w-full min-w-0">
-        <span className="block truncate text-sm font-medium">{bookmark.title}</span>
-        <span className="block truncate font-mono text-[10px] text-muted-foreground">
-          {domainOf(bookmark.url)}
-        </span>
-      </span>
+      <LauncherBookmarkContent bookmark={bookmark} />
     </a>
   );
 }
@@ -74,7 +54,7 @@ export function Launchpad({
   if (error && bookmarks.length === 0) {
     return (
       <div className="w-full rounded-lg border border-border bg-card px-6 py-8 text-center">
-        <p className="text-sm font-medium">常用网站加载失败</p>
+        <p className="text-sm font-medium">常用书签加载失败</p>
         <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
           <RefreshCw className="size-4" />
@@ -88,11 +68,11 @@ export function Launchpad({
     return (
       <div className="w-full rounded-lg border border-dashed border-border bg-card/60 px-6 py-10 text-center">
         <Star className="mx-auto size-6 text-muted-foreground/40" />
-        <p className="mt-3 text-sm font-medium">{authed ? '还没有常用网站' : '暂无公开常用网站'}</p>
+        <p className="mt-3 text-sm font-medium">{authed ? '还没有常用书签' : '暂无公开常用书签'}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {authed
-            ? '在书签柜里把书签「置顶」，它就会出现在这里。'
-            : '前往书签柜浏览公开网站，或登录查看私有内容。'}
+            ? '在书签柜中选择「加入常用」，书签就会出现在这里。'
+            : '前往书签柜浏览公开书签，或登录查看私有内容。'}
         </p>
         <Button size="sm" className="mt-4" onClick={onOpenWorkspace}>
           前往书签柜
@@ -107,9 +87,9 @@ export function Launchpad({
       <div className="mb-3 flex items-center gap-2 px-1">
         <Star className="size-4 text-primary" />
         <h2 id="launchpad-heading" className="font-display text-sm font-semibold">
-          常用网站
+          常用书签
         </h2>
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-xs text-muted-foreground">
           {bookmarks.length}
           {hasMore ? '+' : ''}
         </span>
@@ -123,7 +103,7 @@ export function Launchpad({
         <div className="mt-4 flex justify-center">
           <Button variant="outline" onClick={onLoadMore} disabled={loadingMore}>
             {loadingMore ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}
-            {loadingMore ? '加载中…' : '加载更多网站'}
+            {loadingMore ? '加载中…' : '加载更多书签'}
           </Button>
         </div>
       ) : null}

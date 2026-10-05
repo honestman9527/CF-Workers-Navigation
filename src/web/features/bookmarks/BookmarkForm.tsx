@@ -7,17 +7,30 @@ import type {
   Visibility,
 } from '@shared/api/types';
 
-import { Image, RefreshCw, Sparkles, X } from 'lucide-react';
+import { ChevronDown, Image, RefreshCw, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { isComposingKey } from '@/lib/keyboard';
 import { ApiError, api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { CategoryPicker } from '@nav/features/categories/CategoryPicker';
 import { VisibilityField, useVisibilityDefaults } from '@nav/features/visibility/VisibilityField';
+
+function appendTag(tags: string[], raw: string) {
+  const result = [...tags];
+  for (const value of raw.split(',')) {
+    const next = value.trim().replace(/^#/, '').trim();
+    if (next && !result.some((item) => item.toLocaleLowerCase() === next.toLocaleLowerCase())) {
+      result.push(next);
+    }
+  }
+  return result;
+}
 
 export function BookmarkForm({
   open,
@@ -52,6 +65,7 @@ export function BookmarkForm({
   const [fetching, setFetching] = useState(false);
   const [faviconFetching, setFaviconFetching] = useState(false);
   const [metadata, setMetadata] = useState<MetadataPreview | null>(null);
+  const [iconOpen, setIconOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
     setForm(
@@ -78,6 +92,7 @@ export function BookmarkForm({
     setTagDraft('');
     setError(null);
     setMetadata(null);
+    setIconOpen(false);
   }, [open, bookmark, defaultCategoryId]);
 
   const selectedTags = form.tags
@@ -86,14 +101,7 @@ export function BookmarkForm({
     .filter(Boolean);
 
   function addTag(raw: string) {
-    const next = raw.trim().replace(/^#/, '');
-    if (!next) return;
-    const exists = selectedTags.some(
-      (item) => item.toLocaleLowerCase() === next.toLocaleLowerCase(),
-    );
-    if (!exists) {
-      setForm((current) => ({ ...current, tags: [...selectedTags, next].join(', ') }));
-    }
+    setForm((current) => ({ ...current, tags: appendTag(selectedTags, raw).join(', ') }));
     setTagDraft('');
   }
 
@@ -114,7 +122,7 @@ export function BookmarkForm({
       if (result.iconUrl) {
         setForm((current) => ({ ...current, iconUrl: result.iconUrl }));
       } else if (showError) {
-        setError('自动获取 favicon 已在设置中关闭');
+        setError('自动获取图标已关闭，可填写图标地址');
       }
       return result.iconUrl;
     } catch (caught) {
@@ -166,7 +174,7 @@ export function BookmarkForm({
               description: form.description.trim() || null,
               iconUrl: iconUrl || null,
               categoryId: form.categoryId,
-              tags: selectedTags,
+              tags: appendTag(selectedTags, tagDraft),
               isPinned: bookmark?.isPinned ?? false,
             });
           } catch (caught) {
@@ -213,7 +221,7 @@ export function BookmarkForm({
             }}
           >
             <Sparkles className="size-4" />
-            {fetching ? '抓取中' : '抓取信息'}
+            {fetching ? '获取中…' : '自动填写'}
           </Button>
         </div>
         {metadata ? (
@@ -223,7 +231,12 @@ export function BookmarkForm({
             ) : (
               <Image className="size-5 text-muted-foreground" />
             )}
-            <span className="truncate">{metadata.title}</span>
+            <div className="min-w-0">
+              <p className="truncate">{metadata.title}</p>
+              {metadata.partial ? (
+                <p className="mt-1 text-xs text-muted-foreground">部分信息未获取到，可手动补充</p>
+              ) : null}
+            </div>
           </div>
         ) : null}
         <div>
@@ -239,7 +252,7 @@ export function BookmarkForm({
         <div>
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="bookmark-tags">标签</Label>
-            <span className="text-[11px] text-muted-foreground">回车确认</span>
+            <span className="text-xs text-muted-foreground">回车确认</span>
           </div>
           <div className="mt-2 rounded-md border border-input bg-transparent px-2 py-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
             {selectedTags.length > 0 ? (
@@ -267,6 +280,7 @@ export function BookmarkForm({
               value={tagDraft}
               onChange={(event) => setTagDraft(event.target.value)}
               onKeyDown={(event) => {
+                if (isComposingKey(event.nativeEvent)) return;
                 if (event.key === 'Enter' || event.key === ',') {
                   event.preventDefault();
                   addTag(tagDraft);
@@ -280,7 +294,7 @@ export function BookmarkForm({
           </div>
           {availableTags.length > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">已有标签</span>
+              <span className="text-xs text-muted-foreground">已有标签</span>
               {availableTags
                 .filter(
                   (item) =>
@@ -295,7 +309,7 @@ export function BookmarkForm({
                   <button
                     key={item.slug}
                     type="button"
-                    className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition hover:border-primary/45 hover:bg-primary/5 hover:text-primary"
+                    className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition hover:border-primary/45 hover:bg-primary/5 hover:text-primary"
                     onClick={() => addTag(item.name)}
                   >
                     + {item.name}
@@ -334,7 +348,7 @@ export function BookmarkForm({
         bookmark.visibility === 'public' &&
         bookmark.categoryId !== form.categoryId ? (
           <p className="text-sm text-muted-foreground">
-            移动会重新计算权限；移出私有分类后，此网站可能公开。
+            移动会重新计算权限；移出私有分类后，此书签可能公开。
           </p>
         ) : null}
         <div>
@@ -347,27 +361,35 @@ export function BookmarkForm({
             placeholder="一句话说明它为什么值得保留"
           />
         </div>
-        <div>
-          <Label htmlFor="bookmark-icon">图标地址（可选）</Label>
-          <div className="mt-2 flex gap-2">
-            <Input
-              id="bookmark-icon"
-              value={form.iconUrl}
-              onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
-              placeholder="https://example.com/favicon.ico"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="shrink-0"
-              disabled={faviconFetching || !form.url.trim()}
-              onClick={() => void fetchFavicon()}
-            >
-              <RefreshCw className={faviconFetching ? 'animate-spin' : ''} />
-              {faviconFetching ? '获取中' : '获取图标'}
-            </Button>
-          </div>
-        </div>
+        <Collapsible open={iconOpen} onOpenChange={setIconOpen}>
+          <CollapsibleTrigger
+            render={<Button type="button" variant="outline" className="w-full justify-between" />}
+          >
+            自定义图标
+            <ChevronDown className={iconOpen ? 'rotate-180' : ''} />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3">
+            <Label htmlFor="bookmark-icon">图标地址（可选）</Label>
+            <div className="mt-2 flex gap-2">
+              <Input
+                id="bookmark-icon"
+                value={form.iconUrl}
+                onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
+                placeholder="https://example.com/favicon.ico"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                disabled={faviconFetching || !form.url.trim()}
+                onClick={() => void fetchFavicon()}
+              >
+                <RefreshCw className={faviconFetching ? 'animate-spin' : ''} />
+                {faviconFetching ? '获取中' : '获取图标'}
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>

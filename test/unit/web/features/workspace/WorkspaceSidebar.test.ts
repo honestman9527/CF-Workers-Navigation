@@ -6,7 +6,7 @@ import { expect, it, vi } from 'vitest';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { WorkspaceSidebar } from '@nav/features/workspace/WorkspaceSidebar';
 
-it('三个分组独立折叠，全部网站保持可访问，选择分类后展开分组', async () => {
+it('三个分组独立折叠，全部书签保持可访问，选择分类后展开分组', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   window.matchMedia = vi
     .fn()
@@ -35,12 +35,12 @@ it('三个分组独立折叠，全部网站保持可访问，选择分类后展�
     expect(triggers()[1].getAttribute('aria-expanded')).toBe('false');
     expect(triggers()[2].getAttribute('aria-expanded')).toBe('true');
     expect(localStorage.getItem('nav-sidebar-groups')).toContain('"categories":false');
-    expect(container.textContent).toContain('全部网站');
+    expect(container.textContent).toContain('全部书签');
     expect(container.textContent).toContain('无标签');
     await act(() => triggers()[0].click());
     expect(triggers()[0].getAttribute('aria-expanded')).toBe('false');
     expect(localStorage.getItem('nav-sidebar-groups')).toContain('"all":false');
-    expect(container.textContent).toContain('全部网站');
+    expect(container.textContent).toContain('全部书签');
     await render({ untagged: true });
     expect(triggers()[0].getAttribute('aria-expanded')).toBe('true');
     await render({ category: 'dev' });

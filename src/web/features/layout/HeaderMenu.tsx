@@ -76,7 +76,7 @@ export function HeaderMenu({
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">书签柜</span>
               <span className="text-xs font-normal text-muted-foreground">
-                {authed ? '已登录，可整理书签' : '游客 · 浏览公开网站'}
+                {authed ? '已登录，可整理书签' : '游客 · 浏览公开书签'}
               </span>
             </div>
           </DropdownMenuLabel>

@@ -4,6 +4,7 @@ import {
   MoreHorizontal,
   Archive,
   ArchiveRestore,
+  Copy,
   ExternalLink,
   Folder,
   Pencil,
@@ -23,6 +24,7 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { pushToast } from '@nav/components/Toast';
 import { TagChip } from '@nav/features/tags/TagChip';
 import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { domainOf } from '@shared/search';
@@ -31,6 +33,7 @@ export function BookmarkCard({
   bookmark,
   viewMode = 'grid',
   readOnly = false,
+  pinPending = false,
   onEdit,
   onDelete,
   onTogglePin,
@@ -43,6 +46,7 @@ export function BookmarkCard({
   bookmark: Bookmark;
   viewMode?: 'grid' | 'list';
   readOnly?: boolean;
+  pinPending?: boolean;
   onEdit: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;
   onTogglePin: (bookmark: Bookmark) => void;
@@ -64,6 +68,14 @@ export function BookmarkCard({
     />
   );
   const active = !bookmark.deletedAt && !bookmark.archivedAt;
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(bookmark.url);
+      pushToast('网址已复制', 'success');
+    } catch {
+      pushToast('复制失败，请右键复制链接地址', 'error');
+    }
+  }
   const actions = (
     <div className="pointer-events-auto relative z-20 flex shrink-0 items-center gap-0.5">
       {active ? (
@@ -74,6 +86,7 @@ export function BookmarkCard({
             onClick={() => onTogglePin(bookmark)}
             aria-label={bookmark.isPinned ? '取消常用' : '加入常用'}
             aria-pressed={bookmark.isPinned}
+            disabled={pinPending}
           >
             <Star className={cn('size-4', bookmark.isPinned && 'fill-current text-primary')} />
           </Button>
@@ -87,6 +100,10 @@ export function BookmarkCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuGroup>
+                <DropdownMenuItem onClick={copyUrl}>
+                  <Copy />
+                  复制网址
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onEdit(bookmark)}>
                   <Pencil />
                   编辑
@@ -145,7 +162,7 @@ export function BookmarkCard({
       onSelectCategory ? (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition hover:border-primary/45 hover:text-primary"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary/45 hover:text-primary"
           onClick={() => onSelectCategory(bookmark.categorySlug!)}
         >
           <Folder className="size-3 shrink-0" />
@@ -157,7 +174,7 @@ export function BookmarkCard({
           </span>
         </button>
       ) : (
-        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           <Folder className="size-3 shrink-0" />
           <span
             className={viewMode === 'list' ? 'min-w-0 truncate' : undefined}
@@ -200,7 +217,7 @@ export function BookmarkCard({
                 <VisibilityBadge item={bookmark} />
               </span>
             </div>
-            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{domain}</p>
+            <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{domain}</p>
           </div>
         </div>
       ) : (
@@ -214,9 +231,7 @@ export function BookmarkCard({
                 {bookmark.title}
               </h2>
               <VisibilityBadge item={bookmark} />
-              <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-                {domain}
-              </p>
+              <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{domain}</p>
             </div>
           </div>
           {!readOnly ? actions : null}

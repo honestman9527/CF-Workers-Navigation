@@ -1,7 +1,7 @@
 import type { Bookmark } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
-import { ArrowDown, ArrowUp, ChevronDown, Search as SearchIcon } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Search as SearchIcon, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
 import {
   buildSearchUrl,
   domainOf,
@@ -50,10 +51,10 @@ function EngineSwitcher({
             className="h-8 gap-1.5 rounded-lg px-2 text-muted-foreground hover:text-foreground"
           />
         }
-        aria-label="切换搜索引擎"
+        aria-label={`切换搜索引擎，当前 ${active?.name ?? ''}`}
       >
         {active ? <EngineFavicon engine={active} /> : null}
-        <span className="font-medium">{active?.name}</span>
+        <span className="hidden font-medium sm:inline">{active?.name}</span>
         <ChevronDown className="size-3 opacity-70" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
@@ -115,7 +116,7 @@ export function LauncherSearch({
   // 全局 "/" 聚焦搜索
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === '/' && !(event.target as HTMLElement)?.closest('input,textarea')) {
+      if (canFocusSearch(event)) {
         event.preventDefault();
         inputRef.current?.focus();
       }
@@ -148,6 +149,7 @@ export function LauncherSearch({
   }
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (isComposingKey(event.nativeEvent)) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (totalNav <= 0) return;
@@ -207,9 +209,7 @@ export function LauncherSearch({
     }
   }
 
-  const placeholder = hasBang
-    ? `在 ${activeEngine?.name ?? ''} 中搜索…  (!${bangName})`
-    : `在 ${activeEngine?.name ?? ''} 中搜索，或搜索你的书签…  (!g 语法)`;
+  const placeholder = hasBang ? `在 ${activeEngine?.name ?? ''} 中搜索` : '搜索书签或输入网址';
 
   return (
     <div className="w-full max-w-2xl">
@@ -222,13 +222,27 @@ export function LauncherSearch({
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          onBlur={() => setFocused(false)}
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           autoComplete="off"
           spellCheck={false}
-          aria-label="搜索书签或网站"
+          aria-label="搜索书签或网址"
         />
+        {query ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="清除搜索"
+            onClick={() => {
+              onQueryChange('');
+              inputRef.current?.focus();
+            }}
+          >
+            <X />
+          </Button>
+        ) : null}
         <EngineSwitcher
           engines={engines}
           activeEngineId={activeEngineId}
@@ -243,8 +257,10 @@ export function LauncherSearch({
             打开书签 / 搜索
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="rounded-md bg-muted px-1.5 py-0.5 text-[10px]">!g</kbd>
-            bang 引擎
+            <kbd className="rounded-md bg-muted px-1.5 py-0.5 text-[10px]">
+              {hasBang ? `!${bangName}` : '!g'}
+            </kbd>
+            指定搜索引擎
           </span>
           <span className="flex items-center gap-1">
             <ArrowDown className="size-3" />

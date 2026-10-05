@@ -92,3 +92,41 @@ it('查询改变后取消旧请求，不让旧结果覆盖新结果', async () =
   expect(result.results).toHaveLength(1);
   expect(api.searchBookmarks).toHaveBeenCalledTimes(2);
 });
+
+it('首批失败可重试同一查询', async () => {
+  vi.mocked(api.searchBookmarks)
+    .mockRejectedValueOnce(new Error('连接失败'))
+    .mockResolvedValueOnce({ items: [{}], nextCursor: null } as BookmarkPage);
+  await render();
+  await finishDebounce();
+  expect(result.error).toBe('连接失败');
+  await act(() => result.retry());
+  await finishDebounce();
+  expect(api.searchBookmarks).toHaveBeenCalledTimes(2);
+  expect(result.error).toBeNull();
+  expect(result.results).toHaveLength(1);
+});
+
+it('加载更多期间清空查询会取消请求并复位加载状态', async () => {
+  let finishMore!: (page: BookmarkPage) => void;
+  vi.mocked(api.searchBookmarks)
+    .mockResolvedValueOnce({ items: [{}], nextCursor: 'page-2' } as BookmarkPage)
+    .mockImplementationOnce(() => new Promise((resolve) => (finishMore = resolve)));
+  await render();
+  await finishDebounce();
+  let pending!: Promise<void>;
+  await act(() => {
+    pending = result.loadMore();
+  });
+  const signal = vi.mocked(api.searchBookmarks).mock.calls[1][3]!;
+  expect(result.loadingMore).toBe(true);
+  query = '';
+  await render();
+  expect(signal.aborted).toBe(true);
+  expect(result.loadingMore).toBe(false);
+  await act(async () => {
+    finishMore({ items: [{}, {}], nextCursor: null } as BookmarkPage);
+    await pending;
+  });
+  expect(result.results).toEqual([]);
+});

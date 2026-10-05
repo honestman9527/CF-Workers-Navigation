@@ -16,6 +16,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -57,7 +58,7 @@ const BookmarkForm = lazy(() =>
 
 const VIEWS: Array<{ id: BookmarkView; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'active', label: '正常' },
+  { id: 'active', label: '使用中' },
   { id: 'archive', label: '已归档' },
   { id: 'trash', label: '回收站' },
 ];
@@ -80,7 +81,7 @@ function BookmarkRowIcon({ bookmark }: { bookmark: Bookmark }) {
 }
 
 /**
- * 后台专用的网站（书签）轻量化表格管理：
+ * 后台专用的书签轻量化表格管理：
  * 固定宽度紧凑表格（标题 + 网址），页码分页（10/20/50/100），分类筛选为可折叠树。
  */
 export function WebsitesTab() {
@@ -128,7 +129,7 @@ export function WebsitesTab() {
     onUnauthorized: handleUnauthorized,
   });
 
-  const { confirmState, mutate, askConfirm, setConfirmState } = useBookmarkMutations({
+  const { confirmState, mutate, askConfirm, setConfirmState, pendingIds } = useBookmarkMutations({
     refreshPage: page.refresh,
     reloadTags: refreshTags,
     reloadCategories: refreshCategories,
@@ -151,9 +152,9 @@ export function WebsitesTab() {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold">网站管理</h1>
+        <h1 className="font-display text-2xl font-semibold">书签管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          查看和整理全部书签，包括正常、已归档及回收站中的书签。
+          查看和整理全部书签，包括使用中、已归档及回收站中的书签。
         </p>
       </div>
 
@@ -236,12 +237,14 @@ export function WebsitesTab() {
 
         <Button size="sm" onClick={() => setEditor('new')} className="ml-auto">
           <Plus className="size-4" />
-          新建书签
+          添加书签
         </Button>
       </div>
 
       <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
-        <span>{page.loading ? '同步中…' : `共 ${page.total} 条书签`}</span>
+        <span>
+          {page.loading ? '加载中…' : page.error ? '加载失败' : `共 ${page.total} 条书签`}
+        </span>
       </div>
 
       {page.loading ? (
@@ -250,6 +253,15 @@ export function WebsitesTab() {
             <Skeleton key={index} className="h-10 rounded-lg" />
           ))}
         </div>
+      ) : page.error ? (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {page.error}
+            <Button variant="outline" onClick={page.refresh}>
+              重试
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : page.items.length === 0 ? (
         <div className="rounded-lg border border-border bg-card py-16 text-center">
           <Globe className="mx-auto size-8 text-muted-foreground/40" />
@@ -262,7 +274,7 @@ export function WebsitesTab() {
           <Table className="table-fixed">
             <TableHeader className="bg-muted/30">
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead className="text-xs font-semibold">网站</TableHead>
+                <TableHead className="text-xs font-semibold">书签</TableHead>
                 <TableHead className="w-[5rem] text-center text-xs font-semibold">状态</TableHead>
                 <TableHead className="w-[7.5rem] pr-4 text-right text-xs font-semibold">
                   操作
@@ -275,7 +287,7 @@ export function WebsitesTab() {
 
                 return (
                   <TableRow key={bookmark.id} className="group border-border/60">
-                    {/* 网站：favicon + 标题 + 网址（同一格内截断） */}
+                    {/* 书签：favicon + 标题 + 网址（同一格内截断） */}
                     <TableCell className="py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <BookmarkRowIcon bookmark={bookmark} />
@@ -336,10 +348,12 @@ export function WebsitesTab() {
                                       isPinned: !bookmark.isPinned,
                                     }),
                                   bookmark.isPinned ? '已取消常用' : '已加入常用',
+                                  { bookmarkId: bookmark.id, refreshRelated: false },
                                 )
                               }
-                              aria-label="切换常用"
-                              title={bookmark.isPinned ? '取消常用' : '设为常用'}
+                              disabled={pendingIds.has(bookmark.id)}
+                              aria-label={bookmark.isPinned ? '取消常用' : '加入常用'}
+                              title={bookmark.isPinned ? '取消常用' : '加入常用'}
                             >
                               <Star
                                 className={cn(
@@ -436,7 +450,7 @@ export function WebsitesTab() {
                                 void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
                               }
                               aria-label="取消归档"
-                              title="恢复到正常书签"
+                              title="恢复到使用中"
                             >
                               <ArchiveRestore className="size-3.5" />
                             </Button>
@@ -462,7 +476,9 @@ export function WebsitesTab() {
           {/* 分页：页大小 10/20/50/100 + 上一页/下一页 */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 bg-muted/20 p-3">
             <span className="text-xs text-muted-foreground">
-              共 {page.total} 条 · 第 {page.page} / {page.totalPages} 页
+              当前 {page.total ? (page.page - 1) * pageSize + 1 : 0}–
+              {Math.min(page.page * pageSize, page.total)} 条（第 {page.page} / {page.totalPages}{' '}
+              页）
             </span>
             <div className="flex items-center gap-1.5">
               <select

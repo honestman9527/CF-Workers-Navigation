@@ -35,7 +35,7 @@ export function CategoryFilter({
   );
 
   return (
-    <div className="relative">
+    <div ref={panelRef} className="relative">
       <Button
         type="button"
         variant={selectedSlug ? 'default' : 'outline'}
@@ -54,10 +54,7 @@ export function CategoryFilter({
         />
       </Button>
       {open ? (
-        <div
-          ref={panelRef}
-          className="animate-panel-enter absolute top-full left-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2"
-        >
+        <div className="animate-panel-enter absolute top-full left-0 z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-2">
           <button
             type="button"
             onClick={() => {
