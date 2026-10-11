@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.web.config.ts",
-    "cf-typegen": "wrangler types",
+    "cf:typegen": "wrangler types",
     "check": "pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply nav --local --persist-to ./.wrangler/state",
     "db:migrate:remote": "wrangler d1 migrations apply nav --remote",
     "deploy": "pnpm run build && wrangler deploy",
-    "dev": "pnpm run build && concurrently --kill-others --names worker,web \"pnpm run dev:worker\" \"pnpm run watch:web\"",
+    "dev": "pnpm run build && concurrently --kill-others --names worker,web \"pnpm run dev:worker\" \"pnpm run dev:web\"",
+    "dev:web": "pnpm run build --watch",
     "dev:worker": "wrangler dev --port 8787 --inspector-port 9229 --persist-to ./.wrangler/state",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
@@ -22,11 +23,10 @@
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:watch": "vitest --config vitest.unit.config.ts",
     "test:worker": "vitest run --config vitest.worker.config.ts",
-    "typecheck": "pnpm run typecheck:shared && pnpm run typecheck:worker && pnpm run typecheck:web",
+    "typecheck": "concurrently --max-processes 2 --kill-others-on-fail --success all --names shared,worker,web \"pnpm run typecheck:shared\" \"pnpm run typecheck:worker\" \"pnpm run typecheck:web\"",
     "typecheck:shared": "tsc -p tsconfig.shared.json --noEmit",
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
-    "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit",
-    "watch:web": "vite build --config vite.web.config.ts --watch"
+    "typecheck:worker": "tsc -p tsconfig.worker.json --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

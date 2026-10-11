@@ -54,24 +54,29 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-打开 `http://localhost:8787`。`pnpm dev` 会先构建 Web，再并行启动 Wrangler Worker 和 Web 构建监听。
+打开 `http://localhost:8787`。`pnpm dev` 会先构建 Web，确保 Worker 的静态资源目录已就绪，再并行启动 `dev:worker` 和 `dev:web`；任一进程退出时结束另一进程。`dev:web` 通过 `pnpm run build --watch` 复用构建配置，修改 Web 源码后重新构建。
 
 ## 常用命令
 
 ```bash
 pnpm dev                 # 启动本地 Worker 与 Web 构建监听
+pnpm dev:web             # 单独监听并重新构建 Web
+pnpm dev:worker          # 单独启动 Worker，需要已有 Web 构建产物
 pnpm build               # 构建 Web 到 dist/web
+pnpm cf:typegen          # 生成 Cloudflare Worker 运行时类型
 pnpm lint                # 静态检查
 pnpm fmt:check           # 格式检查
-pnpm typecheck           # 类型检查 shared、Worker 与 Web
+pnpm typecheck           # 检查 shared、Worker 与 Web，最多两项并行
 pnpm test                # 运行单元测试和 Worker 集成测试
 pnpm check               # 依次运行格式、lint、类型和测试检查
 pnpm db:migrate:local    # 应用本地 D1 迁移
 pnpm db:migrate:remote   # 应用远程 D1 迁移
-pnpm deploy              # 构建 Web 并部署 Worker
+pnpm run deploy          # 构建 Web 并部署 Worker
 ```
 
-数据库结构与迁移维护规则见[数据库与迁移](database.md)。`pnpm deploy` 不负责应用数据库迁移，生产部署前的迁移与密钥步骤见[部署](deployment.md)。
+`pnpm check` 按格式、lint、类型检查、测试四阶段顺序执行；类型检查最多两项并行，任一失败时终止其他类型检查并停止排队任务。`pnpm test` 依次运行单元测试和 Worker 集成测试。原 `cf-typegen`、`watch:web` 命令已分别改名为 `cf:typegen`、`dev:web`。
+
+数据库结构与迁移维护规则见[数据库与迁移](database.md)。部署使用 `pnpm run deploy` 显式调用项目脚本，避免命中 pnpm 内置的 `deploy` 命令；该脚本不负责应用数据库迁移，生产部署前的迁移与密钥步骤见[部署](deployment.md)。
 
 ## 目录结构
 

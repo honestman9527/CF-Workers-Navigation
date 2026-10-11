@@ -23,4 +23,4 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 - 变更表结构时同步修改 schema，并新增递增迁移；可用 `pnpm db:generate` 生成迁移后审查 SQL，确认索引、触发器与现有数据的兼容性。
 - 已发布的迁移保持不变；升级按顺序应用尚未执行的 SQL，不通过重置数据库代替升级。
 - 本地使用 `pnpm db:migrate:local` 应用未执行迁移，D1 状态保存在 `.wrangler/state`；验证新库初始化与已有数据库升级路径，并运行覆盖变更的 Worker 集成测试。
-- 远程迁移前的备份、目标确认与执行流程见[部署](deployment.md)。`pnpm deploy` 不会自动应用数据库迁移。
+- 远程迁移前的备份、目标确认与执行流程见[部署](deployment.md)。`pnpm run deploy` 不会自动应用数据库迁移。

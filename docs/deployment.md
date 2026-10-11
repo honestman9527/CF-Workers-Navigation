@@ -25,10 +25,10 @@ pnpm exec wrangler secret put ADMIN_PASSWORD
 pnpm exec wrangler secret put SESSION_SECRET
 pnpm db:migrate:remote
 pnpm check
-pnpm deploy
+pnpm run deploy
 ```
 
-`pnpm deploy` 会先构建 Web，再执行 `wrangler deploy`；它不会自动应用数据库迁移。升级前先确认目标账户与数据库、备份 D1，再按迁移顺序应用尚未执行的 SQL。迁移维护规则见[数据库与迁移](database.md#迁移维护)。
+`pnpm run deploy` 显式调用项目脚本，先构建 Web，再执行 `wrangler deploy`；它不会自动应用数据库迁移。使用 `run` 可避免命中 pnpm 内置的 `deploy` 命令。升级前先确认目标账户与数据库、备份 D1，再按迁移顺序应用尚未执行的 SQL。迁移维护规则见[数据库与迁移](database.md#迁移维护)。
 
 ## GitHub Actions 部署
 
