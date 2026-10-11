@@ -58,4 +58,4 @@
 
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 
-工作区 URL 的 `category`、`tag`、`untagged` 由前端解析为互斥导航条件；API 本身允许组合这些条件。分页、有效权限与数据查询取舍见[架构与数据行为](architecture.md)。
+工作区 URL 的 `category`、`tag`、`untagged` 由前端解析为互斥导航条件；API 本身允许组合这些条件。分页、有效权限与数据查询取舍见[架构与服务边界](architecture.md)。
