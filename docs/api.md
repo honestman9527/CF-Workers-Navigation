@@ -58,4 +58,4 @@
 
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 
-工作区 URL 的 `category`、`tag`、`untagged` 由前端解析为互斥导航条件；API 本身允许组合这些条件。分页、有效权限与数据查询取舍见[架构与服务边界](architecture.md)。
+首页 URL 的 `category` 记录分类浏览位置；站内搜索组合 `q` 与单个 `tag` 或 `untagged`，其中 `tag` 优先。前台分类浏览与搜索使用游标模式（首批 12、追加 24），后台表格使用 `offset` 页码模式。`mode=site|web`、`engine` 仅是前端状态，不作为 API 参数。旧前台地址映射及历史恢复见[使用与本地开发](usage.md#搜索与链接兼容)，分页与权限取舍见[架构与服务边界](architecture.md)。

@@ -1,6 +1,5 @@
 import { createRoute, redirect } from '@tanstack/react-router';
 
-import { parseLauncherSearch } from '@nav/features/launcher/search';
 import { legacyNavigationSearch } from '@nav/features/navigation/search';
 
 import { rootRoute } from './__root';
@@ -9,7 +8,6 @@ import { rootRoute } from './__root';
 export const launcherRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/launch',
-  validateSearch: parseLauncherSearch,
   beforeLoad: ({ location }) => {
     throw redirect({
       to: '/',

@@ -28,6 +28,7 @@ export function FrontBookmarkEditor({
       open={props.open}
       onClose={onClose}
       title={props.bookmark ? '编辑书签' : '添加书签'}
+      dismissible={!editor.loading}
     >
       <form
         className="grid gap-5"
@@ -187,6 +188,13 @@ export function FrontBookmarkEditor({
                 : '公开内容无需登录；私有内容仅管理员登录后可见。'}
             </p>
           </fieldset>
+          {props.bookmark?.effectiveVisibility === 'private' &&
+          props.bookmark.visibility === 'public' &&
+          props.bookmark.categoryId !== form.categoryId ? (
+            <p className="text-sm text-muted-foreground">
+              移动会重新计算权限；移出私有分类后，此书签可能公开。
+            </p>
+          ) : null}
           {defaults.error && !props.bookmark ? (
             <p role="alert" className="text-sm text-destructive">
               默认权限加载失败，请明确选择公开或私有。
@@ -233,7 +241,9 @@ export function FrontBookmarkEditor({
           </p>
         ) : null}
         <div className="flex justify-end gap-2 border-t border-border/60 pt-4">
-          <FrontButton onClick={onClose}>取消</FrontButton>
+          <FrontButton disabled={editor.loading} onClick={onClose}>
+            取消
+          </FrontButton>
           <FrontButton
             type="submit"
             tone="primary"

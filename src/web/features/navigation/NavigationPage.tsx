@@ -2,7 +2,7 @@ import type { Bookmark, BookmarkInput } from '@shared/api/types';
 
 import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
 import { ArrowRight, Globe, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
@@ -51,9 +51,10 @@ function NavigationSurface() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const search = routeApi.useSearch();
-  const [preferredMode] = useState(readSearchMode);
+  const [preferredMode, setPreferredMode] = useState(readSearchMode);
   const mode = search.mode ?? preferredMode;
   const [draft, setDraft] = useState(search.q ?? '');
+  const [composing, setComposing] = useState(false);
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
   const [overrides, setOverrides] = useState<Record<number, Bookmark>>({});
@@ -124,13 +125,14 @@ function NavigationSurface() {
   }, []);
   useEffect(() => {
     saveSearchMode(mode);
+    setPreferredMode(mode);
   }, [mode]);
   useEffect(() => {
     setDraft(search.q ?? '');
     setHighlighted(-1);
   }, [search.q, search.tag, search.untagged, mode]);
   useEffect(() => {
-    if (draft.trim() === (search.q ?? '')) return;
+    if (composing || draft.trim() === (search.q ?? '')) return;
     const timer = window.setTimeout(() => {
       void navigate({
         to: '/',
@@ -140,7 +142,7 @@ function NavigationSurface() {
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [draft, search.q, mode, navigate]);
+  }, [draft, search.q, mode, navigate, composing]);
   useEffect(() => {
     const focus = (event: KeyboardEvent) => {
       if (canFocusSearch(event)) {
@@ -151,11 +153,19 @@ function NavigationSurface() {
     window.addEventListener('keydown', focus);
     return () => window.removeEventListener('keydown', focus);
   }, []);
-  useEffect(() => {
-    if (searching && !wasSearching.current) browsePosition.current = window.scrollY;
+  useLayoutEffect(() => {
     if (!searching && wasSearching.current)
       window.scrollTo({ top: browsePosition.current, behavior: 'instant' });
     wasSearching.current = searching;
+  }, [searching]);
+  useLayoutEffect(() => {
+    if (searching) return;
+    const rememberPosition = () => {
+      browsePosition.current = window.scrollY;
+    };
+    rememberPosition();
+    window.addEventListener('scroll', rememberPosition, { passive: true });
+    return () => window.removeEventListener('scroll', rememberPosition);
   }, [searching]);
   useEffect(() => {
     if (searching || !search.category || !categories.data) return;
@@ -167,7 +177,7 @@ function NavigationSurface() {
       ),
     );
     document
-      .getElementById(`section-${root?.slug ?? search.category}`)
+      .getElementById(root ? `section-category-${root.slug}` : `section-${search.category}`)
       ?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }, [search.category, categories.data, searching]);
 
@@ -175,7 +185,11 @@ function NavigationSurface() {
     setDraft('');
     update({ ...search, mode, category, q: undefined, tag: undefined, untagged: undefined });
     document
-      .getElementById(`section-${category}`)
+      .getElementById(
+        roots.some((root) => root.slug === category)
+          ? `section-category-${category}`
+          : `section-${category}`,
+      )
       ?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }
   function selectMode(next: SearchMode) {
@@ -227,11 +241,12 @@ function NavigationSurface() {
   };
   const targetAvailable =
     mode === 'site'
-      ? Boolean(draft.trim())
+      ? Boolean(draft.trim() || search.tag || search.untagged)
       : Boolean(bang.query && (engine || (!bang.engineId && looksLikeUrl(draft))));
   function submitSearch() {
+    if (composing) return;
     if (mode === 'site') {
-      if (highlighted >= 0 && results.items[highlighted]) {
+      if (draft.trim() === (search.q ?? '') && highlighted >= 0 && results.items[highlighted]) {
         openLink(results.items[highlighted].url);
         return;
       }
@@ -318,6 +333,9 @@ function NavigationSurface() {
             <input
               ref={input}
               value={draft}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={() => setComposing(false)}
+              aria-describedby="search-keyboard-help"
               maxLength={mode === 'site' ? 100 : undefined}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -366,6 +384,11 @@ function NavigationSurface() {
               <ArrowRight className="size-5" />
             </FrontButton>
           </form>
+          <p id="search-keyboard-help" className="sr-only" role="status">
+            {mode === 'site'
+              ? `上下方向键选择结果，回车打开。${highlighted >= 0 ? `当前选择：${results.items[highlighted]?.title ?? ''}` : ''}`
+              : '回车搜索网页或打开网址。'}
+          </p>
           <div className="mt-3 flex min-h-11 items-center justify-center gap-3 text-sm text-muted-foreground">
             {mode === 'web' ? (
               <>
@@ -469,8 +492,21 @@ function NavigationSurface() {
           >
             <div className="flex overflow-x-auto py-1">
               <FrontButton
-                onClick={() => selectCategory('pinned')}
-                className={cn('whitespace-nowrap', search.category === 'pinned' && 'text-primary')}
+                onClick={() => {
+                  setDraft('');
+                  update({
+                    ...search,
+                    mode,
+                    category: undefined,
+                    q: undefined,
+                    tag: undefined,
+                    untagged: undefined,
+                  });
+                  document
+                    .getElementById('section-common')
+                    ?.scrollIntoView({ block: 'start', behavior: 'instant' });
+                }}
+                className={cn('whitespace-nowrap', !search.category && 'text-primary')}
               >
                 常用
               </FrontButton>

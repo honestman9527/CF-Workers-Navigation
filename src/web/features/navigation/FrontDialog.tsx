@@ -9,17 +9,23 @@ export function FrontDialog({
   open,
   onClose,
   title,
+  dismissible = true,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  dismissible?: boolean;
   children: ReactNode;
 }) {
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={(next, details) => {
+        if (!next && !dismissible) {
+          details.cancel();
+          return;
+        }
         if (!next) onClose();
       }}
     >
@@ -28,7 +34,10 @@ export function FrontDialog({
         <Dialog.Popup className="front-surface fixed top-1/2 left-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-[1.125rem] border border-border bg-card p-6 text-foreground sm:p-8">
           <div className="mb-6 flex items-center justify-between gap-4">
             <Dialog.Title className="text-2xl font-semibold tracking-tight">{title}</Dialog.Title>
-            <Dialog.Close render={<FrontButton className="size-11 p-0" aria-label="关闭" />}>
+            <Dialog.Close
+              disabled={!dismissible}
+              render={<FrontButton className="size-11 p-0" aria-label="关闭" />}
+            >
               <X className="size-5" />
             </Dialog.Close>
           </div>

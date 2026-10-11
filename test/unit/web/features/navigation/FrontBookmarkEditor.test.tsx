@@ -126,3 +126,62 @@ it('部分网页信息展示补充提示，保留手写标题', async () => {
   expect(app.container.textContent).toContain('部分信息未获取到，可手动补充');
   expect(app.container.querySelector<HTMLInputElement>('#bookmark-title')?.value).toBe('手写标题');
 });
+
+it('网址变化取消元数据请求，迟到响应不覆盖新网址的编辑内容', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof api.getMetadata>>) => void;
+  vi.mocked(api.getMetadata).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  await setup();
+  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="自动填写"]')!);
+  const signal = vi.mocked(api.getMetadata).mock.calls[0][2]!;
+  await fill(
+    app.container.querySelector<HTMLInputElement>('#bookmark-url')!,
+    'https://new.example.com',
+  );
+  expect(signal.aborted).toBe(true);
+  await act(async () =>
+    resolve({
+      url: bookmark.url,
+      title: '旧标题',
+      description: '旧网页描述',
+      iconUrl: '',
+      partial: true,
+      keywords: [],
+      language: '',
+      metadata: {
+        page_url: bookmark.url,
+        canonical_url: bookmark.url,
+        keywords: [],
+        language: '',
+        open_graph: {},
+      },
+    }),
+  );
+  expect(app.container.querySelector<HTMLTextAreaElement>('#bookmark-description')!.value).toBe('');
+  expect(app.container.textContent).not.toContain('部分信息未获取到');
+});
+
+it('卸载编辑器取消图标补全，迟到结果不再发起书签保存', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof api.getFavicon>>) => void;
+  vi.mocked(api.getFavicon).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const onSubmit = await setup();
+  await click(buttonWithText(app.container, '自定义图标'));
+  await fill(app.container.querySelector<HTMLInputElement>('#bookmark-icon')!, '');
+  await submit();
+  const signal = vi.mocked(api.getFavicon).mock.calls[0][2]!;
+  await app.cleanup();
+  expect(signal.aborted).toBe(true);
+  await act(async () =>
+    resolve({ url: bookmark.url, iconUrl: 'https://example.com/late.ico', source: 'proxy' }),
+  );
+  expect(onSubmit).not.toHaveBeenCalled();
+});

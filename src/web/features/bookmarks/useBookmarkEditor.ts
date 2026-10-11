@@ -1,6 +1,6 @@
 import type { Bookmark, BookmarkInput, MetadataPreview, Visibility } from '@shared/api/types';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { ApiError, api } from '@nav/api/client';
 
@@ -45,6 +45,22 @@ export function useBookmarkEditor({
   const [faviconFetching, setFaviconFetching] = useState(false);
   const [metadata, setMetadata] = useState<MetadataPreview | null>(null);
   const [iconOpen, setIconOpen] = useState(false);
+  const metadataRequest = useRef<AbortController | null>(null);
+  const faviconRequest = useRef<AbortController | null>(null);
+  const submitting = useRef(false);
+  const revision = useRef(0);
+  useEffect(() => {
+    submitting.current = false;
+    setLoading(false);
+    setFetching(false);
+    setFaviconFetching(false);
+    setMetadata(null);
+    return () => {
+      revision.current += 1;
+      metadataRequest.current?.abort();
+      faviconRequest.current?.abort();
+    };
+  }, [open, bookmark, form.url]);
   useEffect(() => {
     if (!open) return;
     setForm(
@@ -94,10 +110,14 @@ export function useBookmarkEditor({
   async function fetchFavicon(showError = true): Promise<string> {
     const url = form.url.trim();
     if (!url) return '';
+    faviconRequest.current?.abort();
+    const current = new AbortController();
+    faviconRequest.current = current;
     setFaviconFetching(true);
     if (showError) setError(null);
     try {
-      const result = await api.getFavicon('', url);
+      const result = await api.getFavicon('', url, current.signal);
+      if (current.signal.aborted) return '';
       if (result.iconUrl) {
         setForm((current) => ({ ...current, iconUrl: result.iconUrl }));
       } else if (showError) {
@@ -105,16 +125,17 @@ export function useBookmarkEditor({
       }
       return result.iconUrl;
     } catch (caught) {
-      if (showError) {
+      if (showError && !current.signal.aborted) {
         setError(caught instanceof ApiError ? caught.message : '获取图标失败');
       }
       return '';
     } finally {
-      setFaviconFetching(false);
+      if (!current.signal.aborted) setFaviconFetching(false);
     }
   }
 
   async function submit() {
+    if (submitting.current) return;
     if (!form.url.trim() || !form.title.trim()) {
       setError('请填写标题和网址');
       return;
@@ -125,10 +146,13 @@ export function useBookmarkEditor({
       setError('网址格式不正确');
       return;
     }
+    submitting.current = true;
+    const currentRevision = revision.current;
     setLoading(true);
     setError(null);
     try {
       const iconUrl = form.iconUrl.trim() || (await fetchFavicon(false));
+      if (currentRevision !== revision.current) return;
       await onSubmit({
         visibility: form.visibility,
         title: form.title.trim(),
@@ -140,17 +164,25 @@ export function useBookmarkEditor({
         isPinned: bookmark?.isPinned ?? false,
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '保存失败');
+      if (currentRevision === revision.current)
+        setError(caught instanceof Error ? caught.message : '保存失败');
     } finally {
-      setLoading(false);
+      if (currentRevision === revision.current) {
+        submitting.current = false;
+        setLoading(false);
+      }
     }
   }
 
   async function fetchMetadata() {
+    metadataRequest.current?.abort();
+    const current = new AbortController();
+    metadataRequest.current = current;
     setFetching(true);
     setError(null);
     try {
-      const result = await api.getMetadata('', form.url.trim());
+      const result = await api.getMetadata('', form.url.trim(), current.signal);
+      if (current.signal.aborted) return;
       setMetadata(result);
       setForm((current) => ({
         ...current,
@@ -159,9 +191,10 @@ export function useBookmarkEditor({
         iconUrl: current.iconUrl || result.iconUrl,
       }));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : '抓取信息失败');
+      if (!current.signal.aborted)
+        setError(caught instanceof ApiError ? caught.message : '抓取信息失败');
     } finally {
-      setFetching(false);
+      if (!current.signal.aborted) setFetching(false);
     }
   }
 

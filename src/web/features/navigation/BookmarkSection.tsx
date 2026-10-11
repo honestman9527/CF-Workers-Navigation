@@ -95,7 +95,7 @@ export function FeedContent({
                 {actions.authed ? (
                   <div className="flex shrink-0 flex-col sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                     <FrontButton
-                      className="min-h-8 w-8 px-0"
+                      className="min-h-11 w-11 px-0 sm:min-h-8 sm:w-8"
                       aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
                       aria-pressed={bookmark.isPinned}
                       disabled={actions.pendingIds.has(bookmark.id)}
@@ -106,7 +106,7 @@ export function FeedContent({
                       />
                     </FrontButton>
                     <FrontButton
-                      className="min-h-8 w-8 px-0"
+                      className="min-h-11 w-11 px-0 sm:min-h-8 sm:w-8"
                       aria-label={`编辑：${bookmark.title}`}
                       onClick={() => actions.onEdit(bookmark)}
                     >
@@ -169,12 +169,16 @@ export function BookmarkSection({
     ? flattenCategoryTree(root.children)
     : [];
   const selected = descendants.find((item) => item.slug === selectedSlug);
-  const slug = pinned ? 'pinned' : (root?.slug ?? 'uncategorized');
+  const slug = pinned ? 'common' : root ? `category-${root.slug}` : 'uncategorized';
   const category = pinned ? undefined : (selected?.slug ?? root?.slug ?? 'uncategorized');
   const feed = useBookmarkFeed({
     pinned: pinned || undefined,
     category,
-    enabled: visible || selectedSlug === slug || Boolean(selected),
+    enabled:
+      visible ||
+      Boolean(root && selectedSlug === root.slug) ||
+      selectedSlug === slug ||
+      Boolean(selected),
     version,
     onUnauthorized,
   });

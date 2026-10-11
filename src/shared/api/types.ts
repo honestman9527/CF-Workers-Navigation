@@ -109,11 +109,11 @@ export type Settings = {
   defaultBookmarkVisibility: Visibility;
   faviconProxyUrl: string;
   faviconProxyEnabled: boolean;
-  /** 搜索引擎列表（Web 启动台使用）。 */
+  /** 搜索引擎列表（导航首页网页模式使用）。 */
   searchEngines: SearchEngine[];
   /** 默认搜索引擎 id，须存在于 searchEngines。 */
   defaultEngineId: string;
-  /** 启动台与工作区背景图片（空串表示不启用）。 */
+  /** 导航首页背景图片（空串表示不启用）。 */
   backgroundImageUrl: string;
   /** 是否启用背景图片。 */
   backgroundImageEnabled: boolean;

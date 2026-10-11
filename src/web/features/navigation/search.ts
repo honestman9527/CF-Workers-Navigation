@@ -20,7 +20,10 @@ export function parseNavigationSearch(raw: Record<string, unknown>): NavigationS
       if (text) search[key] = text;
     }
   }
-  if (!search.tag && [true, 1, '1', 'true'].includes(raw.untagged as string))
+  if (
+    !search.tag &&
+    (raw.untagged === true || raw.untagged === 1 || raw.untagged === '1' || raw.untagged === 'true')
+  )
     search.untagged = true;
   return search;
 }

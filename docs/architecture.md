@@ -4,7 +4,7 @@
 
 项目由 Cloudflare Worker、D1 和 React Web 组成，Web 构建产物输出到 `dist/web`。`wrangler.jsonc` 将该目录配置为静态资源，并启用单页应用回退；`/api`、`/api/*` 和 `/health` 先进入 Worker，其余静态资源由 Cloudflare 静态资源路由提供。Worker 不再手动回退或读取前端静态文件。
 
-`src/worker/index.ts` 导出 Hono 应用。路由负责 HTTP 参数验证和响应，`src/worker/services/` 负责业务规则与 D1 访问，`src/worker/transfer/` 负责备份格式。跨端 DTO、端点和 API 客户端位于 `src/shared/`。Web 按功能组织在 `src/web/features/`，复用本地 shadcn/Base UI 组件、Tailwind CSS 和 lucide-react。
+`src/worker/index.ts` 导出 Hono 应用。路由负责 HTTP 参数验证和响应，`src/worker/services/` 负责业务规则与 D1 访问，`src/worker/transfer/` 负责备份格式。跨端 DTO、端点和 API 客户端位于 `src/shared/`。Web 按功能组织在 `src/web/features/`。前台位于 `features/navigation/`，遵循 [DESIGN.md](../DESIGN.md)，使用定制 Tailwind 外观和直接组合的 Base UI 无样式交互，不通过表单、菜单或提示组件引入后台外观。后台继续复用本地 shadcn/Base UI。功能图标统一使用 lucide-react。书签编辑状态与提交规则提取到 `useBookmarkEditor`，前后台共用逻辑、独立呈现。
 
 Worker、Web、shared 分别使用独立的 TypeScript 配置，隔离 Cloudflare Worker、浏览器和共享代码的运行时类型。测试统一放在 `test/`，分为 `unit/` 和 `worker/`。
 
@@ -20,8 +20,14 @@ Worker、Web、shared 分别使用独立的 TypeScript 配置，隔离 Cloudflar
 
 ## 分页与查询行为
 
-书签列表的游标按 `created_at`、`id` 倒序稳定排序；全文搜索按 FTS5 rank 和 `id` 排序。启动台采用不透明游标，首批加载后由用户继续加载。
+书签列表的游标按 `created_at`、`id` 倒序稳定排序；全文搜索按 FTS5 rank 和 `id` 排序。统一导航首页采用不透明游标，常用与每个分类独立首批 12 项、追加 24 项；分类接近视区时加载，追加失败保留已有内容。一级分类默认聚合后代，子分类切换只重置对应分区。站内搜索使用独立游标资源，隐藏但不卸载浏览分区，清除后恢复已加载内容。请求由 AbortController 取消，筛选与身份变化后不接受旧响应。
 
-工作区和管理后台使用页码分页：请求带 `offset` 时，响应包含符合筛选条件的 `total`，`nextCursor` 为 `null`。不带 `offset` 时使用游标分页，不计算 `total`。页码模式需要额外计数查询；计数只连接筛选必需的表，不做列表投影中的标签聚合，以避免重复处理标签关联。
+管理后台使用页码分页：请求带 `offset` 时，响应包含符合筛选条件的 `total`，`nextCursor` 为 `null`。不带 `offset` 时使用游标分页，不计算 `total`。页码模式需要额外计数查询；计数只连接筛选必需的表，不做列表投影中的标签聚合，以避免重复处理标签关联。
 
 API 的游标与页码模式详见[API 与权限](api.md)。带页码的精确总数便于界面导航；连续加载使用游标可避免为每页计算总数。
+
+## 页面路由与身份边界
+
+`/` 为统一首页，URL 的 `mode=site|web` 隔离两种搜索行为。旧 `/launch`、`/workspace` 仅负责参数映射与替换重定向，分别进入网页、站内模式；旧分页、布局及双入口偏好停用。模式和筛选的具体规则见[使用与本地开发](usage.md#搜索与链接兼容)。
+
+认证状态切换会重建 RouterProvider 及导航页，卸载原身份的列表、分类、标签与编辑状态，并使全局 API 请求失效。公开设置可缓存复用，私有内容不进入 localStorage。后台写入、访客可见范围与 Worker API 保持原有边界；本次 UI 重构未新增接口或数据库迁移。
