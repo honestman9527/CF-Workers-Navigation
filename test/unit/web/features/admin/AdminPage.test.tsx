@@ -81,12 +81,12 @@ async function openMenu() {
   if (trigger.getAttribute('aria-expanded') !== 'true') await click(trigger);
 }
 
-it('底部返回跟随偏好，桌面收起恢复且隐藏内容不可聚焦', async () => {
+it('底部返回统一首页，桌面收起恢复且隐藏内容不可聚焦', async () => {
   localStorage.setItem('nav-front-view', 'workspace');
   await setup();
   const footer = app.container.querySelector('[data-sidebar="footer"]')!;
-  expect(footer.querySelector('a')?.getAttribute('href')).toBe('/workspace');
-  expect(footer.textContent).toContain('返回书签柜');
+  expect(footer.querySelector('a')?.getAttribute('href')).toBe('/');
+  expect(footer.textContent).toContain('返回前台');
   expect(footer.textContent).not.toContain('退出登录');
   await click(button('收起管理导航'));
   expect(localStorage.getItem('nav-admin-sidebar-open')).toBe('false');
@@ -144,7 +144,7 @@ it('移动抽屉中切换主题保留抽屉，返回后关闭且不改变桌面�
   await click(menuItem('暗色'));
   expect(button('收起管理导航').getAttribute('aria-expanded')).toBe('true');
   const link = document.querySelector<HTMLAnchorElement>('[data-sidebar="footer"] a')!;
-  expect(link.getAttribute('href')).toBe('/launch');
+  expect(link.getAttribute('href')).toBe('/');
   await click(link);
   expect(button('展开管理导航').getAttribute('aria-expanded')).toBe('false');
   expect(localStorage.getItem('nav-admin-sidebar-open')).toBe('false');

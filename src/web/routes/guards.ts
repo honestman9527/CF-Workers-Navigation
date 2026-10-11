@@ -3,7 +3,6 @@ import type { AuthContext } from '@nav/features/auth/context';
 import { redirect } from '@tanstack/react-router';
 
 import { getAuthReturnPath, resolveAuthRedirect } from '@nav/features/auth/redirect';
-import { getPreferredFrontRoute } from '@nav/features/settings/store';
 
 type GuardContext = {
   context: { auth: AuthContext };
@@ -24,13 +23,13 @@ export function requireAuth({ context, location }: GuardContext) {
   }
 }
 
-/** 已登录访问登录页时优先恢复原站内地址，否则回到记忆偏好的前台视图。 */
+/** 已登录访问登录页时优先恢复原站内地址，否则回到统一导航首页。 */
 export function redirectIfAuthed({
   context,
   location,
 }: GuardContext & { location: { search: { redirect?: unknown } } }) {
   if (context.auth.authed) {
-    const target = resolveAuthRedirect(location.search.redirect) ?? getPreferredFrontRoute();
+    const target = resolveAuthRedirect(location.search.redirect) ?? '/';
     throw redirect({ href: target });
   }
 }

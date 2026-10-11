@@ -17,8 +17,8 @@ vi.mock('@nav/api/client', () => ({
   invalidateApiRequests: vi.fn(),
   ApiError: class extends Error {},
 }));
-vi.mock('@nav/features/launcher/LauncherPage', () => ({
-  LauncherPage: function Page() {
+vi.mock('@nav/features/navigation/NavigationPage', () => ({
+  NavigationPage: function Page() {
     const auth = useAuthContext();
     const load = useCallback((signal: AbortSignal) => api.getBookmarks(undefined, {}, signal), []);
     const { data } = useApiData(load);
@@ -56,7 +56,7 @@ function privateBookmark(title: string): Bookmark {
 }
 let root: Root;
 let container: HTMLDivElement;
-async function render(path = '/launch') {
+async function render(path = '/') {
   router.update({
     context: router.options.context,
     history: createMemoryHistory({ initialEntries: [path] }),
@@ -97,7 +97,8 @@ afterEach(async () => {
 it('游客可直接打开前台，后台深链要求登录并保留返回地址', async () => {
   await render('/launch?q=hello');
   expect(container.textContent).toContain('游客');
-  expect(router.state.location.pathname).toBe('/launch');
+  expect(router.state.location.pathname).toBe('/');
+  expect(router.state.location.search).toMatchObject({ mode: 'web', q: 'hello' });
   await act(async () => {
     await router.navigate({ href: '/admin/settings' });
   });
@@ -142,4 +143,28 @@ it('服务端确认会话失效后清除已加载私有内容', async () => {
   });
   expect(container.textContent).toContain('游客');
   expect(container.textContent).not.toContain('已加载私有内容');
+});
+
+it('旧书签柜参数映射到统一首页，浏览器前后退恢复模式与筛选', async () => {
+  await render('/workspace?q=React&category=tools&tag=code&page=4&cursor=obsolete');
+  expect(router.state.location.pathname).toBe('/');
+  expect(router.state.location.search).toEqual({
+    mode: 'site',
+    q: 'React',
+    category: 'tools',
+    tag: 'code',
+  });
+  await act(async () => {
+    await router.navigate({ to: '/', search: { mode: 'web', q: 'new', engine: 'bing' } });
+  });
+  await act(async () => {
+    router.history.back();
+    await router.load();
+  });
+  expect(router.state.location.search).toMatchObject({ mode: 'site', q: 'React', tag: 'code' });
+  await act(async () => {
+    router.history.forward();
+    await router.load();
+  });
+  expect(router.state.location.search).toEqual({ mode: 'web', q: 'new', engine: 'bing' });
 });

@@ -46,7 +46,6 @@ import {
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
-import { getPreferredFrontRoute, getPreferredFrontView } from '@nav/features/settings/store';
 import { ThemeMenuOptions } from '@nav/features/settings/ThemeMenuOptions';
 import { useTheme } from '@nav/hooks/useTheme';
 
@@ -100,7 +99,7 @@ function AdminSidebarContent({
   loggingOut,
   themeSettings,
 }: {
-  frontRoute: '/launch' | '/workspace';
+  frontRoute: '/';
   returnLabel: string;
   onLogout: () => void;
   loggingOut: boolean;
@@ -202,9 +201,8 @@ export function AdminPage() {
   const logoutPending = useRef(false);
   const { pathname } = useLocation();
   const currentLabel = NAV.find((item) => item.to === pathname)?.label ?? '概览';
-  const frontRoute = getPreferredFrontRoute();
-  const frontViewMode = getPreferredFrontView();
-  const returnLabel = frontViewMode === 'workspace' ? '返回书签柜' : '返回启动台';
+  const frontRoute = '/';
+  const returnLabel = '返回前台';
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
       return localStorage.getItem(ADMIN_SIDEBAR_STORAGE_KEY) !== 'false';

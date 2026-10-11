@@ -1,15 +1,14 @@
-import { createRoute, redirect } from '@tanstack/react-router';
+import { createRoute } from '@tanstack/react-router';
 
-import { getPreferredFrontRoute } from '@nav/features/settings/store';
+import { NavigationPage } from '@nav/features/navigation/NavigationPage';
+import { parseNavigationSearch } from '@nav/features/navigation/search';
 
 import { rootRoute } from './__root';
 
-/** 根路径：按记忆的前台偏好跳转启动台（/launch）或书签柜（/workspace）。 */
+/** 统一导航首页；搜索、筛选与分类定位可通过 URL 恢复。 */
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: getPreferredFrontRoute() });
-  },
-  component: () => null,
+  validateSearch: parseNavigationSearch,
+  component: NavigationPage,
 });

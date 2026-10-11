@@ -1,24 +1,20 @@
 import { createRoute, redirect } from '@tanstack/react-router';
 
-import { isCanonicalWorkspaceSearch, parseWorkspaceSearch } from '@nav/features/workspace/search';
-import { WorkspacePage } from '@nav/features/workspace/WorkspacePage';
+import { legacyNavigationSearch } from '@nav/features/navigation/search';
+import { parseWorkspaceSearch } from '@nav/features/workspace/search';
 
 import { rootRoute } from './__root';
 
-/** 工作区（原侧边栏布局）：分类/标签/无标签/搜索/旧置顶链接全部由 URL search 参数驱动。 */
+/** 旧工作区链接迁移到首页站内模式。 */
 export const workspaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/workspace',
   validateSearch: parseWorkspaceSearch,
-  beforeLoad: (context) => {
-    if (!isCanonicalWorkspaceSearch(context.location.search, context.search)) {
-      throw redirect({
-        to: '/workspace',
-        search: context.search,
-        hash: context.location.hash,
-        replace: true,
-      });
-    }
+  beforeLoad: ({ location }) => {
+    throw redirect({
+      to: '/',
+      search: legacyNavigationSearch(location.search, 'site'),
+      replace: true,
+    });
   },
-  component: WorkspacePage,
 });

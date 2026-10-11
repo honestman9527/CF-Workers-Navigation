@@ -1,10 +1,8 @@
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ApiError } from '@nav/api/client';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
+import { FrontButton as Button, FrontInput as Input } from '@nav/features/navigation/controls';
 
 export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promise<void> }) {
   const [password, setPassword] = useState('');
@@ -12,7 +10,7 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
   const [loading, setLoading] = useState(false);
 
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-background px-6 py-16 text-foreground">
+    <main className="front-surface flex min-h-[100dvh] items-center justify-center bg-background px-6 py-16 text-foreground">
       <form
         className="w-full max-w-[22rem]"
         onSubmit={async (event) => {
@@ -35,7 +33,9 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
         </p>
 
         <div className="mt-8 flex flex-col gap-2">
-          <Label htmlFor="cabinet-password">密码</Label>
+          <label htmlFor="cabinet-password" className="text-sm font-semibold">
+            密码
+          </label>
           <Input
             id="cabinet-password"
             type="password"
@@ -49,7 +49,12 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
 
         {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
 
-        <Button className="mt-6 w-full" disabled={loading || !password.trim()} type="submit">
+        <Button
+          tone="primary"
+          className="mt-6 w-full"
+          disabled={loading || !password.trim()}
+          type="submit"
+        >
           {loading ? '登录中…' : '登录'}
         </Button>
       </form>

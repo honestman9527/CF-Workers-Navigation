@@ -3,7 +3,6 @@ import { useEffect, useRef } from 'react';
 
 import { resolveAuthRedirect } from '@nav/features/auth/redirect';
 import { useAuth } from '@nav/features/auth/useAuth';
-import { getPreferredFrontRoute } from '@nav/features/settings/store';
 import { router } from '@nav/router';
 
 export default function App() {
@@ -20,7 +19,7 @@ export default function App() {
     const location = router.state.location;
     if (wasAuthed && !authed && location.pathname.startsWith('/admin')) {
       void router.navigate({
-        to: getPreferredFrontRoute(),
+        to: '/',
         replace: true,
       });
       return;
@@ -28,7 +27,7 @@ export default function App() {
 
     if (authed && location.pathname === '/login') {
       const redirect = resolveAuthRedirect(location.search.redirect);
-      void router.navigate({ href: redirect ?? getPreferredFrontRoute(), replace: true });
+      void router.navigate({ href: redirect ?? '/', replace: true });
     }
   }, [authed, loading]);
 
