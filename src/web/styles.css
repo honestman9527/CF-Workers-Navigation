@@ -150,10 +150,14 @@
 }
 
 @layer base {
-  .front-surface {
+  .front-surface,
+  .admin-surface {
     font-family: var(--font-front);
     --font-display: var(--font-front);
     --radius: 1.125rem;
+  }
+  .admin-surface {
+    --radius: 0.75rem;
   }
   * {
     @apply border-border outline-ring/50;

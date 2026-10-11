@@ -70,10 +70,10 @@ function BookmarkRowIcon({ bookmark }: { bookmark: Bookmark }) {
   return (
     <ImageWithFallback
       src={bookmark.iconUrl}
-      className="size-7 shrink-0 rounded-lg border border-border/70 bg-card object-contain p-0.5"
+      className="size-10 shrink-0 rounded-lg border border-border/70 bg-card object-contain p-0.5"
       loading="lazy"
       fallback={
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted text-xs font-semibold text-primary">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-border/70 bg-muted text-xs font-semibold text-primary">
           {domain.charAt(0).toUpperCase()}
         </span>
       }
@@ -83,7 +83,7 @@ function BookmarkRowIcon({ bookmark }: { bookmark: Bookmark }) {
 
 /**
  * 后台专用的书签轻量化表格管理：
- * 固定宽度紧凑表格（标题 + 网址），页码分页（10/20/50/100），分类筛选为可折叠树。
+ * 桌面表格与移动端紧凑行，页码分页（10/20/50/100），分类筛选为可折叠树。
  */
 export function WebsitesTab() {
   const auth = useAuthContext();
@@ -151,15 +151,15 @@ export function WebsitesTab() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold">书签管理</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">书签管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           查看和整理全部书签，包括使用中、已归档及回收站中的书签。
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
         <ToggleGroup
           aria-label="状态筛选"
           value={[view]}
@@ -178,7 +178,7 @@ export function WebsitesTab() {
           ))}
         </ToggleGroup>
 
-        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-1.5 focus-within:border-primary/50">
+        <div className="flex min-h-11 min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 focus-within:border-primary/50">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
             value={queryDraft}
@@ -212,7 +212,7 @@ export function WebsitesTab() {
           value={tagSlug ?? ''}
           onChange={(event) => setTagSlug(event.target.value || undefined)}
           aria-label="按标签筛选"
-          className="h-9 rounded-lg border border-border/70 bg-card px-2.5 text-xs outline-none focus-visible:border-primary/50"
+          className="h-11 max-w-full rounded-lg border border-border/70 bg-card px-2.5 text-xs outline-none focus-visible:border-primary/50"
         >
           {tagOptions.map((option) => (
             <option key={option.value} value={option.value}>
@@ -265,31 +265,37 @@ export function WebsitesTab() {
           <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或新建一个书签。</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
           {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
-          <Table className="table-fixed">
-            <TableHeader className="bg-muted/30">
+          <Table className="block table-fixed md:table [&_button]:size-11 md:[&_button]:size-8">
+            <TableHeader className="hidden bg-muted/40 md:table-header-group">
               <TableRow className="border-border/60 hover:bg-transparent">
                 <TableHead className="text-xs font-semibold">书签</TableHead>
+                <TableHead className="hidden w-[12rem] text-xs font-semibold lg:table-cell">
+                  分类 / 标签
+                </TableHead>
                 <TableHead className="w-[5rem] text-center text-xs font-semibold">状态</TableHead>
-                <TableHead className="w-[7.5rem] pr-4 text-right text-xs font-semibold">
+                <TableHead className="w-[9rem] pr-4 text-right text-xs font-semibold">
                   操作
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="block md:table-row-group">
               {page.items.map((bookmark) => {
                 const active = !bookmark.deletedAt && !bookmark.archivedAt;
 
                 return (
-                  <TableRow key={bookmark.id} className="group border-border/60">
+                  <TableRow
+                    key={bookmark.id}
+                    className="group grid grid-cols-[minmax(0,1fr)_auto] items-center border-border/50 px-2 py-2 md:table-row md:p-0"
+                  >
                     {/* 书签：favicon + 标题 + 网址（同一格内截断） */}
-                    <TableCell className="py-2.5">
+                    <TableCell className="min-w-0 py-3.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <BookmarkRowIcon bookmark={bookmark} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="truncate text-xs font-medium text-foreground">
+                            <span className="truncate text-sm font-semibold text-foreground">
                               {bookmark.title}
                             </span>
                             <VisibilityBadge item={bookmark} />
@@ -299,11 +305,19 @@ export function WebsitesTab() {
                               </span>
                             ) : null}
                           </div>
+                          {bookmark.description ? (
+                            <p
+                              className="mt-0.5 truncate text-xs text-muted-foreground"
+                              title={bookmark.description}
+                            >
+                              {bookmark.description}
+                            </p>
+                          ) : null}
                           <a
                             href={bookmark.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex max-w-full items-center gap-1 truncate font-mono text-[11px] text-muted-foreground transition hover:text-primary"
+                            className="inline-flex max-w-full items-center gap-1 truncate text-xs text-muted-foreground transition hover:text-primary"
                             title={bookmark.url}
                           >
                             <span className="truncate">{domainOf(bookmark.url)}</span>
@@ -313,8 +327,17 @@ export function WebsitesTab() {
                       </div>
                     </TableCell>
 
+                    <TableCell className="hidden py-3.5 lg:table-cell">
+                      <p className="truncate text-sm">{bookmark.categoryName ?? '未分类'}</p>
+                      <p
+                        className="mt-1 truncate text-xs text-muted-foreground"
+                        title={bookmark.tags.join('、')}
+                      >
+                        {bookmark.tags.join('、') || '无标签'}
+                      </p>
+                    </TableCell>
                     {/* 状态 */}
-                    <TableCell className="py-2.5 text-center">
+                    <TableCell className="py-3 text-center">
                       {bookmark.deletedAt ? (
                         <Badge variant="destructive">回收站</Badge>
                       ) : bookmark.archivedAt ? (
@@ -330,13 +353,13 @@ export function WebsitesTab() {
                     </TableCell>
 
                     {/* 操作 */}
-                    <TableCell className="py-2.5 pr-3 text-right">
+                    <TableCell className="col-span-2 border-t border-border/30 py-1.5 pr-2 text-right md:border-0 md:py-3 md:pr-4">
                       <div className="flex items-center justify-end gap-0.5">
                         {active ? (
                           <>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 void mutate(
                                   () =>
@@ -360,7 +383,7 @@ export function WebsitesTab() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() => setEditor(bookmark)}
                               aria-label="编辑"
                               title="编辑书签"
@@ -369,7 +392,7 @@ export function WebsitesTab() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 askConfirm({
                                   title: `归档「${bookmark.title}」？`,
@@ -388,7 +411,7 @@ export function WebsitesTab() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 askConfirm({
                                   title: `移入回收站「${bookmark.title}」？`,
@@ -409,7 +432,7 @@ export function WebsitesTab() {
                           <>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
                               }
@@ -420,7 +443,7 @@ export function WebsitesTab() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 askConfirm({
                                   title: `永久删除「${bookmark.title}」？`,
@@ -441,7 +464,7 @@ export function WebsitesTab() {
                           <>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() =>
                                 void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
                               }
@@ -452,7 +475,7 @@ export function WebsitesTab() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon-xs"
+                              size="icon-sm"
                               onClick={() => setEditor(bookmark)}
                               aria-label="编辑"
                               title="编辑书签"

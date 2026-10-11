@@ -109,14 +109,14 @@ export function TagsTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold">标签管理</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">标签管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           标签是细粒度的书签标注。合并会把源标签的关联书签全部改指到目标标签，适合整理近义标签。
         </p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-1.5 focus-within:border-primary/50">
+        <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 focus-within:border-primary/50">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
             value={filter}
@@ -150,7 +150,7 @@ export function TagsTab() {
       {loading && tags === null ? (
         <Skeleton className="h-40" />
       ) : tags !== null ? (
-        <div className="grid gap-1 rounded-lg border border-border bg-card p-3">
+        <div className="grid gap-1 overflow-hidden rounded-2xl border border-border/60 bg-card p-2 sm:p-3">
           {creating ? (
             <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2">
               <span className="font-mono text-sm text-primary">#</span>
@@ -198,13 +198,13 @@ export function TagsTab() {
           ) : null}
 
           {filtered.length > 0 ? (
-            <div className="grid gap-0.5">
+            <div className="grid divide-y divide-border/50">
               {filtered.map((tag) => {
                 const isEditing = editing?.id === tag.id;
                 return (
                   <div
                     key={tag.id}
-                    className="group flex flex-wrap items-center gap-0.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-muted/60"
+                    className="group flex min-h-16 flex-wrap items-center gap-2 rounded-xl px-2 py-3 transition-colors hover:bg-muted/50 sm:px-4"
                   >
                     <span className="grid size-7 shrink-0 place-items-center text-sm text-primary">
                       #
@@ -232,10 +232,10 @@ export function TagsTab() {
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-sm">{tag.name}</span>
                     )}
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground/60">
+                    <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
                       /{tag.slug}
                     </span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground tabular-nums">
                       {tag.bookmarkCount}
                     </span>
                     {isEditing ? (
@@ -259,7 +259,7 @@ export function TagsTab() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex shrink-0 flex-wrap items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
+                      <div className="flex shrink-0 flex-wrap items-center gap-0.5 opacity-100">
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -312,7 +312,7 @@ export function TagsTab() {
         </div>
       ) : null}
 
-      <p className="text-[11px] leading-5 text-muted-foreground">
+      <p className="text-xs leading-5 text-muted-foreground">
         提示：为书签添加标签时输入同名会自动复用，无需手动创建；这里主要用于重命名、合并与删除整理。
       </p>
 

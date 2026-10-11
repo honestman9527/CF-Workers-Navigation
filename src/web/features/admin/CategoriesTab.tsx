@@ -282,10 +282,8 @@ export function CategoriesTab() {
         {/* 节点行 */}
         <div
           className={cn(
-            'group flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors',
-            isRoot
-              ? 'border border-border/70 bg-card hover:border-primary/40'
-              : 'hover:bg-muted/60',
+            'group flex min-h-16 items-center gap-2 rounded-xl px-2 py-3 transition-colors sm:px-4',
+            isRoot ? 'bg-card hover:bg-muted/50' : 'hover:bg-muted/60',
           )}
         >
           {/* 分级折叠箭头（叶节点占位保持对齐） */}
@@ -295,7 +293,7 @@ export function CategoriesTab() {
               aria-label={isExpanded ? '收起分类' : '展开分类'}
               aria-expanded={isExpanded}
               onClick={() => toggleExpanded(node.id)}
-              className="grid size-6 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <ChevronRight
                 className={cn(
@@ -305,7 +303,7 @@ export function CategoriesTab() {
               />
             </button>
           ) : (
-            <span className="grid size-6 shrink-0 place-items-center" aria-hidden />
+            <span className="grid size-9 shrink-0 place-items-center" aria-hidden />
           )}
 
           {/* 图标选择触发器 */}
@@ -317,7 +315,7 @@ export function CategoriesTab() {
                   disabled={busy}
                   aria-label="选择图标"
                   className={cn(
-                    'grid size-7 shrink-0 cursor-pointer place-items-center rounded-lg border transition',
+                    'grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border transition',
                     isRoot
                       ? 'border-primary/20 bg-primary/10 text-primary'
                       : 'border-border/70 bg-muted text-muted-foreground hover:text-primary',
@@ -378,15 +376,12 @@ export function CategoriesTab() {
               <span
                 className={cn(
                   'truncate',
-                  isRoot ? 'text-xs font-semibold text-foreground' : 'text-xs text-foreground/90',
+                  isRoot ? 'text-sm font-semibold text-foreground' : 'text-sm text-foreground/90',
                 )}
               >
                 {node.name}
               </span>
-              <span className="shrink-0 rounded bg-muted px-1 font-mono text-[9px] leading-4 text-muted-foreground/80">
-                LV{depth + 1}
-              </span>
-              <span className="truncate font-mono text-[10px] text-muted-foreground/60">
+              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
                 /{node.slug}
               </span>
             </div>
@@ -394,7 +389,7 @@ export function CategoriesTab() {
 
           <VisibilityBadge item={node} />
           {/* 书签统计徽章 */}
-          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tabular-nums">
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-muted/60 px-2 py-1 text-xs text-muted-foreground tabular-nums">
             <span className="font-medium text-foreground">{node.bookmarkCount}</span>
             <span className="text-muted-foreground/50">/</span>
             <span>{totalCount}</span>
@@ -423,7 +418,7 @@ export function CategoriesTab() {
 
         {/* 子分类容器（带树形导轨连线）；新建子分类时展开父分类 */}
         {showChildren ? (
-          <div className="relative mt-1 ml-5 flex flex-col gap-1 border-l-2 border-border/60 pl-3.5">
+          <div className="relative ml-4 flex flex-col border-l border-border/60 pl-2 sm:ml-7 sm:pl-3">
             {node.children.map((child) => renderNode(child, depth + 1))}
             {create?.parentId === node.id ? createRow(node.id, depth + 1) : null}
           </div>
@@ -435,7 +430,7 @@ export function CategoriesTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="font-display text-2xl font-semibold">分类管理</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">分类管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           分类是书签的树形归属。删除分类后子分类自动上移一级，内含书签转为未分类。书签数统计为「直属
           / 含子类总数」。
@@ -463,7 +458,9 @@ export function CategoriesTab() {
         <div className="flex flex-col gap-3">
           {create?.parentId === 'root' ? createRow('root', 0) : null}
           {tree.length > 0 ? (
-            <div className="flex flex-col gap-2.5">{tree.map((node) => renderNode(node, 0))}</div>
+            <div className="divide-y divide-border/50 overflow-hidden rounded-2xl border border-border/60 bg-card p-2">
+              {tree.map((node) => renderNode(node, 0))}
+            </div>
           ) : create === null ? (
             <Empty className="border">
               <EmptyHeader>

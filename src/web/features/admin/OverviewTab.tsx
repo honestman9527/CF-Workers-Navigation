@@ -4,9 +4,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Archive, Bookmark, FolderTree, Globe, Inbox, Tags, Trash2 } from 'lucide-react';
 import { useCallback } from 'react';
 
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
@@ -69,65 +67,43 @@ function StatCards({
     { key: 'tags', label: '标签', value: stats.tags, icon: Tags, tone: 'muted', to: '/admin/tags' },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      {cards.map((card) => {
-        const Icon = card.icon;
-        if (card.to) {
-          return (
-            <Card
-              key={card.key}
-              size="sm"
-              className={cn(
-                'min-w-0 border border-border text-left transition hover:border-primary/45',
+    <section
+      aria-label="书签统计"
+      className="grid overflow-hidden rounded-2xl border border-border/60 bg-card lg:grid-cols-[1fr_2fr]"
+    >
+      <div className="flex flex-col justify-center border-b border-border/50 p-6 sm:p-8 lg:border-r lg:border-b-0">
+        <Bookmark className="mb-5 size-6 text-primary" />
+        <span className="text-sm text-muted-foreground">书签总数</span>
+        <strong className="mt-2 text-5xl font-semibold tracking-tight tabular-nums">
+          {stats.bookmarks.total}
+        </strong>
+        <span className="mt-3 text-xs text-muted-foreground">包含使用中、已归档与回收站</span>
+      </div>
+      <dl className="grid grid-cols-2 sm:grid-cols-3">
+        {cards.slice(1).map(({ key, label, value, icon: Icon, to }) => (
+          <div key={key} className="min-w-0 p-5 sm:p-7">
+            <dt className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Icon className="size-4" />
+              {label}
+            </dt>
+            <dd className="mt-3 text-2xl font-semibold tabular-nums">
+              {to ? (
+                <button
+                  type="button"
+                  className="min-h-11 rounded-lg text-primary hover:underline"
+                  aria-label={`管理${label}，共 ${value} 个`}
+                  onClick={() => onNavigate(to)}
+                >
+                  {value}
+                </button>
+              ) : (
+                value
               )}
-            >
-              <button
-                type="button"
-                onClick={() => onNavigate(card.to!)}
-                className="w-full text-left"
-              >
-                <CardContent className="flex flex-col gap-3">
-                  <span
-                    className={cn(
-                      'grid size-8 place-items-center rounded-lg',
-                      card.tone === 'primary' && 'bg-primary/10 text-primary',
-                      card.tone === 'accent' && 'bg-accent text-accent-foreground',
-                      card.tone === 'warn' && 'bg-destructive/10 text-destructive',
-                      card.tone === 'muted' && 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="font-display text-2xl font-semibold tabular-nums">
-                    {card.value}
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">{card.label}</span>
-                </CardContent>
-              </button>
-            </Card>
-          );
-        }
-        return (
-          <Card key={card.key} size="sm" className="min-w-0 border border-border">
-            <CardContent className="flex flex-col gap-3">
-              <span
-                className={cn(
-                  'grid size-8 place-items-center rounded-lg',
-                  card.tone === 'primary' && 'bg-primary/10 text-primary',
-                  card.tone === 'accent' && 'bg-accent text-accent-foreground',
-                  card.tone === 'warn' && 'bg-destructive/10 text-destructive',
-                  card.tone === 'muted' && 'bg-muted text-muted-foreground',
-                )}
-              >
-                <Icon className="size-4" />
-              </span>
-              <span className="font-display text-2xl font-semibold tabular-nums">{card.value}</span>
-              <span className="truncate text-xs text-muted-foreground">{card.label}</span>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -152,7 +128,7 @@ export function OverviewTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold">概览</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">概览</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           书签柜的整体规模一览。分类、标签与书签的整理入口在对应侧栏。
         </p>
@@ -169,11 +145,11 @@ export function OverviewTab() {
         <StatCards stats={stats} onNavigate={go} />
       )}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <button
           type="button"
           onClick={() => go('/admin/websites')}
-          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
+          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Globe className="size-5" />
@@ -188,7 +164,7 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/categories')}
-          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
+          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <FolderTree className="size-5" />
@@ -203,9 +179,9 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/tags')}
-          className="flex items-center gap-4 rounded-lg border border-border bg-card p-4 text-left transition hover:border-primary/45"
+          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
         >
-          <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
+          <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Tags className="size-5" />
           </span>
           <span className="min-w-0">
@@ -218,7 +194,7 @@ export function OverviewTab() {
       </section>
 
       {stats !== null ? (
-        <p className="rounded-lg border border-border/70 bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+        <p className="px-1 py-2 text-xs text-muted-foreground">
           当前共有 {stats.bookmarks.total} 个书签（含回收站），分类 {stats.categories} 个，标签{' '}
           {stats.tags} 个。回收站中的书签可随时永久删除。
         </p>

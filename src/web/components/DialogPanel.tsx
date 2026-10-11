@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * 通用对话框外壳：受控 open/onClose，直接组合 shadcn dialog。
- * 语义对齐原 @nav/components/Modal。
+ * 仅管理界面使用；前台直接组合 Base UI。
  */
 export function DialogPanel({
   open,
@@ -44,7 +44,7 @@ export function DialogPanel({
       <DialogContent
         showCloseButton={dismissible}
         className={cn(
-          'max-h-[min(92dvh,100%)] gap-0 overflow-y-auto overscroll-contain p-5 sm:p-6',
+          'admin-surface max-h-[min(92dvh,100%)] gap-0 overflow-y-auto overscroll-contain rounded-2xl border-border/60 p-5 shadow-xl sm:p-8',
           sizeClass,
         )}
         aria-labelledby={labelledBy}

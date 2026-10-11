@@ -67,7 +67,7 @@ export function BookmarkForm({
         网址会自动查重。回车添加标签，也可以点选已有标签。
       </p>
       <form
-        className="mt-5 grid gap-4"
+        className="mt-7 grid gap-5"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
@@ -263,7 +263,7 @@ export function BookmarkForm({
           </CollapsibleContent>
         </Collapsible>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-border/60 pt-5">
           <Button type="button" variant="ghost" onClick={onClose}>
             取消
           </Button>

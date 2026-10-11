@@ -209,22 +209,22 @@ export function TransferTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold">导入 / 导出</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">导入 / 导出</h1>
         <p className="text-sm leading-6 text-muted-foreground">
           支持 HTML 书签与 JSON 备份，导入时自动识别格式。JSON v2 保留权限；HTML
           不保存权限。旧备份及 HTML 新导入的内容默认私有，导出文件包含私有内容。
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <section className="rounded-lg border border-border bg-muted p-3.5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-2xl border border-border/60 bg-card p-5 sm:p-7">
+          <div className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
             <Download size={16} />
             导出
           </div>
           <div className="grid gap-2">
             <Button
-              className="h-auto min-h-14 justify-start gap-3 px-3 py-2.5 text-left"
+              className="h-auto min-h-20 justify-start gap-4 rounded-xl px-4 py-4 text-left"
               disabled={busy}
               onClick={() => void handleExport('html')}
               type="button"
@@ -243,7 +243,7 @@ export function TransferTab() {
               </span>
             </Button>
             <Button
-              className="h-auto min-h-14 justify-start gap-3 px-3 py-2.5 text-left"
+              className="h-auto min-h-20 justify-start gap-4 rounded-xl px-4 py-4 text-left"
               disabled={busy}
               onClick={() => void handleExport('json')}
               type="button"
@@ -268,14 +268,14 @@ export function TransferTab() {
           ) : null}
         </section>
 
-        <section className="rounded-lg border border-border bg-muted p-3.5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+        <section className="rounded-2xl border border-border/60 bg-card p-5 sm:p-7">
+          <div className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
             <Upload size={16} />
             导入
           </div>
           <Empty
             className={cn(
-              'min-h-40 gap-3 border-dashed bg-background px-4 py-5 transition-colors',
+              'min-h-48 gap-4 rounded-xl border border-dashed bg-background/50 px-4 py-6 transition-colors',
               dragging ? 'border-primary bg-primary/10' : 'border-border',
             )}
             onDragOver={(event) => {
@@ -334,7 +334,7 @@ export function TransferTab() {
 
       {selectedFile &&
       (importState.stage !== 'idle' || importState.error || importState.summary) ? (
-        <div className="rounded-lg border border-border bg-muted p-3.5">
+        <div className="rounded-2xl border border-border/60 bg-card p-5 sm:p-7">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-foreground">
               {importState.stage === 'done' ? (
@@ -467,8 +467,8 @@ function SummaryStat({
   const toneClass =
     tone === 'accent' ? 'text-primary' : tone === 'warn' ? 'text-destructive' : 'text-foreground';
   return (
-    <div className="rounded-md border border-border bg-card px-2 py-1.5">
-      <div className={cn('text-sm font-semibold tabular-nums', toneClass)}>{value}</div>
+    <div className="rounded-xl bg-secondary/50 px-4 py-3">
+      <div className={cn('text-2xl font-semibold tabular-nums', toneClass)}>{value}</div>
       <div className="text-[11px] text-muted-foreground">{label}</div>
     </div>
   );

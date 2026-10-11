@@ -256,10 +256,12 @@ export function SettingsTab() {
   }
   const provider = PRESETS.find((item) => item.url === draft?.faviconProxyUrl)?.id ?? 'custom';
   return (
-    <div className="mx-auto flex w-full max-w-[64rem] flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-[64rem] flex-col gap-7">
       <div>
-        <h1 className="font-display text-2xl font-semibold">设置</h1>
-        <p className="mt-2 text-sm text-muted-foreground">管理外观、网站图标与启动台搜索引擎。</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">设置</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          管理访问权限、背景图片、网站图标与网页搜索引擎。
+        </p>
       </div>
       {loading ? (
         <Skeleton className="h-64 w-full" />
@@ -276,14 +278,22 @@ export function SettingsTab() {
         <>
           <fieldset disabled={saving} className="min-w-0">
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList>
-                <TabsTrigger value="privacy">访问与隐私</TabsTrigger>
-                <TabsTrigger value="appearance">外观</TabsTrigger>
-                <TabsTrigger value="icons">网站图标</TabsTrigger>
-                <TabsTrigger value="engines">搜索引擎</TabsTrigger>
+              <TabsList className="mb-5 h-auto max-w-full flex-wrap gap-1 rounded-xl bg-secondary/60 p-1.5">
+                <TabsTrigger className="min-h-10 rounded-lg px-4" value="privacy">
+                  访问与隐私
+                </TabsTrigger>
+                <TabsTrigger className="min-h-10 rounded-lg px-4" value="appearance">
+                  外观
+                </TabsTrigger>
+                <TabsTrigger className="min-h-10 rounded-lg px-4" value="icons">
+                  网站图标
+                </TabsTrigger>
+                <TabsTrigger className="min-h-10 rounded-lg px-4" value="engines">
+                  搜索引擎
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="privacy">
-                <Card>
+                <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
                   <CardHeader>
                     <CardTitle>访问与隐私</CardTitle>
                     <CardDescription>
@@ -312,14 +322,12 @@ export function SettingsTab() {
                 </Card>
               </TabsContent>
               <TabsContent value="appearance">
-                <Card>
+                <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
                   <CardHeader>
                     <CardTitle>
                       <h2>背景图片</h2>
                     </CardTitle>
-                    <CardDescription>
-                      启动台与书签柜共用背景图片，关闭后使用纯色背景。
-                    </CardDescription>
+                    <CardDescription>导航首页使用此背景图片，关闭后使用纯色背景。</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <FieldGroup>
@@ -363,7 +371,7 @@ export function SettingsTab() {
                 </Card>
               </TabsContent>
               <TabsContent value="icons">
-                <Card>
+                <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
                   <CardHeader>
                     <CardTitle>
                       <h2>网站图标</h2>
@@ -422,7 +430,7 @@ export function SettingsTab() {
                 </Card>
               </TabsContent>
               <TabsContent value="engines">
-                <Card>
+                <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
                   <CardHeader>
                     <CardTitle>
                       <h2>搜索引擎</h2>
@@ -446,7 +454,7 @@ export function SettingsTab() {
                           <Field
                             orientation="horizontal"
                             key={engine.id}
-                            className="rounded-md border p-3"
+                            className="rounded-xl border border-border/60 p-4"
                           >
                             <RadioGroupItem value={engine.id} id={`engine-${engine.id}`} />
                             <EngineIcon engine={engine} />
@@ -503,7 +511,7 @@ export function SettingsTab() {
               </TabsContent>
             </Tabs>
           </fieldset>
-          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/95 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
             <span role="status" className="text-sm text-muted-foreground">
               {dirty ? '有未保存修改' : '所有修改已保存'}
             </span>
