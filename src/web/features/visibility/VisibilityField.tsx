@@ -13,13 +13,7 @@ import {
   FieldSet,
 } from '@/components/ui/field';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { api } from '@nav/api/client';
-import { useApiData } from '@nav/hooks/useApiData';
-
-const loadDefaults = (signal: AbortSignal) => api.getSettings(undefined, signal);
-export function useVisibilityDefaults() {
-  return useApiData(loadDefaults);
-}
+export { useVisibilityDefaults } from './useVisibilityDefaults';
 
 export function VisibilityField({
   value,

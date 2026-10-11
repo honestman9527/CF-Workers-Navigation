@@ -11,7 +11,7 @@ pnpm；Cloudflare Workers + D1 + Hono + Drizzle；React + Vite + Tailwind CSS。
 - 优先复用现有实现，保持最小改动、高内聚和清晰依赖方向
 - `src/worker` 与 `src/web` 是同一个部署单元
 - 跨端契约只进入 `src/shared`
-- 组件库使用 `shadcn/ui`，没有适配的再自己实现
+- 前台 UI 遵循 [DESIGN.md](DESIGN.md)，使用定制组件，可复用 Base UI 无样式交互；管理后台使用 `shadcn/ui`
 - 功能性图标统一使用 `lucide-react`；不得手写 SVG 或混用其他图标库
 - 前端样式优先使用 Tailwind 工具类；全局 CSS 只保留 token、关键帧和必要全局规则。
 
