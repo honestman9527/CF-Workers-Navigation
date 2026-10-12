@@ -22,7 +22,7 @@ const empty = {
   error: null,
 };
 
-/** 分区独立的游标资源；失败重试当前页，过期请求不能写回新筛选。 */
+/** 分区独立的游标资源；已访问分类可恢复，取消的响应不能写入缓存。 */
 export function useBookmarkFeed({
   category,
   tag,
@@ -30,6 +30,7 @@ export function useBookmarkFeed({
   pinned,
   query = '',
   enabled = true,
+  cacheVisited = false,
   version = 0,
   onUnauthorized,
 }: {
@@ -39,18 +40,31 @@ export function useBookmarkFeed({
   pinned?: boolean;
   query?: string;
   enabled?: boolean;
+  cacheVisited?: boolean;
   version?: number;
   onUnauthorized: () => void;
 }) {
   const key = JSON.stringify([category, tag, untagged, pinned, query, version]);
   const [state, setState] = useState<FeedState>({ ...empty, key });
   const [retry, setRetry] = useState(0);
+  const cache = useRef(new Map<string, FeedState>());
+  const cacheVersion = useRef(version);
   const controller = useRef<AbortController | null>(null);
   const busy = useRef(false);
   const unauthorized = useRef(onUnauthorized);
   useEffect(() => {
     unauthorized.current = onUnauthorized;
   }, [onUnauthorized]);
+
+  const publish = useCallback(
+    (next: FeedState) => {
+      if (cacheVisited && (next.loaded || next.error)) {
+        cache.current.set(next.key, { ...next, loading: false, loadingMore: false });
+      }
+      setState(next);
+    },
+    [cacheVisited],
+  );
 
   const request = useCallback(
     (signal: AbortSignal, cursor?: string) => {
@@ -71,15 +85,24 @@ export function useBookmarkFeed({
   );
 
   useEffect(() => {
+    if (cacheVersion.current !== version) {
+      cache.current.clear();
+      cacheVersion.current = version;
+    }
     if (!enabled) return;
     const current = new AbortController();
     controller.current = current;
-    busy.current = true;
+    const saved = cacheVisited ? cache.current.get(key) : undefined;
+    busy.current = !saved;
+    if (saved) {
+      setState(saved);
+      return () => current.abort();
+    }
     setState({ ...empty, key, loading: true });
     request(current.signal)
       .then((page) => {
         if (!current.signal.aborted)
-          setState({ ...empty, key, items: page.items, nextCursor: page.nextCursor, loaded: true });
+          publish({ ...empty, key, items: page.items, nextCursor: page.nextCursor, loaded: true });
       })
       .catch((error: unknown) => {
         if (current.signal.aborted) return;
@@ -87,13 +110,13 @@ export function useBookmarkFeed({
           unauthorized.current();
           return;
         }
-        setState({ ...empty, key, error: error instanceof Error ? error.message : '加载失败' });
+        publish({ ...empty, key, error: error instanceof Error ? error.message : '加载失败' });
       })
       .finally(() => {
         if (!current.signal.aborted) busy.current = false;
       });
     return () => current.abort();
-  }, [key, request, enabled, retry]);
+  }, [key, request, enabled, retry, version, cacheVisited, publish]);
 
   async function loadMore() {
     const current = controller.current;
@@ -107,41 +130,47 @@ export function useBookmarkFeed({
     )
       return;
     busy.current = true;
-    setState((prev) => ({ ...prev, loadingMore: true, error: null }));
+    publish({ ...state, loadingMore: true, error: null });
     try {
       const page = await request(current.signal, state.nextCursor);
       if (current.signal.aborted) return;
-      setState((prev) => ({
-        ...prev,
+      publish({
+        ...state,
         items: [
-          ...prev.items,
-          ...page.items.filter((item) => !prev.items.some((old) => old.id === item.id)),
+          ...state.items,
+          ...page.items.filter((item) => !state.items.some((old) => old.id === item.id)),
         ],
         nextCursor: page.nextCursor,
         loadingMore: false,
-      }));
+        error: null,
+      });
     } catch (error) {
       if (current.signal.aborted) return;
       if (error instanceof ApiError && error.status === 401) {
         unauthorized.current();
         return;
       }
-      setState((prev) => ({
-        ...prev,
+      publish({
+        ...state,
         loadingMore: false,
         error: error instanceof Error ? error.message : '加载失败',
-      }));
+      });
     } finally {
       if (!current.signal.aborted) busy.current = false;
     }
   }
 
   return {
-    ...(state.key === key ? state : { ...empty, key, loading: enabled }),
+    ...(state.key === key
+      ? state
+      : (cacheVisited && cache.current.get(key)) || { ...empty, key, loading: enabled }),
     loadMore,
     retry: () => {
       if (state.loaded) void loadMore();
-      else setRetry((value) => value + 1);
+      else {
+        cache.current.delete(key);
+        setRetry((value) => value + 1);
+      }
     },
   };
 }

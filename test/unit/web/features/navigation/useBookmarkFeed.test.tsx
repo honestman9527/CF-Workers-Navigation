@@ -20,12 +20,15 @@ afterEach(async () => app?.cleanup());
 
 function Probe() {
   const [category, setCategory] = useState('one');
-  const feed = useBookmarkFeed({ category, onUnauthorized: vi.fn() });
+  const [version, setVersion] = useState(0);
+  const feed = useBookmarkFeed({ category, cacheVisited: true, version, onUnauthorized: vi.fn() });
   return (
     <>
       <button onClick={() => void feed.loadMore()}>更多</button>
       <button onClick={feed.retry}>重试</button>
       <button onClick={() => setCategory('two')}>切换</button>
+      <button onClick={() => setCategory('one')}>返回</button>
+      <button onClick={() => setVersion((value) => value + 1)}>刷新</button>
       <output>
         {feed.items.map((item) => item.title).join(',')}
         {feed.error}
@@ -74,4 +77,76 @@ it('切换筛选立即清空旧数据，取消请求并忽略迟到响应', asyn
   expect(signal.aborted).toBe(true);
   await act(async () => finish({ items: [bookmark(1)], nextCursor: 'old' }));
   expect(app.container.querySelector('output')!.textContent).toBe('网站2');
+});
+
+it('返回已访问分类恢复追加项和错误，重试继续原游标；版本更新使旧缓存失效', async () => {
+  vi.mocked(api.getBookmarks)
+    .mockResolvedValueOnce({ items: [bookmark(1)], nextCursor: 'page2' })
+    .mockResolvedValueOnce({ items: [bookmark(2)], nextCursor: 'page3' })
+    .mockRejectedValueOnce(new Error('追加失败'))
+    .mockResolvedValueOnce({ items: [bookmark(20)], nextCursor: null })
+    .mockResolvedValueOnce({ items: [bookmark(3)], nextCursor: null })
+    .mockResolvedValueOnce({ items: [bookmark(10)], nextCursor: null })
+    .mockResolvedValueOnce({ items: [bookmark(30)], nextCursor: null });
+  app = await mount(<Probe />);
+  const buttons = app.container.querySelectorAll('button');
+  await click(buttons[0]);
+  await click(buttons[0]);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1,网站2追加失败');
+  await click(buttons[2]);
+  const count = vi.mocked(api.getBookmarks).mock.calls.length;
+  await click(buttons[3]);
+  expect(api.getBookmarks).toHaveBeenCalledTimes(count);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1,网站2追加失败');
+  await click(buttons[1]);
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    undefined,
+    expect.objectContaining({ cursor: 'page3', limit: 24 }),
+    expect.any(AbortSignal),
+  );
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1,网站2,网站3');
+  await click(buttons[4]);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站10');
+  await click(buttons[2]);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站30');
+});
+
+it('取消未完成的追加后返回原分类保留内容和游标，迟到响应不污染缓存', async () => {
+  let finish!: (value: BookmarkPage) => void;
+  vi.mocked(api.getBookmarks)
+    .mockResolvedValueOnce({ items: [bookmark(1)], nextCursor: 'next' })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ items: [bookmark(20)], nextCursor: null })
+    .mockResolvedValueOnce({ items: [bookmark(2)], nextCursor: null });
+  app = await mount(<Probe />);
+  const buttons = app.container.querySelectorAll('button');
+  await click(buttons[0]);
+  const signal = vi.mocked(api.getBookmarks).mock.calls[1][2]!;
+  await click(buttons[2]);
+  expect(signal.aborted).toBe(true);
+  await act(() => finish({ items: [bookmark(99)], nextCursor: 'bad' }));
+  await click(buttons[3]);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1');
+  await click(buttons[0]);
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    undefined,
+    expect.objectContaining({ cursor: 'next' }),
+    expect.any(AbortSignal),
+  );
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1,网站2');
+});
+
+it('缓存首次加载错误后仍可原地重试', async () => {
+  vi.mocked(api.getBookmarks)
+    .mockRejectedValueOnce(new Error('首次失败'))
+    .mockResolvedValueOnce({ items: [bookmark(1)], nextCursor: null });
+  app = await mount(<Probe />);
+  expect(app.container.textContent).toContain('首次失败');
+  await click(app.container.querySelectorAll('button')[1]);
+  expect(app.container.querySelector('output')?.textContent).toBe('网站1');
 });

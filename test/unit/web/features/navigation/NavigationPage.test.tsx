@@ -14,11 +14,17 @@ import { buttonWithText, click, fill, mount } from '../../render';
 
 const { auth, route, navigate } = vi.hoisted(() => ({
   auth: { authed: false, logout: vi.fn() },
-  route: { search: {} as NavigationSearch, setSearch: (_value: NavigationSearch) => {} },
+  route: {
+    search: {} as NavigationSearch,
+    key: 'initial',
+    nextKey: 0,
+    setSearch: (_value: NavigationSearch, _key?: string) => {},
+  },
   navigate: vi.fn(),
 }));
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => route.search }),
+  useLocation: () => ({ state: { __TSR_key: route.key }, href: '/', search: route.search }),
   useNavigate: () => navigate,
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
@@ -51,9 +57,11 @@ const category = (id: number, slug: string, parentId: number | null = null) =>
   ({ id, slug, name: slug, parentId, sortOrder: id, bookmarkCount: 1 }) as Category;
 
 function Host({ initial = {} }: { initial?: NavigationSearch }) {
-  const [search, setSearch] = useState(initial);
-  route.search = search;
-  route.setSearch = setSearch;
+  const [location, setLocation] = useState({ search: initial, key: 'initial' });
+  route.search = location.search;
+  route.key = location.key;
+  route.setSearch = (search, key) =>
+    setLocation({ search, key: key ?? `entry-${++route.nextKey}` });
   return <NavigationPage />;
 }
 
@@ -61,6 +69,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   localStorage.clear();
+  route.nextKey = 0;
+  Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
   auth.authed = false;
   vi.stubGlobal('IntersectionObserver', undefined);
   Element.prototype.scrollIntoView = vi.fn();
@@ -80,6 +90,9 @@ beforeEach(() => {
     category(1, '工具'),
     category(2, '开发', 1),
     category(3, '阅读'),
+    category(4, '前端', 2),
+    category(5, 'React', 4),
+    category(6, '博客', 3),
   ]);
   vi.mocked(api.getTags).mockResolvedValue([
     { id: 1, name: 'React', slug: 'react', bookmarkCount: 1 },
@@ -114,11 +127,9 @@ it('同时展示常用及多个一级分类；子分类切换在原分区取数'
   app = await mount(<Host />);
   expect(app.container.querySelector('#section-category-工具')?.textContent).toContain('网站2');
   expect(app.container.querySelector('#section-category-阅读')?.textContent).toContain('网站3');
-  const select = app.container.querySelector<HTMLSelectElement>('[aria-label="工具子分类"]')!;
-  await act(() => {
-    select.value = '开发';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  await click(
+    buttonWithText(app.container.querySelector('#section-category-工具') as HTMLElement, '开发'),
+  );
   expect(route.search.category).toBe('开发');
   expect(api.getBookmarks).toHaveBeenCalledWith(
     undefined,
@@ -199,12 +210,20 @@ it('退出身份后立即卸载私有数据和旧索引', async () => {
   vi.mocked(api.getBookmarks).mockResolvedValue({ items: [item(8, '私有网站')], nextCursor: null });
   app = await mount(<Host />);
   expect(app.container.textContent).toContain('私有网站');
+  const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
+  await click(buttonWithText(tools, '开发'));
+  await click(buttonWithText(tools, '工具'));
   const signals = vi.mocked(api.getBookmarks).mock.calls.map((call) => call[2]!);
   auth.authed = false;
   vi.mocked(api.getBookmarks).mockResolvedValue({ items: [item(9, '公开网站')], nextCursor: null });
   await act(() => route.setSearch({ mode: 'site' }));
   expect(app.container.textContent).not.toContain('私有网站');
   expect(signals.every((signal) => signal.aborted)).toBe(true);
+  await click(
+    buttonWithText(app.container.querySelector('#section-category-工具') as HTMLElement, '开发'),
+  );
+  expect(app.container.textContent).not.toContain('私有网站');
+  expect(app.container.textContent).toContain('公开网站');
 });
 
 it('分类靠近视区才加载，各分区错误与重试独立', async () => {
@@ -270,4 +289,97 @@ it('返回无显式模式的首页继续沿用最后选择；输入法组合期�
     expect.any(Object),
     expect.any(AbortSignal),
   );
+});
+
+it('逐层展示到四级并可返回祖先，顶部高亮所属一级，选择后焦点留在路径', async () => {
+  app = await mount(<Host />);
+  const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
+  expect(tools.querySelector('select')).toBeNull();
+  expect(tools.querySelector('[aria-label="工具子分类"]')?.textContent).toBe('开发');
+  for (const name of ['开发', '前端', 'React']) await click(buttonWithText(tools, name));
+  expect(route.search.category).toBe('React');
+  expect(tools.querySelector('[aria-label="工具分类路径"]')?.textContent).toBe('工具开发前端React');
+  expect(tools.querySelector('ul[aria-label$="子分类"]')).toBeNull();
+  expect(document.activeElement?.textContent).toBe('React');
+  const topNav = app.container.querySelector('[aria-label="分类导航"]') as HTMLElement;
+  expect(buttonWithText(topNav, '工具').getAttribute('aria-current')).toBe('location');
+  await click(buttonWithText(tools, '开发'));
+  expect(route.search.category).toBe('开发');
+  expect(tools.querySelector('[aria-label="开发子分类"]')?.textContent).toBe('前端');
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    undefined,
+    expect.objectContaining({ category: 'React' }),
+    expect.any(AbortSignal),
+  );
+});
+
+it('多个分区独立保留路径，一级导航只定位，搜索清除后保留内容缓存', async () => {
+  app = await mount(<Host />);
+  const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
+  const reading = app.container.querySelector('#section-category-阅读') as HTMLElement;
+  for (const name of ['开发', '前端', 'React']) await click(buttonWithText(tools, name));
+  await click(buttonWithText(reading, '博客'));
+  expect(tools.querySelector('[aria-current="page"]')?.textContent).toBe('React');
+  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('博客');
+  const count = vi.mocked(api.getBookmarks).mock.calls.length;
+  await click(
+    buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '工具'),
+  );
+  expect(route.search.category).toBe('React');
+  expect(api.getBookmarks).toHaveBeenCalledTimes(count);
+  expect(vi.mocked(Element.prototype.scrollIntoView).mock.instances.at(-1)).toBe(tools);
+  await fill(app.container.querySelector('input')!, 'React');
+  await settle();
+  await click(app.container.querySelector('[aria-label="清除搜索"]')!);
+  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('博客');
+  expect(api.getBookmarks).toHaveBeenCalledTimes(count);
+});
+
+it('深层链接展开完整路径；重新挂载仅恢复URL分类，其他分区从一级开始', async () => {
+  app = await mount(<Host initial={{ category: 'React' }} />);
+  expect(
+    app.container.querySelector('#section-category-工具 [aria-current="page"]')?.textContent,
+  ).toBe('React');
+  expect(
+    (vi.mocked(Element.prototype.scrollIntoView).mock.instances.at(-1) as HTMLElement | undefined)
+      ?.id,
+  ).toBe('section-category-工具');
+  await click(
+    buttonWithText(app.container.querySelector('#section-category-阅读') as HTMLElement, '博客'),
+  );
+  await app.cleanup();
+  app = await mount(<Host initial={{ category: 'React' }} />);
+  expect(
+    app.container.querySelector('#section-category-工具 [aria-current="page"]')?.textContent,
+  ).toBe('React');
+  expect(
+    app.container.querySelector('#section-category-阅读 [aria-current="page"]')?.textContent,
+  ).toBe('阅读');
+});
+
+it('后退前进恢复当时各分区的选择和滚动，不被分类锚点覆盖', async () => {
+  app = await mount(<Host />);
+  const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
+  const reading = app.container.querySelector('#section-category-阅读') as HTMLElement;
+  await click(buttonWithText(tools, '开发'));
+  const earlier = { search: route.search, key: route.key };
+  Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
+  window.dispatchEvent(new Event('scroll'));
+  await click(buttonWithText(reading, '博客'));
+  const later = { search: route.search, key: route.key };
+  Object.defineProperty(window, 'scrollY', { value: 1250, configurable: true });
+  window.dispatchEvent(new Event('scroll'));
+  const count = vi.mocked(api.getBookmarks).mock.calls.length;
+  const anchors = vi.mocked(Element.prototype.scrollIntoView).mock.calls.length;
+  await act(() => route.setSearch(earlier.search, earlier.key));
+  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('阅读');
+  expect(tools.querySelector('[aria-current="page"]')?.textContent).toBe('开发');
+  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 640, behavior: 'instant' });
+  // 模拟浏览器已应用恢复后的滚动。
+  Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
+  await act(() => route.setSearch(later.search, later.key));
+  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('博客');
+  expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1250, behavior: 'instant' });
+  expect(api.getBookmarks).toHaveBeenCalledTimes(count);
+  expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(anchors);
 });

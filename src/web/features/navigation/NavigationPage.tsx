@@ -1,14 +1,14 @@
 import type { Bookmark, BookmarkInput } from '@shared/api/types';
 
-import { getRouteApi, Link, useNavigate } from '@tanstack/react-router';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { ArrowRight, Globe, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
-import { buildCategoryTree, subtreeIds } from '@nav/features/categories/tree';
+import { buildCategoryTree } from '@nav/features/categories/tree';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 import { useApiData } from '@nav/hooks/useApiData';
 import { useBackground } from '@nav/hooks/useBackground';
@@ -23,6 +23,7 @@ import {
 } from '@shared/search';
 
 import { BookmarkSection, FeedContent, type BookmarkActions } from './BookmarkSection';
+import { categoryPath } from './categoryBrowse';
 import { FrontButton } from './controls';
 import { NavigationMenu } from './NavigationMenu';
 import {
@@ -33,8 +34,8 @@ import {
   type SearchMode,
 } from './search';
 import { useBookmarkFeed } from './useBookmarkFeed';
+import { useCategoryBrowse } from './useCategoryBrowse';
 
-const routeApi = getRouteApi('/');
 const FrontBookmarkEditor = lazy(() =>
   import('./FrontBookmarkEditor').then((module) => ({ default: module.FrontBookmarkEditor })),
 );
@@ -50,7 +51,8 @@ function NavigationSurface() {
   const auth = useAuthContext();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const search = routeApi.useSearch();
+  const location = useLocation();
+  const search = parseNavigationSearch(location.search);
   const [preferredMode, setPreferredMode] = useState(readSearchMode);
   const mode = search.mode ?? preferredMode;
   const [draft, setDraft] = useState(search.q ?? '');
@@ -66,9 +68,6 @@ function NavigationSurface() {
   const logoutPending = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const [highlighted, setHighlighted] = useState(-1);
-  const browsePosition = useRef(0);
-  const wasSearching = useRef(false);
-  const positionedCategory = useRef<string | undefined>(undefined);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -102,12 +101,19 @@ function NavigationSurface() {
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
   const tags = useApiData(loadTags, { onUnauthorized: unauthorized });
-  const roots = buildCategoryTree(categories.data ?? []);
+  const roots = useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
   const engines = settings?.searchEngines.length ? settings.searchEngines : DEFAULT_SEARCH_ENGINES;
   const engineId = search.engine ?? settings?.defaultEngineId ?? engines[0]?.id;
   const bang = parseBangQuery(draft, engines);
   const engine = engines.find((item) => item.id === (bang.engineId ?? engineId));
   const searching = mode === 'site' && Boolean(search.q || search.tag || search.untagged);
+  const browse = useCategoryBrowse(
+    location.state.__TSR_key ?? location.href,
+    roots,
+    search.category,
+    searching,
+    Boolean(categories.data),
+  );
   const results = useBookmarkFeed({
     query: search.q,
     tag: search.tag,
@@ -118,7 +124,8 @@ function NavigationSurface() {
   });
 
   function update(next: NavigationSearch, replace = false) {
-    void navigate({ to: '/', search: parseNavigationSearch(next), replace, resetScroll: false });
+    browse.remember();
+    return navigate({ to: '/', search: parseNavigationSearch(next), replace, resetScroll: false });
   }
   useEffect(() => {
     document.title = '书签柜';
@@ -134,6 +141,7 @@ function NavigationSurface() {
   useEffect(() => {
     if (composing || draft.trim() === (search.q ?? '')) return;
     const timer = window.setTimeout(() => {
+      browse.remember();
       void navigate({
         to: '/',
         search: (prev) => ({ ...prev, mode, q: draft.trim() || undefined }),
@@ -142,7 +150,7 @@ function NavigationSurface() {
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [draft, search.q, mode, navigate, composing]);
+  }, [draft, search.q, mode, navigate, composing, browse.remember]);
   useEffect(() => {
     const focus = (event: KeyboardEvent) => {
       if (canFocusSearch(event)) {
@@ -153,44 +161,48 @@ function NavigationSurface() {
     window.addEventListener('keydown', focus);
     return () => window.removeEventListener('keydown', focus);
   }, []);
-  useLayoutEffect(() => {
-    if (!searching && wasSearching.current)
-      window.scrollTo({ top: browsePosition.current, behavior: 'instant' });
-    wasSearching.current = searching;
-  }, [searching]);
-  useLayoutEffect(() => {
-    if (searching) return;
-    const rememberPosition = () => {
-      browsePosition.current = window.scrollY;
-    };
-    rememberPosition();
-    window.addEventListener('scroll', rememberPosition, { passive: true });
-    return () => window.removeEventListener('scroll', rememberPosition);
-  }, [searching]);
-  useEffect(() => {
-    if (searching || !search.category || !categories.data) return;
-    if (positionedCategory.current === search.category) return;
-    positionedCategory.current = search.category;
-    const root = buildCategoryTree(categories.data).find((item) =>
-      subtreeIds(categories.data!, item.id).some(
-        (id) => categories.data!.find((node) => node.id === id)?.slug === search.category,
-      ),
-    );
-    document
-      .getElementById(root ? `section-category-${root.slug}` : `section-${search.category}`)
-      ?.scrollIntoView({ block: 'start', behavior: 'instant' });
-  }, [search.category, categories.data, searching]);
-
   function selectCategory(category: string) {
     setDraft('');
-    update({ ...search, mode, category, q: undefined, tag: undefined, untagged: undefined });
-    document
-      .getElementById(
-        roots.some((root) => root.slug === category)
-          ? `section-category-${category}`
-          : `section-${category}`,
-      )
-      ?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    void update({
+      ...search,
+      mode,
+      category,
+      q: undefined,
+      tag: undefined,
+      untagged: undefined,
+    }).then(() => {
+      const section = document.getElementById(
+        `section-category-${categoryPath(roots, category)[0]?.slug}`,
+      );
+      section?.querySelector<HTMLElement>('[aria-current="page"]')?.focus({ preventScroll: true });
+    });
+  }
+  function locateSection(rootSlug?: string) {
+    const category =
+      rootSlug === 'uncategorized'
+        ? rootSlug
+        : rootSlug
+          ? (browse.selections[rootSlug] ?? rootSlug)
+          : undefined;
+    setDraft('');
+    void update({
+      ...search,
+      mode,
+      category,
+      q: undefined,
+      tag: undefined,
+      untagged: undefined,
+    }).then(() => {
+      document
+        .getElementById(
+          rootSlug === 'uncategorized'
+            ? 'section-uncategorized'
+            : rootSlug
+              ? `section-category-${rootSlug}`
+              : 'section-common',
+        )
+        ?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
   }
   function selectMode(next: SearchMode) {
     update({ ...search, mode: next, q: draft.trim() || undefined });
@@ -492,20 +504,7 @@ function NavigationSurface() {
           >
             <div className="flex overflow-x-auto py-1">
               <FrontButton
-                onClick={() => {
-                  setDraft('');
-                  update({
-                    ...search,
-                    mode,
-                    category: undefined,
-                    q: undefined,
-                    tag: undefined,
-                    untagged: undefined,
-                  });
-                  document
-                    .getElementById('section-common')
-                    ?.scrollIntoView({ block: 'start', behavior: 'instant' });
-                }}
+                onClick={() => locateSection()}
                 className={cn('whitespace-nowrap', !search.category && 'text-primary')}
               >
                 常用
@@ -513,18 +512,23 @@ function NavigationSurface() {
               {roots.map((root) => (
                 <FrontButton
                   key={root.id}
-                  onClick={() => selectCategory(root.slug)}
+                  aria-current={browse.activeRoot === root.slug ? 'location' : undefined}
+                  onClick={() => locateSection(root.slug)}
                   className={cn(
                     'whitespace-nowrap',
-                    search.category === root.slug && 'text-primary',
+                    browse.activeRoot === root.slug && 'text-primary',
                   )}
                 >
                   {root.name}
                 </FrontButton>
               ))}
               <FrontButton
-                onClick={() => selectCategory('uncategorized')}
-                className="whitespace-nowrap"
+                onClick={() => locateSection('uncategorized')}
+                aria-current={search.category === 'uncategorized' ? 'location' : undefined}
+                className={cn(
+                  'whitespace-nowrap',
+                  search.category === 'uncategorized' && 'text-primary',
+                )}
               >
                 未分类
               </FrontButton>
@@ -548,7 +552,8 @@ function NavigationSurface() {
             <BookmarkSection
               key={root.id}
               root={root}
-              selectedSlug={search.category}
+              selectedSlug={browse.selections[root.slug]}
+              active={browse.activeRoot === root.slug}
               actions={actions}
               version={version}
               onSelect={selectCategory}
@@ -561,6 +566,7 @@ function NavigationSurface() {
             </p>
           ) : null}
           <BookmarkSection
+            active={search.category === 'uncategorized'}
             selectedSlug={search.category}
             actions={actions}
             version={version}

@@ -1,14 +1,16 @@
-import type { Bookmark, Category } from '@shared/api/types';
+import type { CategoryNode } from '@nav/features/categories/tree';
+import type { Bookmark } from '@shared/api/types';
 
 import { Pencil, Star } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { cn } from '@/lib/utils';
-import { type CategoryNode, flattenCategoryTree } from '@nav/features/categories/tree';
 import { domainOf } from '@shared/search';
 
-import { FrontButton, frontInputClass } from './controls';
+import { categoryPath } from './categoryBrowse';
+import { CategoryNavigation } from './CategoryNavigation';
+import { FrontButton } from './controls';
 import { type BookmarkFeed, useBookmarkFeed } from './useBookmarkFeed';
 
 export type BookmarkActions = {
@@ -152,6 +154,7 @@ export function BookmarkSection({
   actions,
   version,
   pinned = false,
+  active = false,
   onSelect,
   onUnauthorized,
 }: {
@@ -160,25 +163,21 @@ export function BookmarkSection({
   actions: BookmarkActions;
   version: number;
   pinned?: boolean;
+  active?: boolean;
   onSelect: (slug: string) => void;
   onUnauthorized: () => void;
 }) {
   const section = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(pinned);
-  const descendants: Array<Category & { depth: number }> = root
-    ? flattenCategoryTree(root.children)
-    : [];
-  const selected = descendants.find((item) => item.slug === selectedSlug);
+  const path = root ? categoryPath([root], selectedSlug) : [];
+  const selected = path[path.length - 1] ?? root;
   const slug = pinned ? 'common' : root ? `category-${root.slug}` : 'uncategorized';
-  const category = pinned ? undefined : (selected?.slug ?? root?.slug ?? 'uncategorized');
+  const category = pinned ? undefined : (selected?.slug ?? 'uncategorized');
   const feed = useBookmarkFeed({
     pinned: pinned || undefined,
     category,
-    enabled:
-      visible ||
-      Boolean(root && selectedSlug === root.slug) ||
-      selectedSlug === slug ||
-      Boolean(selected),
+    enabled: visible || active,
+    cacheVisited: true,
     version,
     onUnauthorized,
   });
@@ -215,26 +214,14 @@ export function BookmarkSection({
         >
           {pinned ? '常用网站' : (root?.name ?? '未分类')}
         </h2>
-        {descendants.length ? (
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="sr-only">{root?.name}子分类</span>
-            <select
-              aria-label={`${root?.name}子分类`}
-              className={`${frontInputClass} max-w-52 border-transparent bg-transparent text-sm`}
-              value={selected?.slug ?? root?.slug}
-              onChange={(event) => onSelect(event.target.value)}
-            >
-              <option value={root?.slug}>全部子分类</option>
-              {descendants.map((item) => (
-                <option key={item.id} value={item.slug}>
-                  {'　'.repeat(item.depth)}
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
       </div>
+      {root && (root.children.length > 0 || path.length > 1) ? (
+        <CategoryNavigation
+          key={selected?.slug}
+          path={path.length ? path : [root]}
+          onSelect={onSelect}
+        />
+      ) : null}
       <FeedContent
         feed={feed}
         actions={actions}

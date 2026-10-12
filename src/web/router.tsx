@@ -46,7 +46,8 @@ export const router = createRouter({
   parseSearch,
   stringifySearch,
   defaultPreload: 'intent',
-  scrollRestoration: true,
+  // 首页在分类缓存恢复后自行恢复滚动，避免路由恢复覆盖分区位置。
+  scrollRestoration: ({ location }) => location.pathname !== '/',
 });
 
 declare module '@tanstack/react-router' {
