@@ -43,6 +43,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { Toaster } from '@/components/ui/toast';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
@@ -275,6 +276,7 @@ export function AdminPage() {
           <Outlet />
         </div>
       </SidebarInset>
+      <Toaster />
     </SidebarProvider>
   );
 }

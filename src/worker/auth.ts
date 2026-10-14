@@ -1,3 +1,5 @@
+import type { Context } from 'hono';
+
 import type { AppEnv } from './types';
 
 import { createMiddleware } from 'hono/factory';
@@ -122,12 +124,25 @@ export function isSecureRequest(url: string) {
   return new URL(url).protocol === 'https:';
 }
 
+/** Login and invalid Bearer attempts share the same per-site, per-client budget. */
+export async function limitAuthAttempts(c: Context<AppEnv>): Promise<Response | undefined> {
+  const host = new URL(c.req.url).hostname;
+  const client = c.req.header('CF-Connecting-IP') ?? 'local';
+  const { success } = await c.env.AUTH_RATE_LIMITER.limit({ key: `auth:${host}:${client}` });
+  if (!success) {
+    c.header('Retry-After', '60');
+    return jsonError(c, 429, 'rate_limited', '尝试过于频繁，请一分钟后重试');
+  }
+}
+
 export const authContext = createMiddleware<AppEnv>(async (c, next) => {
   c.set('authed', false);
 
   const token = bearerToken(c.req.header('Authorization'));
   if (token !== undefined) {
     if (!(await timingSafeEqual(token, c.env.ADMIN_PASSWORD))) {
+      const limited = await limitAuthAttempts(c);
+      if (limited) return limited;
       return jsonError(c, 401, 'unauthorized', 'Invalid bearer token');
     }
     c.set('authed', true);

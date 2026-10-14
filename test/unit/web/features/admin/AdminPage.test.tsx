@@ -1,9 +1,9 @@
+import { THEME_STORAGE_KEY } from '@shared';
 // @vitest-environment jsdom
 import { Provider, createStore } from 'jotai';
 import { act, type ComponentProps } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import { pushToast } from '@nav/components/Toast';
 import { AdminPage } from '@nav/features/admin/AdminPage';
 import { themeAtom } from '@nav/features/settings/store';
 
@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({ logout: vi.fn() }));
 vi.mock('@nav/features/auth/useAuthContext', () => ({
   useAuthContext: () => ({ logout: mocks.logout }),
 }));
-vi.mock('@nav/components/Toast', () => ({ pushToast: vi.fn() }));
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/admin' }),
   Outlet: () => <p>页面内容</p>,
@@ -41,6 +40,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await app?.cleanup();
+  vi.restoreAllMocks();
 });
 
 async function setup(width = 1440) {
@@ -166,7 +166,53 @@ it('退出期间禁用重复操作，失败提示后可重新打开菜单重试'
   await click(menuItem('退出中…'));
   expect(mocks.logout).toHaveBeenCalledOnce();
   await act(async () => reject(new Error('network')));
-  expect(pushToast).toHaveBeenCalledWith('退出登录失败，请重试', 'error');
+  expect(document.querySelector('[data-slot="toast-title"]')?.textContent).toBe(
+    '退出登录失败，请重试',
+  );
   await click(menuItem('退出登录'));
   expect(mocks.logout).toHaveBeenCalledTimes(2);
+});
+
+it('浏览器禁止存储时仍能切换主题及收起导航', async () => {
+  const blocked = () => {
+    throw new DOMException('Storage blocked', 'SecurityError');
+  };
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked);
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked);
+  vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked);
+  const store = await setup();
+  await openMenu();
+  await click(menuItem('暗色'));
+  expect(store.get(themeAtom)).toBe('dark');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  await click(button('收起管理导航'));
+  expect(button('展开管理导航').getAttribute('aria-expanded')).toBe('false');
+  await app.cleanup();
+  const resumedStore = createStore();
+  app = await mount(
+    <Provider store={resumedStore}>
+      <AdminPage />
+    </Provider>,
+  );
+  expect(resumedStore.get(themeAtom)).toBe('dark');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+});
+
+it('主题写入失败时，重新挂载仍保留内存偏好，不被旧存储值覆盖', async () => {
+  await setup();
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new DOMException('Quota exceeded', 'QuotaExceededError');
+  });
+  await openMenu();
+  await click(menuItem('暗色'));
+  expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
+  await app.cleanup();
+  const store = createStore();
+  app = await mount(
+    <Provider store={store}>
+      <AdminPage />
+    </Provider>,
+  );
+  expect(store.get(themeAtom)).toBe('dark');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
 });

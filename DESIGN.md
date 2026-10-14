@@ -579,3 +579,14 @@ The structural breakpoints that matter for agents: 1440px (content lock), 1068px
 - Dark-mode counterparts for store and accessories utility cards were not surfaced on the analyzed pages; the system documented is the daytime/light-dominant variant Apple ships by default.
 - Atmospheric photography (environment page mountain vista) is a content asset, not a design token; the documented `{component.environment-quote-card}` describes the structural surface only.
 - The exact backdrop-filter blur radius on `{component.sub-nav-frosted}` and `{component.floating-sticky-bar}` is platform-dependent; production CSS uses `saturate(180%) blur(20px)` as a typical baseline but the value isn't formalized as a token.
+
+## 本项目组件与状态规则
+
+本文件的 Apple 参考规范用于系统字体、白灰表面、蓝色强调和轻量分隔。本项目的操作与状态按以下规则落实：
+
+- 前台使用定制组件，管理后台使用 shadcn/ui；共享无外观逻辑，各自呈现加载、错误和操作反馈。功能图标统一使用 lucide-react。
+- 暗色链接与强调色沿用 `--primary: #2997ff`；同色实心按钮使用 `--primary-foreground: #000000`，普通字号文字及悬停状态均应达到至少 4.5:1 的对比度。亮色实心蓝按钮保持白字。新增配色必须同时检查文字、控件边界和焦点可见性。
+- 首次加载失败在内容附近显示具体错误和原地重试入口；刷新失败保留已有内容，保存失败保留草稿。加载时禁用重复操作并提供可感知的进度文案，成功后移除错误。
+- 前台设置失败在搜索区附近提供「重试设置」，不遮挡导航与搜索；后台消息提示由布局统一呈现，包含退出失败等跨页面操作。
+- 键盘焦点清晰可见；弹出菜单关闭后恢复触发点焦点。减少动态偏好沿用全局规则。浏览器禁止持久化时仍允许本次页面内切换主题。
+- 交付前人工确认手机、平板、桌面、亮暗主题、背景图、长文本及错误和加载状态；行为测试与构建不能替代视觉确认，也不使用 Playwright 自动截图验收。

@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'conflict'
   | 'bad_gateway'
   | 'too_large'
+  | 'rate_limited'
   | 'internal_error';
 
 /** worker 返回的错误响应体结构。 */

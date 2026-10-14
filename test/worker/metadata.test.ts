@@ -25,6 +25,7 @@ function stubHtmlFetch(html: string, headers: Record<string, string> = {}) {
 describe('bookmark metadata', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('does not include JSON-LD, scripts, or body text in the title', async () => {
@@ -106,5 +107,82 @@ describe('bookmark metadata', () => {
     expect(result.metadata.partial).toBe(true);
     expect(result.metadata.title).toBe('large.example.com');
     expect(result.metadata.iconUrl).toBe('https://icons.example.com/large.example.com.ico');
+  });
+
+  it.each([new Error('Connection reset'), new DOMException('Timed out', 'TimeoutError')])(
+    'falls back when the response body fails after its headers arrive: %s',
+    async (error) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(error);
+        },
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(body, {
+              headers: { 'Content-Type': 'text/html' },
+            }),
+        ),
+      );
+      const result = await fetchBookmarkMetadata('https://broken.example.com/page', faviconOpts);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error(result.error);
+      expect(result.metadata).toMatchObject({
+        partial: true,
+        title: 'broken.example.com',
+        iconUrl: 'https://icons.example.com/broken.example.com.ico',
+      });
+    },
+  );
+
+  it('resolves relative links against the final URL after redirects', async () => {
+    const response = new Response(
+      '<html><head><title>Moved</title><link rel="icon" href="icon.png"><link rel="canonical" href="./canonical"></head></html>',
+      {
+        headers: { 'Content-Type': 'text/html' },
+      },
+    );
+    Object.defineProperty(response, 'url', {
+      value: 'https://destination.example.com/folder/page',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response),
+    );
+    const result = await fetchBookmarkMetadata('https://original.example.com/', faviconOpts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.metadata.url).toBe('https://original.example.com/');
+    expect(result.metadata.iconUrl).toBe('https://destination.example.com/folder/icon.png');
+    expect(result.metadata.metadata.canonical_url).toBe(
+      'https://destination.example.com/folder/canonical',
+    );
+  });
+
+  it('cancels an oversized streaming body after the bounded parse prefix', async () => {
+    const cancel = vi.fn();
+    const html = '<html><head><title>Bounded title</title></head><body>' + 'x'.repeat(600 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(html));
+      },
+      cancel,
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(body, {
+            headers: { 'Content-Type': 'text/html' },
+          }),
+      ),
+    );
+    const result = await fetchBookmarkMetadata('https://bounded.example.com/', faviconOpts);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.metadata.title).toBe('Bounded title');
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });

@@ -8,7 +8,7 @@ import { ZodError } from 'zod';
 
 export function jsonError(
   c: Context<AppEnv>,
-  status: 400 | 401 | 404 | 409 | 413 | 500 | 502,
+  status: 400 | 401 | 404 | 409 | 413 | 429 | 500 | 502,
   code: ErrorCode,
   message: string,
 ) {

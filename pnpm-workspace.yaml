@@ -3,3 +3,7 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+
+# GHSA-jp82-f5mq-hwhp: keep Router's transitive deserializer on a patched version.
+overrides:
+  seroval: 1.6.9

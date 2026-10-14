@@ -36,7 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Toaster } from '@/components/ui/toast';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
@@ -572,7 +571,6 @@ export function WebsitesTab() {
       </Suspense>
 
       <ConfirmStateDialog state={confirmState} onClose={() => setConfirmState(null)} />
-      <Toaster />
     </div>
   );
 }

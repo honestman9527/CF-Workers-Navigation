@@ -92,7 +92,12 @@ function NavigationSurface() {
   const unauthorized = useCallback(() => {
     void logout();
   }, [logout]);
-  const settings = useSettings(unauthorized);
+  const {
+    settings,
+    loading: settingsLoading,
+    error: settingsError,
+    retry: retrySettings,
+  } = useSettings(unauthorized);
   useBackground(settings);
   const loadCategories = useCallback(
     (signal: AbortSignal) => api.getCategories(undefined, signal),
@@ -309,6 +314,21 @@ function NavigationSurface() {
       </header>
       <main className="mx-auto max-w-[1440px] px-4 sm:px-8">
         <h1 className="sr-only">书签柜网站导航</h1>
+        {settingsError ? (
+          <div
+            role="alert"
+            className="mx-auto flex max-w-2xl flex-wrap items-center justify-center gap-x-3 py-3 text-sm"
+          >
+            <span className="text-destructive">设置加载失败：{settingsError}</span>
+            <FrontButton disabled={settingsLoading} onClick={retrySettings}>
+              {settingsLoading ? '正在重试…' : '重试设置'}
+            </FrontButton>
+          </div>
+        ) : settingsLoading && !settings ? (
+          <p role="status" className="py-3 text-center text-sm text-muted-foreground">
+            正在加载设置…
+          </p>
+        ) : null}
         <section aria-label="搜索" className="mx-auto max-w-2xl pt-5 pb-10 sm:pt-12 sm:pb-14">
           <div className="mb-5 flex items-center justify-center gap-3">
             <div

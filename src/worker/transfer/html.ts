@@ -75,11 +75,16 @@ export function parseHtml(input: string): TransferData {
     const folderMatch = line.match(/^<DT>\s*<H3[^>]*>([^<]*)<\/H3>/i);
     if (folderMatch) {
       const name = unescapeHtml(folderMatch[1]).trim() || '未命名分类';
-      const slug = slugify(name) || UNCATEGORIZED_SLUG;
-      const uncategorized = slug === UNCATEGORIZED_SLUG || name === UNCATEGORIZED_NAME;
+      const baseSlug = (slugify(name) || 'folder').slice(0, 64);
+      const uncategorized = baseSlug === UNCATEGORIZED_SLUG || name === UNCATEGORIZED_NAME;
+      let slug = baseSlug;
+      for (let suffix = 2; seenSlugs.has(slug); suffix += 1) {
+        const ending = `-${suffix}`;
+        slug = `${baseSlug.slice(0, 64 - ending.length)}${ending}`;
+      }
       const parentSlug = nearestCategorySlug(folderStack);
       folderStack.push({ name, slug: uncategorized ? UNCATEGORIZED_SLUG : slug });
-      if (!uncategorized && !seenSlugs.has(slug)) {
+      if (!uncategorized) {
         seenSlugs.add(slug);
         categories.push({ name, slug, parentSlug });
       }

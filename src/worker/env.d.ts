@@ -1,7 +1,6 @@
-/** Project-specific Worker bindings. Runtime types come from @cloudflare/workers-types. */
+/** Secrets supplement the bindings generated in bindings.d.ts. */
 declare namespace Cloudflare {
   interface Env {
-    DB: D1Database;
     ADMIN_PASSWORD: string;
   }
 }

@@ -8,19 +8,45 @@ import { ApiError, api } from '@nav/api/client';
 
 /** 旧主题存储 key：首次以新 key 写入时迁移，随后清理。 */
 const LEGACY_THEME_STORAGE_KEY = 'nav-theme';
+let memoryTheme = DEFAULT_THEME;
+let themePersistenceFailed = false;
 
 const themeStorage = {
   getItem: (key: string): Theme => {
-    const current = window.localStorage.getItem(key);
-    if (isTheme(current)) return current;
-    const legacy = window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
-    return isTheme(legacy) ? legacy : DEFAULT_THEME;
+    if (themePersistenceFailed) return memoryTheme;
+    try {
+      const current = window.localStorage.getItem(key);
+      const legacy = isTheme(current)
+        ? null
+        : window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+      memoryTheme = isTheme(current) ? current : isTheme(legacy) ? legacy : DEFAULT_THEME;
+    } catch {
+      themePersistenceFailed = true;
+      /* Storage may be unavailable; retain the preference for this page session. */
+    }
+    return memoryTheme;
   },
   setItem: (key: string, value: Theme) => {
-    window.localStorage.setItem(key, value);
-    window.localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+    memoryTheme = value;
+    try {
+      window.localStorage.setItem(key, value);
+      window.localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+      themePersistenceFailed = false;
+    } catch {
+      themePersistenceFailed = true;
+      /* The in-memory preference still applies when persistence is blocked. */
+    }
   },
-  removeItem: (key: string) => window.localStorage.removeItem(key),
+  removeItem: (key: string) => {
+    memoryTheme = DEFAULT_THEME;
+    try {
+      window.localStorage.removeItem(key);
+      themePersistenceFailed = false;
+    } catch {
+      themePersistenceFailed = true;
+      /* optional preference */
+    }
+  },
 };
 
 /** 主题偏好：持久化到 localStorage（读不到新值时回退旧 key 自动迁移）。 */
@@ -31,6 +57,8 @@ export const themeAtom = atomWithStorage<Theme>(THEME_STORAGE_KEY, DEFAULT_THEME
 const settingsDataAtom = atom<PublicSettings | null>(null);
 const settingsErrorAtom = atom<string | null>(null);
 const settingsLoadedAtom = atom(false);
+const settingsRequestAtom = atom<Promise<void> | null>(null);
+const settingsVersionAtom = atom(0);
 
 /**
  * 服务端设置的共享加载器：首次调用后缓存，所有页面复用同一份数据，避免重复请求。
@@ -38,32 +66,43 @@ const settingsLoadedAtom = atom(false);
  */
 export const loadSettingsAtom = atom(
   null,
-  async (get, set, options?: { force?: boolean; onUnauthorized?: () => void }) => {
+  (get, set, options?: { force?: boolean; onUnauthorized?: () => void }) => {
+    const pending = get(settingsRequestAtom);
+    if (pending) return pending;
     if (get(settingsLoadedAtom) && !options?.force) return;
-    try {
-      const data = await api.getPublicSettings();
-      set(settingsDataAtom, data);
-      set(settingsErrorAtom, null);
-      set(settingsLoadedAtom, true);
-    } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        options?.onUnauthorized?.();
-        return;
-      }
-      set(settingsErrorAtom, caught instanceof Error ? caught.message : '加载设置失败');
-    }
+    const version = get(settingsVersionAtom);
+    set(settingsErrorAtom, null);
+    const request = Promise.resolve()
+      .then(() => api.getPublicSettings())
+      .then((data) => {
+        if (version !== get(settingsVersionAtom)) return;
+        set(settingsDataAtom, data);
+        set(settingsErrorAtom, null);
+        set(settingsLoadedAtom, true);
+      })
+      .catch((caught: unknown) => {
+        if (version !== get(settingsVersionAtom)) return;
+        if (caught instanceof DOMException && caught.name === 'AbortError') return;
+        set(settingsErrorAtom, caught instanceof Error ? caught.message : '加载设置失败');
+        if (caught instanceof ApiError && caught.status === 401) options?.onUnauthorized?.();
+      })
+      .finally(() => set(settingsRequestAtom, null));
+    set(settingsRequestAtom, request);
+    return request;
   },
 );
 
-/** 设置快照：挂载中的页面读取 settings，错误与加载进度留给 hook 内部使用。 */
+/** 设置快照：刷新时保留已有数据，错误与加载进度供页面展示恢复入口。 */
 export const settingsStateAtom = atom((get) => ({
   settings: get(settingsDataAtom),
   error: get(settingsErrorAtom),
   loaded: get(settingsLoadedAtom),
+  loading: get(settingsRequestAtom) !== null,
 }));
 
 /** 写入服务端确认的设置，使已挂载的前台同步更新。 */
-export const updateSettingsCacheAtom = atom(null, (_get, set, settings: PublicSettings) => {
+export const updateSettingsCacheAtom = atom(null, (get, set, settings: PublicSettings) => {
+  set(settingsVersionAtom, get(settingsVersionAtom) + 1);
   const { searchEngines, defaultEngineId, backgroundImageUrl, backgroundImageEnabled } = settings;
   set(settingsDataAtom, {
     searchEngines,

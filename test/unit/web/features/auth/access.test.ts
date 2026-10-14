@@ -6,7 +6,7 @@ import { act, createElement, useCallback } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-import { api } from '@nav/api/client';
+import { api, ApiError } from '@nav/api/client';
 import App from '@nav/App';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useApiData } from '@nav/hooks/useApiData';
@@ -15,7 +15,14 @@ import { router } from '@nav/router';
 vi.mock('@nav/api/client', () => ({
   api: { me: vi.fn(), login: vi.fn(), logout: vi.fn(), getBookmarks: vi.fn() },
   invalidateApiRequests: vi.fn(),
-  ApiError: class extends Error {},
+  ApiError: class extends Error {
+    constructor(
+      public status: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
 }));
 vi.mock('@nav/features/navigation/NavigationPage', () => ({
   NavigationPage: function Page() {
@@ -27,6 +34,7 @@ vi.mock('@nav/features/navigation/NavigationPage', () => ({
       null,
       createElement('span', null, auth.authed ? '管理员' : '游客'),
       createElement('p', null, data?.items.map((item) => item.title).join(',')),
+      createElement('input', { 'aria-label': '编辑草稿', defaultValue: '' }),
       createElement('button', { onClick: () => auth.login('password') }, '登录测试'),
       createElement('button', { onClick: () => auth.logout() }, '退出测试'),
     );
@@ -143,6 +151,33 @@ it('服务端确认会话失效后清除已加载私有内容', async () => {
   });
   expect(container.textContent).toContain('游客');
   expect(container.textContent).not.toContain('已加载私有内容');
+});
+
+it('网络及服务端故障保留已确认身份、私有内容和草稿，明确 401 才清除', async () => {
+  vi.mocked(api.me).mockResolvedValue({ ok: true });
+  vi.mocked(api.getBookmarks).mockResolvedValueOnce({
+    items: [privateBookmark('草稿所属私有内容')],
+    nextCursor: null,
+  });
+  await render();
+  const input = container.querySelector('input')!;
+  input.value = '尚未保存的编辑内容';
+  for (const error of [new TypeError('网络中断'), new ApiError(503, '服务暂不可用')]) {
+    vi.mocked(api.me).mockRejectedValueOnce(error);
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(container.textContent).toContain('管理员');
+    expect(container.textContent).toContain('草稿所属私有内容');
+    expect(container.querySelector('input')).toBe(input);
+    expect(input.value).toBe('尚未保存的编辑内容');
+  }
+  expect(api.getBookmarks).toHaveBeenCalledOnce();
+  vi.mocked(api.me).mockRejectedValueOnce(new ApiError(401, '会话已过期'));
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  await act(async () => router.load());
+  expect(container.textContent).toContain('游客');
+  expect(container.textContent).not.toContain('草稿所属私有内容');
+  expect(container.querySelector('input')).not.toBe(input);
+  expect(container.querySelector('input')?.value).toBe('');
 });
 
 it('旧书签柜参数映射到统一首页，浏览器前后退恢复模式与筛选', async () => {

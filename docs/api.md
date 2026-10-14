@@ -6,6 +6,10 @@
 
 除公开读取和登录/登出外，接口均需管理员认证。Web 使用 HttpOnly session cookie；会话最长 30 天，HTTPS 请求会带 `Secure` 属性。自动化客户端可用 `Authorization: Bearer <ADMIN_PASSWORD>`。`SESSION_SECRET` 用于签名会话，若未设置则代码回退使用 `ADMIN_PASSWORD`；部署时应分别设置这两个密钥。
 
+密码登录和错误 Bearer 猜测共享 `AUTH_RATE_LIMITER`：默认每个站点、每个 `CF-Connecting-IP`、每个 Cloudflare 位置 60 秒允许 10 次尝试，超限返回 429、`rate_limited` 与 `Retry-After: 60`。有效 Bearer 请求不占用失败预算。没有 Cloudflare IP 头的本地请求共享 `local` 预算；共享出口的客户端也共享预算。该绑定采用最终一致的位置级计数，不承诺跨位置的精确全局配额。
+
+API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和 `Referrer-Policy: no-referrer`。前端页面的 CSP 与资源缓存通过构建生成的静态 `_headers` 单独配置。
+
 ## 路由
 
 下表路径均包含 `/api/v1` 前缀。
@@ -34,6 +38,10 @@
 
 旧的书签标签别名不再提供，标签列表统一使用 `GET /api/v1/tags`。
 
+分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类。服务按 D1 每条查询最多 100 个绑定参数分块验证，在全部验证完成后原子写入；输入错误不留下部分排序。
+
+元数据仅接受 HTTP/HTTPS URL。抓取超时为 8 秒，声明正文超过 5 MiB 时直接拒收，实际最多读取前 512 KiB 后解析，以限制内存并隔离远端流错误。远端连接失败、正文中断或超时会返回 `partial: true` 的主机名及可用图标降级结果；重定向页面的相对图标与 canonical 地址按最终 URL 解析。
+
 ## 公开访问
 
 访客可读取活动书签列表、活动书签全文搜索、可见的活动书签详情、可见分类、可见标签和公开设置。书签请求指定 `view=archive`、`view=trash` 或 `view=all` 时需要管理员认证。访客不能通过详情接口读取私有、已归档或已删除的书签。
@@ -59,3 +67,39 @@
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 
 首页 URL 的 `category` 记录分类浏览位置；站内搜索组合 `q` 与单个 `tag` 或 `untagged`，其中 `tag` 优先。前台分类浏览与搜索使用游标模式（首批 12、追加 24），后台表格使用 `offset` 页码模式。`mode=site|web`、`engine` 仅是前端状态，不作为 API 参数。旧前台地址映射及历史恢复见[使用与本地开发](usage.md#搜索与链接兼容)，分页与权限取舍见[架构与服务边界](architecture.md)。
+
+## 请求与错误示例
+
+创建书签的 JSON 正文示例（Web 使用会话 cookie，自动化客户端另带 Bearer 认证头）：
+
+```json
+{
+  "title": "Cloudflare Docs",
+  "url": "https://developers.cloudflare.com/",
+  "visibility": "private",
+  "tags": ["文档"]
+}
+```
+
+`POST /api/v1/bookmarks` 成功返回 201 和完整书签 DTO。列表可请求 `GET /api/v1/bookmarks?limit=12`，响应中的 `nextCursor` 原样用于下一页：
+
+```json
+{ "items": [], "nextCursor": null }
+```
+
+错误统一采用以下结构，客户端应按 HTTP 状态和 `error.code` 判断；`error.message` 用于显示：
+
+```json
+{ "error": { "code": "unauthorized", "message": "Authentication required" } }
+```
+
+| HTTP 状态 | 错误码             | 处理方式                                                           |
+| --------- | ------------------ | ------------------------------------------------------------------ |
+| 400       | `validation_error` | 修正字段或导入引用后重试                                           |
+| 401       | `unauthorized`     | 重新认证                                                           |
+| 404       | `not_found`        | 刷新列表或检查资源 ID                                              |
+| 409       | `conflict`         | 处理重复 URL、分类或标签                                           |
+| 413       | `too_large`        | 将导入文件缩小至 10 MiB 内                                         |
+| 429       | `rate_limited`     | 等待 `Retry-After` 指定的秒数                                      |
+| 500       | `internal_error`   | 检查日志；导入可能已经部分写入，按[传输文档](import-export.md)恢复 |
+| 502       | `bad_gateway`      | 上游服务失败                                                       |

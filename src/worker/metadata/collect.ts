@@ -144,6 +144,37 @@ export class MetadataElementHandler {
   }
 }
 
+/** Buffer at most the parse budget before handing bytes to HTMLRewriter.
+ * Reading the remote stream separately ensures a body error cannot strand the rewriter output.
+ */
+export async function readMetadataBytes(response: Response): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  let done = false;
+  try {
+    while (length < MAX_PARSE_BYTES) {
+      const chunk = await reader.read();
+      done = chunk.done;
+      if (chunk.done) break;
+      const bytes = chunk.value.subarray(0, MAX_PARSE_BYTES - length);
+      chunks.push(bytes);
+      length += bytes.byteLength;
+    }
+  } finally {
+    if (!done) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export async function drainTransformedResponse(
   response: Response,
   shouldStop: () => boolean,

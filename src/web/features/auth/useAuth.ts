@@ -23,7 +23,13 @@ export function useAuth() {
           transition(true);
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        if (current === generation.current && !signal?.aborted && authRef.current)
+        if (
+          error instanceof ApiError &&
+          error.status === 401 &&
+          current === generation.current &&
+          !signal?.aborted &&
+          authRef.current
+        )
           transition(false);
       } finally {
         if (!signal?.aborted) setLoading(false);

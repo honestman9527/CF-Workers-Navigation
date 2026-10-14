@@ -1,6 +1,6 @@
 import type { Bookmark, BookmarkPage, Category } from '../../src/shared/api/types';
 
-import { exports } from 'cloudflare:workers';
+import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 const API = 'https://example.com/api/v1';
@@ -217,6 +217,39 @@ describe('categories api', () => {
       body: JSON.stringify({ ids: [first.id, other.id] }),
     });
     expect(mixed.status).toBe(400);
+  });
+
+  it.each([100, 101, 500])('reorders %i siblings across D1 parameter boundaries', async (size) => {
+    const statements = Array.from({ length: size }, (_, index) =>
+      env.DB.prepare('INSERT INTO categories (name, slug) VALUES (?, ?)').bind(
+        `Boundary ${index}`,
+        `boundary-${size}-${index}`,
+      ),
+    );
+    await env.DB.batch(statements);
+    const select = 'SELECT id FROM categories WHERE slug LIKE ? ORDER BY ';
+    const prefix = `boundary-${size}-%`;
+    const { results } = await env.DB.prepare(`${select}id`).bind(prefix).all<{ id: number }>();
+    const ids = results.map((row) => row.id).reverse();
+    const response = await exports.default.fetch(`${API}/categories/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids }),
+    });
+    expect(response.status).toBe(204);
+    const ordered = await env.DB.prepare(`${select}sort_order`).bind(prefix).all<{ id: number }>();
+    expect(ordered.results.map((row) => row.id)).toEqual(ids);
+
+    const invalid = await exports.default.fetch(`${API}/categories/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [...ids, 999999] }),
+    });
+    expect(invalid.status).toBe(size === 500 ? 400 : 404);
+    const unchanged = await env.DB.prepare(`${select}sort_order`)
+      .bind(prefix)
+      .all<{ id: number }>();
+    expect(unchanged.results.map((row) => row.id)).toEqual(ids);
   });
 });
 

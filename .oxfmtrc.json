@@ -9,6 +9,7 @@
     "**/dist/**",
     "**/coverage/**",
     "worker-configuration.d.ts",
+    "src/worker/bindings.d.ts",
     "migrations/meta/**",
     "pnpm-lock.yaml"
   ],

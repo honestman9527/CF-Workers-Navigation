@@ -1,12 +1,14 @@
 {
   "extends": "../tsconfig.worker.json",
   "compilerOptions": {
+    "lib": ["ES2023"],
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/vitest-pool-workers/types"]
+    "types": ["@cloudflare/workers-types", "node", "@cloudflare/vitest-pool-workers/types"]
   },
   "include": [
     "./worker/**/*.ts",
     "./apply-migrations.ts",
+    "./env.d.ts",
     "../src/worker/**/*.ts",
     "../src/worker/**/*.d.ts"
   ]

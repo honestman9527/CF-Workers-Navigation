@@ -4,6 +4,7 @@ import type { NavigationSearch } from '@nav/features/navigation/search';
 // @vitest-environment jsdom
 import type { Bookmark, Category } from '@shared/api/types';
 
+import { Provider, createStore } from 'jotai';
 import { act, useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -30,7 +31,6 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 vi.mock('@nav/features/auth/useAuthContext', () => ({ useAuthContext: () => auth }));
 vi.mock('@nav/features/layout/BrandIcon', () => ({ BrandIcon: () => null }));
-vi.mock('@nav/hooks/useSettings', () => ({ useSettings: () => null }));
 vi.mock('@nav/hooks/useBackground', () => ({ useBackground: () => {} }));
 vi.mock('@nav/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light', setTheme: vi.fn() }) }));
 vi.mock('@nav/api/client', () => ({
@@ -39,6 +39,7 @@ vi.mock('@nav/api/client', () => ({
     searchBookmarks: vi.fn(),
     getCategories: vi.fn(),
     getTags: vi.fn(),
+    getPublicSettings: vi.fn(),
   },
   ApiError: class extends Error {},
 }));
@@ -57,12 +58,17 @@ const category = (id: number, slug: string, parentId: number | null = null) =>
   ({ id, slug, name: slug, parentId, sortOrder: id, bookmarkCount: 1 }) as Category;
 
 function Host({ initial = {} }: { initial?: NavigationSearch }) {
+  const [store] = useState(createStore);
   const [location, setLocation] = useState({ search: initial, key: 'initial' });
   route.search = location.search;
   route.key = location.key;
   route.setSearch = (search, key) =>
     setLocation({ search, key: key ?? `entry-${++route.nextKey}` });
-  return <NavigationPage />;
+  return (
+    <Provider store={store}>
+      <NavigationPage />
+    </Provider>
+  );
 }
 
 beforeEach(() => {
@@ -97,6 +103,12 @@ beforeEach(() => {
   vi.mocked(api.getTags).mockResolvedValue([
     { id: 1, name: 'React', slug: 'react', bookmarkCount: 1 },
   ]);
+  vi.mocked(api.getPublicSettings).mockResolvedValue({
+    searchEngines: [],
+    defaultEngineId: 'google',
+    backgroundImageUrl: '',
+    backgroundImageEnabled: false,
+  });
   vi.mocked(api.getBookmarks).mockImplementation(async (_token, options) => ({
     items:
       options?.category === 'uncategorized'
@@ -136,6 +148,43 @@ it('同时展示常用及多个一级分类；子分类切换在原分区取数'
     expect.objectContaining({ category: '开发', limit: 12 }),
     expect.any(AbortSignal),
   );
+});
+
+it('设置首载失败提供原地重试，恢复时保留搜索输入与已加载书签', async () => {
+  vi.mocked(api.getPublicSettings).mockRejectedValueOnce(new Error('网络中断'));
+  app = await mount(<Host initial={{ mode: 'web' }} />);
+  expect(app.container.querySelector('[role="alert"]')?.textContent).toContain(
+    '设置加载失败：网络中断',
+  );
+  const input = app.container.querySelector('input')!;
+  await fill(input, 'example.com');
+  const section = app.container.querySelector('#section-category-工具');
+  let resolve!: (value: Awaited<ReturnType<typeof api.getPublicSettings>>) => void;
+  vi.mocked(api.getPublicSettings).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  await click(buttonWithText(app.container, '重试设置'));
+  expect(app.container.textContent).toContain('正在加载设置…');
+  expect(api.getPublicSettings).toHaveBeenCalledTimes(2);
+  await act(() =>
+    resolve({
+      searchEngines: [
+        { id: 'custom', name: '自定搜索', url: 'https://example.com/?q={query}', builtin: false },
+      ],
+      defaultEngineId: 'custom',
+      backgroundImageUrl: '',
+      backgroundImageEnabled: false,
+    }),
+  );
+  expect(app.container.querySelector('[role="alert"]')).toBeNull();
+  expect(app.container.querySelector('#search-engine')?.textContent).toContain('自定搜索');
+  expect(app.container.querySelector('input')).toBe(input);
+  expect(input.value).toBe('example.com');
+  expect(app.container.querySelector('#section-category-工具')).toBe(section);
+  expect(section?.textContent).toContain('网站2');
 });
 
 it('站内查询网址不打开网页；网页模式保留输入且不请求站内搜索', async () => {

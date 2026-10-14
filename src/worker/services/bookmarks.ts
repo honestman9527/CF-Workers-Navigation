@@ -262,27 +262,25 @@ const searchCountFrom = sql`
   INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
 `;
 
-const listSelect = sql`
-  SELECT b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+const bookmarkColumns = sql`
+    b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
     b.archived_at, b.deleted_at, b.created_at, b.updated_at,
     b.category_id, c.name AS category_name, c.slug AS category_slug,
     ${tagProjection} AS tag_names
+`;
+
+const bookmarkJoins = sql`
   FROM bookmarks b
+  INNER JOIN bookmark_page page ON page.id = b.id
   LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
   LEFT JOIN tags t ON t.id = bt.tag_id
   LEFT JOIN categories c ON c.id = b.category_id
 `;
 
+const listSelect = sql`SELECT ${bookmarkColumns} ${bookmarkJoins}`;
+
 const searchSelect = sql`
-  SELECT b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
-    b.archived_at, b.deleted_at, b.created_at, b.updated_at,
-    b.category_id, c.name AS category_name, c.slug AS category_slug,
-    bookmarks_fts.rank AS rank, ${tagProjection} AS tag_names
-  FROM bookmarks_fts
-  INNER JOIN bookmarks b ON b.id = bookmarks_fts.rowid
-  LEFT JOIN bookmark_tags bt ON bt.bookmark_id = b.id
-  LEFT JOIN tags t ON t.id = bt.tag_id
-  LEFT JOIN categories c ON c.id = b.category_id
+  SELECT ${bookmarkColumns}, page.rank AS rank ${bookmarkJoins}
 `;
 
 async function queryRows(
@@ -298,12 +296,16 @@ async function queryRows(
     : sql``;
   const idCondition = options.id === undefined ? sql`` : sql`AND b.id = ${options.id}`;
   return db.all<BookmarkRow>(sql`
-    ${cte}
+    WITH bookmark_page AS MATERIALIZED (
+      ${cte}
+      SELECT b.id FROM bookmarks b
+      WHERE 1 = 1 ${condition} ${cursorCondition} ${idCondition}
+      ORDER BY b.created_at DESC, b.id DESC
+      LIMIT ${options.id === undefined ? limit + 1 : 1}
+    )
     ${listSelect}
-    WHERE 1 = 1 ${condition} ${cursorCondition} ${idCondition}
     GROUP BY b.id
     ORDER BY b.created_at DESC, b.id DESC
-    LIMIT ${options.id === undefined ? limit + 1 : 1}
   `);
 }
 
@@ -318,12 +320,16 @@ export async function listBookmarks(
   if (options.offset !== undefined) {
     const { cte, condition } = buildFilter(options, authed);
     const rows = await db.all<BookmarkRow>(sql`
-      ${cte}
+      WITH bookmark_page AS MATERIALIZED (
+        ${cte}
+        SELECT b.id FROM bookmarks b
+        WHERE 1 = 1 ${condition}
+        ORDER BY b.created_at DESC, b.id DESC
+        LIMIT ${limit} OFFSET ${options.offset}
+      )
       ${listSelect}
-      WHERE 1 = 1 ${condition}
       GROUP BY b.id
       ORDER BY b.created_at DESC, b.id DESC
-      LIMIT ${limit} OFFSET ${options.offset}
     `);
     const total = await countByFilter(db, { cte, condition }, listCountFrom);
     return { items: rows.map(toDto), nextCursor: null, total };
@@ -359,11 +365,15 @@ export async function listExportBookmarks(
     ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
     : sql``;
   const rows = await db.all<BookmarkRow>(sql`
+    WITH bookmark_page AS MATERIALIZED (
+      SELECT b.id FROM bookmarks b
+      WHERE ${categoryCondition} ${cursorCondition}
+      ORDER BY b.created_at DESC, b.id DESC
+      LIMIT ${EXPORT_PAGE_SIZE + 1}
+    )
     ${listSelect}
-    WHERE ${categoryCondition} ${cursorCondition}
     GROUP BY b.id
     ORDER BY b.created_at DESC, b.id DESC
-    LIMIT ${EXPORT_PAGE_SIZE + 1}
   `);
   const hasMore = rows.length > EXPORT_PAGE_SIZE;
   const items = (hasMore ? rows.slice(0, EXPORT_PAGE_SIZE) : rows).map(toDto);
@@ -398,12 +408,17 @@ export async function searchBookmarks(
   // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
   if (options.offset !== undefined) {
     const rows = await db.all<SearchRow>(sql`
-      ${cte}
+      WITH bookmark_page AS MATERIALIZED (
+        ${cte}
+        SELECT b.id, bookmarks_fts.rank AS rank
+        ${searchCountFrom}
+        WHERE bookmarks_fts MATCH ${ftsQuery} ${condition}
+        ORDER BY bookmarks_fts.rank ASC, b.id DESC
+        LIMIT ${limit} OFFSET ${options.offset}
+      )
       ${searchSelect}
-      WHERE bookmarks_fts MATCH ${ftsQuery} ${condition}
       GROUP BY b.id
-      ORDER BY bookmarks_fts.rank ASC, b.id DESC
-      LIMIT ${limit} OFFSET ${options.offset}
+      ORDER BY page.rank ASC, b.id DESC
     `);
     const total = await countByFilter(
       db,
@@ -418,12 +433,17 @@ export async function searchBookmarks(
     ? sql`AND (bookmarks_fts.rank > ${cursor.rank} OR (bookmarks_fts.rank = ${cursor.rank} AND b.id < ${cursor.id}))`
     : sql``;
   const rows = await db.all<SearchRow>(sql`
-    ${cte}
+    WITH bookmark_page AS MATERIALIZED (
+      ${cte}
+      SELECT b.id, bookmarks_fts.rank AS rank
+      ${searchCountFrom}
+      WHERE bookmarks_fts MATCH ${ftsQuery} ${condition} ${cursorCondition}
+      ORDER BY bookmarks_fts.rank ASC, b.id DESC
+      LIMIT ${limit + 1}
+    )
     ${searchSelect}
-    WHERE bookmarks_fts MATCH ${ftsQuery} ${condition} ${cursorCondition}
     GROUP BY b.id
-    ORDER BY bookmarks_fts.rank ASC, b.id DESC
-    LIMIT ${limit + 1}
+    ORDER BY page.rank ASC, b.id DESC
   `);
   const hasMore = rows.length > limit;
   const items = (hasMore ? rows.slice(0, limit) : rows).map(toDto);

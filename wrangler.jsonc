@@ -7,6 +7,13 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
   "assets": {
     "directory": "./dist/web",
     "not_found_handling": "single-page-application",

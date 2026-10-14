@@ -2,14 +2,17 @@ import type { AppEnv } from '../../src/worker/types';
 
 import { exports } from 'cloudflare:workers';
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { authContext, requireAuth, timingSafeEqual } from '../../src/worker/auth';
+import authRoutes from '../../src/worker/routes/auth';
 
 const env = {
   ADMIN_PASSWORD: 'dev-password',
   SESSION_SECRET: 'dev-session-secret',
   DB: undefined as unknown as D1Database,
+  AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) },
+  TEST_MIGRATIONS: [],
 } satisfies AppEnv['Bindings'];
 
 describe('timingSafeEqual', () => {
@@ -70,6 +73,47 @@ describe('auth middleware', () => {
 });
 
 describe('auth api', () => {
+  it('returns a retryable 429 without setting a session when the login budget is exhausted', async () => {
+    const limit = vi.fn(async () => ({ success: false }));
+    const app = new Hono<AppEnv>();
+    app.route('/auth', authRoutes);
+    const response = await app.request(
+      'https://example.com/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.0.2.10' },
+        body: JSON.stringify({ password: 'dev-password' }),
+      },
+      { ...env, AUTH_RATE_LIMITER: { limit } },
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBe('60');
+    expect(response.headers.get('Set-Cookie')).toBeNull();
+    expect(await response.json()).toMatchObject({ error: { code: 'rate_limited' } });
+    expect(limit).toHaveBeenCalledWith({ key: 'auth:example.com:192.0.2.10' });
+  });
+
+  it('also limits invalid Bearer guesses while allowing valid administrator requests', async () => {
+    const limit = vi.fn(async () => ({ success: false }));
+    const app = new Hono<AppEnv>();
+    app.use('*', authContext);
+    app.get('/read', requireAuth, (c) => c.json({ ok: true }));
+    const bindings = { ...env, AUTH_RATE_LIMITER: { limit } };
+    const wrong = await app.request(
+      '/read',
+      { headers: { Authorization: 'Bearer wrong' } },
+      bindings,
+    );
+    expect(wrong.status).toBe(429);
+    const valid = await app.request(
+      '/read',
+      { headers: { Authorization: 'Bearer dev-password' } },
+      bindings,
+    );
+    expect(valid.status).toBe(200);
+    expect(limit).toHaveBeenCalledTimes(1);
+  });
+
   it('supports the versioned v1 path', async () => {
     const response = await exports.default.fetch('https://example.com/api/v1/auth/login', {
       method: 'POST',

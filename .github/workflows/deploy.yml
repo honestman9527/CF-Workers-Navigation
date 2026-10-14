@@ -13,25 +13,47 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
-  group: nav-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  group: nav-production-deploy
+  cancel-in-progress: false
 
 env:
   NAME: ${{ vars.NAME || 'nav' }}
   D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  WRANGLER_SEND_METRICS: 'false'
 
 jobs:
   deploy:
     name: Deploy Web and Worker
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      ${{
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_run' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository)
+      }}
 
     steps:
-      - name: Checkout
+      - name: Checkout validated revision
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify deployment revision
+        id: target
+        env:
+          CHECKED_OUT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          node .github/scripts/deployment.mjs target
+          test "$(git rev-parse HEAD)" = "$CHECKED_OUT_SHA"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -45,93 +67,93 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Worker binding types
+        run: pnpm cf:types:check
+
+      - name: Check
+        run: pnpm check
+
+      - name: Test deployment guards
+        run: node --test .github/scripts/*.test.mjs
+
+      - name: Build Web
+        run: pnpm build
+
+      - name: Validate Worker package
+        run: pnpm exec wrangler deploy --dry-run
+
       - name: Validate Cloudflare credentials
-        shell: bash
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
         run: |
-          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            printf 'Missing required secret: CLOUDFLARE_ACCOUNT_ID\n' >&2
-            exit 1
-          fi
+          for secret_name in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN ADMIN_PASSWORD SESSION_SECRET; do
+            if [ -z "${!secret_name}" ]; then
+              printf 'Missing required secret: %s\n' "$secret_name" >&2
+              exit 1
+            fi
+          done
 
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            printf 'Missing required secret: CLOUDFLARE_API_TOKEN\n' >&2
-            exit 1
-          fi
-
-          if [ -z "$ADMIN_PASSWORD" ]; then
-            printf 'Missing required secret: ADMIN_PASSWORD\n' >&2
-            exit 1
-          fi
-
-          if [ -z "$SESSION_SECRET" ]; then
-            printf 'Missing required secret: SESSION_SECRET\n' >&2
-            exit 1
-          fi
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Resolve D1 database
+      - name: Resolve existing D1 database
         id: d1
-        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -n "$D1_DATABASE_ID" ]; then
-            {
-              printf 'database_name=%s\n' "$NAME"
-              printf 'database_id=%s\n' "$D1_DATABASE_ID"
-            } >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          pnpm exec wrangler d1 list --json > "$RUNNER_TEMP/nav-d1-databases.json"
+          node .github/scripts/deployment.mjs database "$RUNNER_TEMP/nav-d1-databases.json"
 
-          find_database_id() {
-            pnpm exec wrangler d1 list --json | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const databases = JSON.parse(input); const match = databases.find(database => (database.name ?? database.database_name) === process.env.NAME); if (match) process.stdout.write(match.uuid ?? match.id ?? match.database_id ?? ""); });'
-          }
-
-          database_id=$(find_database_id)
-
-          if [ -z "$database_id" ]; then
-            pnpm exec wrangler d1 create "$NAME"
-            database_id=$(find_database_id)
-          fi
-
-          if [ -z "$database_id" ]; then
-            printf 'Unable to resolve D1 database ID for %s\n' "$NAME" >&2
-            exit 1
-          fi
-
-          {
-            printf 'database_name=%s\n' "$NAME"
-            printf 'database_id=%s\n' "$database_id"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Create CI Wrangler config
+      - name: Create target Wrangler config
         env:
           DB_NAME: ${{ steps.d1.outputs.database_name }}
           DB_ID: ${{ steps.d1.outputs.database_id }}
         run: node .github/scripts/gen-wrangler-ci.mjs --db-name "$DB_NAME" --db-id "$DB_ID"
 
-      - name: Create CI Worker secrets file
-        shell: bash
+      - name: Validate target Worker package
+        run: pnpm exec wrangler deploy --dry-run --config wrangler.ci.jsonc
+
+      - name: Create Worker secrets file
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
         run: |
           node -e 'const fs = require("node:fs"); fs.writeFileSync("wrangler.secrets.json", `${JSON.stringify({ ADMIN_PASSWORD: process.env.ADMIN_PASSWORD, SESSION_SECRET: process.env.SESSION_SECRET }, null, 2)}\n`, { mode: 0o600 });'
 
+      - name: Record D1 recovery bookmark
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEPLOYMENT_SHA: ${{ steps.target.outputs.commit_sha }}
+        run: |
+          pnpm exec wrangler d1 time-travel info DB --config wrangler.ci.jsonc --json > "$RUNNER_TEMP/nav-d1-recovery.json"
+          node .github/scripts/deployment.mjs recovery "$RUNNER_TEMP/nav-d1-recovery.json"
+
+      - name: Record pending D1 migrations
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          pnpm exec wrangler d1 migrations list DB --remote --config wrangler.ci.jsonc | tee "$RUNNER_TEMP/nav-d1-migrations.txt"
+          node .github/scripts/deployment.mjs migrations "$RUNNER_TEMP/nav-d1-migrations.txt"
+
       - name: Apply remote D1 migrations
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.ci.jsonc
 
-      - name: Build Web
-        run: pnpm build
-
       - name: Deploy Worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: pnpm exec wrangler deploy --config wrangler.ci.jsonc --secrets-file wrangler.secrets.json
+
+      - name: Verify deployed public endpoints
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: node .github/scripts/deployment.mjs smoke
 
       - name: Remove temporary CI files
         if: always()

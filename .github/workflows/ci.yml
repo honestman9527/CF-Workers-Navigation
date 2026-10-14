@@ -32,5 +32,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Worker binding types
+        run: pnpm cf:types:check
+
       - name: Check
         run: pnpm check
+
+      - name: Test deployment guards
+        run: node --test .github/scripts/*.test.mjs
+
+      - name: Build Web
+        run: pnpm build
+
+      - name: Validate Worker package
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: pnpm exec wrangler deploy --dry-run

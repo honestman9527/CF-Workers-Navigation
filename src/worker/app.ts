@@ -26,6 +26,13 @@ api.route('/settings', settingsRoutes);
 api.route('/tags', tagsRoutes);
 api.route('/transfer', transferRoutes);
 
+app.use('*', async (c, next) => {
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'no-referrer');
+  await next();
+});
+
 app.use(`${API_V1_PREFIX}/*`, async (c, next) => {
   c.header('Cache-Control', 'private, no-store');
   await next();

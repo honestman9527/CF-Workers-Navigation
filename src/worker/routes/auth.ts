@@ -9,6 +9,7 @@ import {
   isSecureRequest,
   sessionCookie,
   timingSafeEqual,
+  limitAuthAttempts,
 } from '../auth';
 import { jsonError } from '../errors';
 import { parseJson } from '../http';
@@ -20,6 +21,8 @@ const loginSchema = z.object({
 const authRoutes = new Hono<AppEnv>();
 
 authRoutes.post('/login', async (c) => {
+  const limited = await limitAuthAttempts(c);
+  if (limited) return limited;
   const body = await parseJson(c);
   if (!body.ok) {
     return body.response;

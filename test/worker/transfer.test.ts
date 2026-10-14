@@ -1,6 +1,11 @@
-import { exports } from 'cloudflare:workers';
-import { describe, expect, it } from 'vitest';
+import type { ImportSummary } from '../../src/shared/api/types';
 
+import { env, exports } from 'cloudflare:workers';
+import { drizzle } from 'drizzle-orm/d1';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import app from '../../src/worker/app';
+import { exportTransferStream, importTransferData } from '../../src/worker/services/transfer';
 import { detectFormat } from '../../src/worker/transfer/detect';
 import { parseHtml } from '../../src/worker/transfer/html';
 import { parseJson } from '../../src/worker/transfer/json';
@@ -34,6 +39,15 @@ async function createBookmark(input: Record<string, unknown>) {
 }
 
 describe('transfer api', () => {
+  beforeEach(async () => {
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM bookmark_tags'),
+      env.DB.prepare('DELETE FROM bookmarks'),
+      env.DB.prepare('DELETE FROM tags'),
+      env.DB.prepare('DELETE FROM categories'),
+    ]);
+  });
+
   it('requires admin token for export and import', async () => {
     const exportResponse = await exports.default.fetch(
       'https://example.com/api/v1/transfer/export?format=json',
@@ -93,12 +107,13 @@ describe('transfer api', () => {
       },
     );
     expect(response.status).toBe(200);
-    expect((await response.json()).bookmarksCreated).toBe(2);
+    expect((await response.json<ImportSummary>()).bookmarksCreated).toBe(2);
 
     const catsResponse = await exports.default.fetch('https://example.com/api/v1/categories', {
       headers: { Authorization: 'Bearer dev-password' },
     });
     const cats = (await catsResponse.json()) as Array<{
+      id: number;
       name: string;
       slug: string;
       parentId: number | null;
@@ -132,7 +147,7 @@ describe('transfer api', () => {
       'https://example.com/api/v1/transfer/import?format=json&strategy=skip',
       { method: 'POST', headers: adminHeaders, body: payload },
     );
-    expect((await first.json()).bookmarksCreated).toBe(1);
+    expect((await first.json<ImportSummary>()).bookmarksCreated).toBe(1);
     const second = await exports.default.fetch(
       'https://example.com/api/v1/transfer/import?format=json&strategy=update',
       {
@@ -141,7 +156,7 @@ describe('transfer api', () => {
         body: payload.replace('one', 'updated'),
       },
     );
-    expect((await second.json()).bookmarksUpdated).toBe(1);
+    expect((await second.json<ImportSummary>()).bookmarksUpdated).toBe(1);
   });
 
   it('imports backups larger than one D1 insert batch', async () => {
@@ -167,8 +182,345 @@ describe('transfer api', () => {
     });
   });
 
+  it('retries a partial database failure without duplicating already imported rows', async () => {
+    const payload = JSON.stringify({
+      version: 2,
+      bookmarks: Array.from({ length: 13 }, (_, index) => ({
+        title: `Retry import ${index}`,
+        url: `https://retry-import-${index}.example.com`,
+        tags: ['Retry'],
+      })),
+    });
+    const db = drizzle(env.DB);
+    const insert = db.insert.bind(db);
+    const writes = vi.spyOn(db, 'insert');
+    writes.mockImplementationOnce(insert).mockImplementationOnce(() => {
+      throw new Error('Second import batch failed');
+    });
+    try {
+      await expect(importTransferData(db, parseJson(payload), 'skip')).rejects.toThrow(
+        'Second import batch failed',
+      );
+    } finally {
+      writes.mockRestore();
+    }
+    const savedCount = Number(
+      await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count'),
+    );
+    expect(savedCount).toBeGreaterThan(0);
+    expect(savedCount).toBeLessThan(13);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count')).toBe(
+      savedCount,
+    );
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json',
+      { method: 'POST', headers: adminHeaders, body: payload },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      bookmarksCreated: 13 - savedCount,
+      bookmarksSkipped: savedCount,
+    });
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(13);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count')).toBe(
+      13,
+    );
+  });
+
+  it('restores active and every deleted record sharing a normalized URL without duplication', async () => {
+    const shared = {
+      url: 'https://restore-duplicates.example.com/path',
+      addedAt: '2024-01-01T00:00:00.000Z',
+      tags: ['Backup'],
+    };
+    const payload = JSON.stringify({
+      version: 2,
+      categories: [{ name: 'Restore', slug: 'restore', visibility: 'public' }],
+      bookmarks: [
+        { ...shared, title: 'Active', categorySlug: 'restore', visibility: 'public' },
+        {
+          ...shared,
+          title: 'Deleted one',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+          categorySlug: 'restore',
+          visibility: 'private',
+        },
+        {
+          ...shared,
+          title: 'Deleted two with the same identity',
+          url: 'https://RESTORE-duplicates.example.com/path/#old',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+        },
+        { ...shared, title: 'Deleted later', deletedAt: '2024-01-03T00:00:00.000Z' },
+        {
+          title: 'Archived',
+          url: 'https://restore-archived.example.com',
+          archivedAt: '2024-01-04T00:00:00.000Z',
+          tags: [],
+        },
+      ],
+    });
+    const requestImport = (body: string) =>
+      exports.default.fetch('https://example.com/api/v1/transfer/import?format=json', {
+        method: 'POST',
+        headers: adminHeaders,
+        body,
+      });
+    const first = await requestImport(payload);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ bookmarksCreated: 5, bookmarksSkipped: 0 });
+    const exported = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: adminHeaders },
+    );
+    const backup = await exported.text();
+    const before = parseJson(backup).bookmarks;
+    expect(before).toHaveLength(5);
+
+    await env.DB.prepare('DELETE FROM bookmarks').run();
+    await env.DB.prepare('DELETE FROM categories').run();
+    const restored = await requestImport(backup);
+    expect(restored.status).toBe(200);
+    expect(await restored.json()).toMatchObject({ bookmarksCreated: 5, bookmarksSkipped: 0 });
+    const repeated = await requestImport(backup);
+    expect(await repeated.json()).toMatchObject({ bookmarksCreated: 0, bookmarksSkipped: 5 });
+    const afterResponse = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: adminHeaders },
+    );
+    const after = parseJson(await afterResponse.text()).bookmarks;
+    const sortByTitle = (rows: typeof before) =>
+      rows.sort((a, b) => a.title.localeCompare(b.title));
+    expect(sortByTitle(after)).toEqual(sortByTitle(before));
+  });
+
+  it('updates the live URL while leaving deleted history untouched', async () => {
+    const original = JSON.stringify({
+      version: 2,
+      bookmarks: [
+        { title: 'Live', url: 'https://update-live.example.com', tags: ['live'] },
+        {
+          title: 'History',
+          url: 'https://update-live.example.com',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+          addedAt: '2024-01-01T00:00:00.000Z',
+          tags: ['history'],
+        },
+      ],
+    });
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json',
+      { method: 'POST', headers: adminHeaders, body: original },
+    );
+    expect(response.status).toBe(200);
+    const updated = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=update',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          version: 2,
+          bookmarks: [
+            { title: 'Updated live', url: 'https://update-live.example.com', tags: ['updated'] },
+          ],
+        }),
+      },
+    );
+    expect(await updated.json()).toMatchObject({ bookmarksUpdated: 1, bookmarksCreated: 0 });
+    const backup = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: adminHeaders },
+    );
+    expect(parseJson(await backup.text()).bookmarks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Updated live', deletedAt: null, tags: ['updated'] }),
+        expect.objectContaining({
+          title: 'History',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+          tags: ['history'],
+        }),
+      ]),
+    );
+  });
+
+  it('creates a live URL when only deleted history exists and reimports legacy history once', async () => {
+    const original = JSON.stringify({
+      version: 1,
+      bookmarks: [
+        {
+          title: 'Legacy history',
+          url: 'https://legacy-history.example.com',
+          deletedAt: '2024-01-02T00:00:00.000Z',
+        },
+      ],
+    });
+    for (const expectedCreated of [1, 0]) {
+      const response = await exports.default.fetch(
+        'https://example.com/api/v1/transfer/import?format=json',
+        { method: 'POST', headers: adminHeaders, body: original },
+      );
+      expect(await response.json()).toMatchObject({ bookmarksCreated: expectedCreated });
+    }
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=update',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          bookmarks: [{ title: 'New live', url: 'https://legacy-history.example.com' }],
+        }),
+      },
+    );
+    expect(await response.json()).toMatchObject({ bookmarksCreated: 1, bookmarksUpdated: 0 });
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(2);
+  });
+
+  it.each([
+    { strategy: 'skip', legacyFirst: true },
+    { strategy: 'skip', legacyFirst: false },
+    { strategy: 'create', legacyFirst: true },
+    { strategy: 'create', legacyFirst: false },
+    { strategy: 'update', legacyFirst: true },
+    { strategy: 'update', legacyFirst: false },
+  ])(
+    'reserves exact deleted identities for $strategy with legacy first: $legacyFirst',
+    async ({ strategy, legacyFirst }) => {
+      const common = {
+        url: 'https://mixed-history.example.com',
+        deletedAt: '2024-01-02T00:00:00.000Z',
+        tags: [],
+      };
+      const history = [
+        { ...common, title: 'Legacy history' },
+        { ...common, title: 'Exact history', addedAt: '2024-01-01T00:00:00.000Z' },
+      ];
+      const payload = JSON.stringify({
+        version: 2,
+        bookmarks: legacyFirst ? history : history.toReversed(),
+      });
+      for (const expectedCreated of [2, 0, 0]) {
+        const response = await exports.default.fetch(
+          `https://example.com/api/v1/transfer/import?format=json&strategy=${strategy}`,
+          { method: 'POST', headers: adminHeaders, body: payload },
+        );
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({ bookmarksCreated: expectedCreated });
+        expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(
+          2,
+        );
+      }
+      const rows = await env.DB.prepare('SELECT title, created_at FROM bookmarks').all<{
+        title: string;
+        created_at: string;
+      }>();
+      expect(rows.results).toEqual(
+        expect.arrayContaining([
+          { title: 'Exact history', created_at: '2024-01-01T00:00:00.000Z' },
+          expect.objectContaining({ title: 'Legacy history' }),
+        ]),
+      );
+    },
+  );
+
+  it.each([
+    {
+      name: 'bookmark reference',
+      categories: [{ name: 'New category', slug: 'new-category' }],
+      bookmarks: [
+        { title: 'Missing category', url: 'https://bad-ref.example.com', categorySlug: 'missing' },
+      ],
+    },
+    {
+      name: 'parent reference',
+      categories: [{ name: 'New category', slug: 'new-category', parentSlug: 'missing' }],
+      bookmarks: [],
+    },
+    {
+      name: 'category cycle',
+      categories: [
+        { name: 'First', slug: 'first', parentSlug: 'second' },
+        { name: 'Second', slug: 'second', parentSlug: 'first' },
+      ],
+      bookmarks: [],
+    },
+  ])('validates every $name before creating any records', async ({ categories, bookmarks }) => {
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ version: 2, categories, bookmarks }),
+      },
+    );
+    expect(response.status).toBe(400);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM categories').first('count')).toBe(0);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(0);
+  });
+
+  it.each([undefined, '1'])(
+    'cancels an oversized body regardless of Content-Length %s',
+    async (length) => {
+      const chunk = new Uint8Array(1024 * 1024);
+      let reads = 0;
+      const cancel = vi.fn();
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            reads += 1;
+            controller.enqueue(chunk);
+          },
+          cancel,
+        },
+        { highWaterMark: 0 },
+      );
+      const response = await app.fetch(
+        new Request('https://example.com/api/v1/transfer/import?format=json', {
+          method: 'POST',
+          headers: { ...adminHeaders, ...(length ? { 'Content-Length': length } : {}) },
+          body,
+        }),
+        env,
+      );
+      expect(response.status).toBe(413);
+      expect(await response.json()).toMatchObject({ error: { code: 'too_large' } });
+      expect(reads).toBe(11);
+      expect(cancel).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('accepts exactly 10 MB and decodes a UTF-8 character split across body chunks', async () => {
+    const encoder = new TextEncoder();
+    const json = encoder.encode(
+      JSON.stringify({ bookmarks: [{ title: '中文', url: 'https://chunked-utf8.example.com' }] }),
+    );
+    const split = json.indexOf(0xe4) + 1;
+    const chunks = [
+      json.slice(0, split),
+      json.slice(split),
+      new Uint8Array(10 * 1024 * 1024 - json.byteLength).fill(32),
+    ];
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        const chunk = chunks.shift();
+        if (chunk) controller.enqueue(chunk);
+        else controller.close();
+      },
+    });
+    const response = await app.fetch(
+      new Request('https://example.com/api/v1/transfer/import?format=json', {
+        method: 'POST',
+        headers: adminHeaders,
+        body,
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ bookmarksCreated: 1 });
+    expect(await env.DB.prepare('SELECT title FROM bookmarks').first('title')).toBe('中文');
+  });
+
   it('streams multiple pages of JSON and HTML without losing categories or tags', async () => {
-    const bookmarks = Array.from({ length: 105 }, (_, index) => ({
+    const bookmarks = Array.from({ length: 601 }, (_, index) => ({
       title: `Stream site ${index}`,
       url: `https://stream-${index}.example.com`,
       categorySlug: 'stream-root',
@@ -188,7 +540,7 @@ describe('transfer api', () => {
       },
     );
     expect(importResponse.status).toBe(200);
-    expect((await importResponse.json()).bookmarksCreated).toBe(105);
+    expect((await importResponse.json<ImportSummary>()).bookmarksCreated).toBe(601);
 
     const jsonResponse = await exports.default.fetch(
       'https://example.com/api/v1/transfer/export?format=json',
@@ -199,9 +551,9 @@ describe('transfer api', () => {
     const json = parseJson(await jsonResponse.text());
     expect(json.version).toBe(2);
     const exported = json.bookmarks.filter((bookmark) => bookmark.url.includes('stream-'));
-    expect(exported).toHaveLength(105);
+    expect(exported).toHaveLength(601);
     expect(exported.every((bookmark) => bookmark.tags.includes('Shared'))).toBe(true);
-    expect(exported.filter((bookmark) => bookmark.visibility === 'private')).toHaveLength(52);
+    expect(exported.filter((bookmark) => bookmark.visibility === 'private')).toHaveLength(300);
 
     const htmlResponse = await exports.default.fetch(
       'https://example.com/api/v1/transfer/export?format=html',
@@ -210,9 +562,49 @@ describe('transfer api', () => {
     expect(htmlResponse.status).toBe(200);
     const html = parseHtml(await htmlResponse.text());
     const htmlBookmarks = html.bookmarks.filter((bookmark) => bookmark.url.includes('stream-'));
-    expect(htmlBookmarks).toHaveLength(105);
+    expect(htmlBookmarks).toHaveLength(601);
     expect(htmlBookmarks.every((bookmark) => bookmark.categorySlug === 'stream-root')).toBe(true);
   });
+
+  it.each(['json', 'html'] as const)(
+    'fails the %s download when its second page cannot be read',
+    async (format) => {
+      const response = await exports.default.fetch(
+        'https://example.com/api/v1/transfer/import?format=json',
+        {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({
+            bookmarks: Array.from({ length: 301 }, (_, index) => ({
+              title: `Failure page ${index}`,
+              url: `https://failure-page-${index}.example.com`,
+            })),
+          }),
+        },
+      );
+      expect(response.status).toBe(200);
+      const db = drizzle(env.DB);
+      const all = db.all.bind(db);
+      const query = vi.spyOn(db, 'all');
+      query
+        .mockImplementationOnce(all)
+        .mockImplementationOnce(all)
+        .mockRejectedValueOnce(new Error('Second export page failed'));
+      try {
+        const stream = await exportTransferStream(db, format);
+        await expect(new Response(stream).text()).rejects.toThrow('Second export page failed');
+        expect(query).toHaveBeenCalledTimes(3);
+      } finally {
+        query.mockRestore();
+      }
+      const recovered = await exports.default.fetch(
+        `https://example.com/api/v1/transfer/export?format=${format}`,
+        { headers: adminHeaders },
+      );
+      const text = await recovered.text();
+      expect((format === 'json' ? parseJson(text) : parseHtml(text)).bookmarks).toHaveLength(301);
+    },
+  );
 
   it('imports more than one tag statement worth of distinct tags', async () => {
     const bookmarks = Array.from({ length: 4 }, (_, index) => ({
@@ -229,7 +621,7 @@ describe('transfer api', () => {
       },
     );
     expect(response.status).toBe(200);
-    expect((await response.json()).bookmarksCreated).toBe(4);
+    expect((await response.json<ImportSummary>()).bookmarksCreated).toBe(4);
     const tagsResponse = await exports.default.fetch('https://example.com/api/v1/tags', {
       headers: adminHeaders,
     });
@@ -327,12 +719,13 @@ describe('transfer api', () => {
       { method: 'POST', headers: adminHeaders, body: payload },
     );
     expect(response.status).toBe(200);
-    expect((await response.json()).bookmarksCreated).toBe(1);
+    expect((await response.json<ImportSummary>()).bookmarksCreated).toBe(1);
 
     const catsResponse = await exports.default.fetch('https://example.com/api/v1/categories', {
       headers: { Authorization: 'Bearer dev-password' },
     });
     const cats = (await catsResponse.json()) as Array<{
+      id: number;
       name: string;
       slug: string;
       parentId: number | null;
@@ -387,6 +780,57 @@ describe('parseJson tag backup', () => {
 });
 
 describe('html transfer', () => {
+  it('keeps same-name folders distinct across parents and within the same parent', () => {
+    const input = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<DL><p>
+<DT><H3>First</H3>
+<DL><p>
+<DT><H3>Shared</H3>
+<DL><p>
+<DT><A HREF="https://first-shared.example.com">First shared</A>
+</DL><p>
+<DT><H3>Shared</H3>
+<DL><p>
+<DT><A HREF="https://first-shared-again.example.com">First shared again</A>
+</DL><p>
+</DL><p>
+<DT><H3>Second</H3>
+<DL><p>
+<DT><H3>Shared</H3>
+<DL><p>
+<DT><A HREF="https://second-shared.example.com">Second shared</A>
+</DL><p>
+</DL><p>
+</DL><p>`;
+    const data = parseHtml(input);
+    expect(data.categories).toEqual([
+      { name: 'First', slug: 'first', parentSlug: null },
+      { name: 'Shared', slug: 'shared', parentSlug: 'first' },
+      { name: 'Shared', slug: 'shared-2', parentSlug: 'first' },
+      { name: 'Second', slug: 'second', parentSlug: null },
+      { name: 'Shared', slug: 'shared-3', parentSlug: 'second' },
+    ]);
+    expect(data.bookmarks.map((bookmark) => bookmark.categorySlug)).toEqual([
+      'shared',
+      'shared-2',
+      'shared-3',
+    ]);
+    expect(parseHtml(input).categories).toEqual(data.categories);
+  });
+
+  it('reserves suffixes and keeps long or punctuation-only folder names usable', () => {
+    const name = 'A'.repeat(80);
+    const folders = ['Shared', 'Shared', 'Shared-2', name, name, '!!!'];
+    const input = `<DL><p>\n${folders.map((folder, index) => `<DT><H3>${folder}</H3>\n<DL><p>\n<DT><A HREF="https://folder-${index}.example.com">Site</A>\n</DL><p>`).join('\n')}\n</DL><p>`;
+    const data = parseHtml(input);
+    const slugs = data.categories!.map((category) => category.slug!);
+    expect(new Set(slugs).size).toBe(folders.length);
+    expect(slugs.every((slug) => slug.length <= 64)).toBe(true);
+    expect(slugs.slice(0, 3)).toEqual(['shared', 'shared-2', 'shared-2-2']);
+    expect(slugs.at(-1)).toBe('folder');
+    expect(data.bookmarks.map((bookmark) => bookmark.categorySlug)).toEqual(slugs);
+  });
+
   it('parseHtml maps nested folders to a category tree without tags', () => {
     const data = parseHtml(htmlFixture);
     expect(data.categories).toEqual([

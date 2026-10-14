@@ -20,7 +20,9 @@ import { buttonWithText, click, mount } from '../../render';
 
 vi.mock('@nav/features/auth/useAuthContext', () => ({ useAuthContext: () => ({ authed: false }) }));
 vi.mock('@nav/features/layout/BrandIcon', () => ({ BrandIcon: () => null }));
-vi.mock('@nav/hooks/useSettings', () => ({ useSettings: () => null }));
+vi.mock('@nav/hooks/useSettings', () => ({
+  useSettings: () => ({ settings: null, loading: false, error: null, retry: vi.fn() }),
+}));
 vi.mock('@nav/hooks/useBackground', () => ({ useBackground: () => {} }));
 vi.mock('@nav/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light', setTheme: vi.fn() }) }));
 vi.mock('@nav/api/client', () => ({

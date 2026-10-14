@@ -1,7 +1,5 @@
-import type { PublicSettings } from '@shared/api/types';
-
 import { useAtomValue, useSetAtom } from 'jotai';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { loadSettingsAtom, settingsStateAtom } from '@nav/features/settings/store';
 
@@ -10,8 +8,8 @@ import { loadSettingsAtom, settingsStateAtom } from '@nav/features/settings/stor
  * 数据经 jotai 原子缓存，多个页面共享同一份（只请求一次）；401 时回调 onUnauthorized
  * （经 ref 读取，不依赖回调的引用稳定性）。
  */
-export function useSettings(onUnauthorized?: () => void): PublicSettings | null {
-  const { settings } = useAtomValue(settingsStateAtom);
+export function useSettings(onUnauthorized?: () => void) {
+  const { settings, loading, error, loaded } = useAtomValue(settingsStateAtom);
   const loadSettings = useSetAtom(loadSettingsAtom);
   const onUnauthorizedRef = useRef(onUnauthorized);
 
@@ -20,8 +18,13 @@ export function useSettings(onUnauthorized?: () => void): PublicSettings | null 
   }, [onUnauthorized]);
 
   useEffect(() => {
-    void loadSettings({ onUnauthorized: () => onUnauthorizedRef.current?.() });
+    if (!loaded && !loading && !error)
+      void loadSettings({ onUnauthorized: () => onUnauthorizedRef.current?.() });
+  }, [loadSettings, loaded, loading, error]);
+
+  const retry = useCallback(() => {
+    void loadSettings({ force: true, onUnauthorized: () => onUnauthorizedRef.current?.() });
   }, [loadSettings]);
 
-  return settings;
+  return { settings, loading, error, retry };
 }

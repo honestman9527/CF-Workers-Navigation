@@ -7,10 +7,11 @@ import {
   HeadEndHandler,
   HtmlLanguageHandler,
   MetadataElementHandler,
+  readMetadataBytes,
   TitleHandler,
 } from './collect';
 
-/** 抓取与结果组装：HTTP 请求、SSRF/大小防护、fallback 与公开入口。 */
+/** 抓取与结果组装：有界 HTTP 读取、fallback 与公开入口。 */
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_TITLE_LENGTH = 140;
@@ -49,16 +50,19 @@ async function parseHtmlMetadata(url: string): Promise<MetadataShape | null> {
   }
 
   if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
     return null;
   }
 
   const contentLength = parseContentLength(response.headers.get('Content-Length'));
   if (contentLength !== null && contentLength > MAX_RESPONSE_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
     return null;
   }
 
   const contentType = (response.headers.get('Content-Type') ?? '').toLowerCase();
   if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+    await response.body?.cancel().catch(() => undefined);
     return null;
   }
 
@@ -66,15 +70,25 @@ async function parseHtmlMetadata(url: string): Promise<MetadataShape | null> {
   const headEndHandler = new HeadEndHandler();
   const metadataHandler = new MetadataElementHandler(collected);
 
-  const transformed = new HTMLRewriter()
-    .on('html', new HtmlLanguageHandler(collected))
-    .on('head', headEndHandler)
-    .on('title', new TitleHandler(collected))
-    .on('meta', metadataHandler)
-    .on('link', metadataHandler)
-    .transform(response);
+  try {
+    const bytes = await readMetadataBytes(response);
+    const buffered = new Response(bytes, {
+      headers: { 'Content-Type': response.headers.get('Content-Type') ?? 'text/html' },
+    });
+    const transformed = new HTMLRewriter()
+      .on('html', new HtmlLanguageHandler(collected))
+      .on('head', headEndHandler)
+      .on('title', new TitleHandler(collected))
+      .on('meta', metadataHandler)
+      .on('link', metadataHandler)
+      .transform(buffered);
 
-  await drainTransformedResponse(transformed, () => headEndHandler.isComplete());
+    await drainTransformedResponse(transformed, () => headEndHandler.isComplete());
+  } catch {
+    // Headers may have arrived before the remote body fails or its timeout fires.
+    await response.body?.cancel().catch(() => undefined);
+    return null;
+  }
 
   const title = selectCleanText(
     [collected.openGraph['og:title'], collected.twitter['twitter:title'], collected.title],
@@ -95,8 +109,9 @@ async function parseHtmlMetadata(url: string): Promise<MetadataShape | null> {
   );
   const keywords = splitKeywords(collected.keywords);
   const language = normalizeLanguage(collected.language);
-  const faviconUrl = collected.faviconUrl ? resolveUrl(collected.faviconUrl, url) : '';
-  const canonicalUrl = collected.canonicalUrl ? resolveUrl(collected.canonicalUrl, url) : '';
+  const baseUrl = response.url || url;
+  const faviconUrl = collected.faviconUrl ? resolveUrl(collected.faviconUrl, baseUrl) : '';
+  const canonicalUrl = collected.canonicalUrl ? resolveUrl(collected.canonicalUrl, baseUrl) : '';
 
   return {
     url,

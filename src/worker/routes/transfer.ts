@@ -18,6 +18,30 @@ const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 const formatQuerySchema = z.enum(['html', 'json', 'auto']);
 const strategyQuerySchema = z.enum(['skip', 'create', 'update']).default('skip');
 
+async function readImportBody(request: Request): Promise<string | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return '';
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_IMPORT_BYTES) {
+        await reader.cancel('Import exceeds the body size limit');
+        return null;
+      }
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+    parts.push(decoder.decode());
+    return parts.join('');
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 const transferRoutes = new Hono<AppEnv>();
 
 transferRoutes.get('/export/prepare', async (c) => {
@@ -65,8 +89,8 @@ transferRoutes.post('/import', async (c) => {
   const requestedFormat = formatQuerySchema.parse(c.req.query('format'));
   const strategy: ImportStrategy = strategyQuerySchema.parse(c.req.query('strategy'));
 
-  const body = await c.req.text();
-  if (new TextEncoder().encode(body).byteLength > MAX_IMPORT_BYTES) {
+  const body = await readImportBody(c.req.raw);
+  if (body === null) {
     return jsonError(c, 413, 'too_large', `文件过大（超过 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）`);
   }
 

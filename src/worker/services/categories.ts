@@ -245,10 +245,15 @@ export async function reorderCategories(db: Db, ids: number[]): Promise<void> {
     throw new ServiceError(400, 'validation_error', '一次最多排序 500 个分类');
   }
 
-  const rows = await db
-    .select({ id: categories.id, parentId: categories.parentId })
-    .from(categories)
-    .where(inArray(categories.id, unique));
+  const rows: Array<{ id: number; parentId: number | null }> = [];
+  for (let index = 0; index < unique.length; index += 100) {
+    rows.push(
+      ...(await db
+        .select({ id: categories.id, parentId: categories.parentId })
+        .from(categories)
+        .where(inArray(categories.id, unique.slice(index, index + 100)))),
+    );
+  }
   if (rows.length !== unique.length) {
     throw new ServiceError(404, 'not_found', '某些分类不存在');
   }
