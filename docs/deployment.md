@@ -10,6 +10,8 @@
 
 本地启动步骤见[使用与本地开发](usage.md#本地启动)，表结构与迁移维护规则见[数据库与迁移](database.md)。
 
+代理执行操作的任务范围与 Git 推送授权统一遵循根 [AGENTS.md](../AGENTS.md#任务流程与-git)；本文规定执行步骤与技术检查。
+
 ## 部署目标与隔离
 
 `wrangler.jsonc` 的 `name` 是 Worker 名称，D1 通过 `DB` 绑定连接。配置中的 `database_id` 初始为占位值，必须替换为已确认账户内的数据库 ID。`AUTH_RATE_LIMITER` 是登录限流绑定；生成 CI 配置时保留该绑定与其 namespace，调整 namespace 前核对账户内其他 Worker 的使用情况。
@@ -67,6 +69,8 @@ SITE_URL=https://nav.example node .github/scripts/deployment.mjs smoke
 
 `.github/workflows/ci.yml` 在 push 和 pull request 上运行绑定类型生成检查 `pnpm cf:types:check`、完整 `pnpm check`、部署脚本测试、`pnpm build` 和 Worker `deploy --dry-run`。`.github/workflows/deploy.yml` 自动发布本仓库 `main` push 对应的成功 CI 的 `head_sha`，不会把 PR、fork 或其他分支的 CI 当作部署依据。手动触发仅接受 `main`，固定到触发时的 `github.sha`；选择其他分支会跳过部署。两条路径都重新运行完整本地验证，checkout 后核对实际提交。
 
+推送 `main` 会启动上述自动发布链；本地合并不会触发 Actions。代理请求推送同意时需说明这一影响，合并与推送流程见根 [AGENTS.md](../AGENTS.md#任务流程与-git)。
+
 仓库需要配置以下 Actions secrets：
 
 - `CLOUDFLARE_ACCOUNT_ID`
@@ -111,7 +115,7 @@ pnpm exec wrangler d1 time-travel info DB --config wrangler.jsonc --json > recov
 pnpm exec wrangler d1 time-travel restore DB --bookmark=<BEFORE_MIGRATION_BOOKMARK> --config wrangler.jsonc
 ```
 
-保存恢复结果中的 `previous_bookmark`，必要时可用它撤销本次恢复。恢复后核对迁移跟踪、书签/分类/标签数量、FTS 搜索和公开权限，运行线上冒烟，再恢复写入。数据库恢复和生产代码回滚都是单独的远程修改操作，需明确授权。
+保存恢复结果中的 `previous_bookmark`，必要时可用它撤销本次恢复。恢复后核对迁移跟踪、书签/分类/标签数量、FTS 搜索和公开权限，运行线上冒烟，再恢复写入。数据库恢复与生产代码回滚分别按任务目标选择，确认实际故障和恢复影响后执行。
 
 ## 静态资源与路由
 

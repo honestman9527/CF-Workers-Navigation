@@ -38,7 +38,7 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 
 旧的书签标签别名不再提供，标签列表统一使用 `GET /api/v1/tags`。
 
-分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类。服务按 D1 每条查询最多 100 个绑定参数分块验证，在全部验证完成后原子写入；输入错误不留下部分排序。
+分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
 
 元数据仅接受 HTTP/HTTPS URL。抓取超时为 8 秒，声明正文超过 5 MiB 时直接拒收，实际最多读取前 512 KiB 后解析，以限制内存并隔离远端流错误。远端连接失败、正文中断或超时会返回 `partial: true` 的主机名及可用图标降级结果；重定向页面的相对图标与 canonical 地址按最终 URL 解析。
 
@@ -66,7 +66,7 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 
-首页 URL 的 `category` 记录分类浏览位置；站内搜索组合 `q` 与单个 `tag` 或 `untagged`，其中 `tag` 优先。前台分类浏览与搜索使用游标模式（首批 12、追加 24），后台表格使用 `offset` 页码模式。`mode=site|web`、`engine` 仅是前端状态，不作为 API 参数。旧前台地址映射及历史恢复见[使用与本地开发](usage.md#搜索与链接兼容)，分页与权限取舍见[架构与服务边界](architecture.md)。
+`mode=site|web`、`engine` 仅是前端状态，不作为 API 参数。Web URL、筛选优先级、旧地址映射及历史恢复见[使用与本地开发](usage.md#搜索与链接兼容)，分页选择与实现取舍见[架构与服务边界](architecture.md#分页与查询行为)。
 
 ## 请求与错误示例
 
