@@ -7,7 +7,7 @@ import type {
 } from '../../shared/api/types';
 import type { Db } from '../types';
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import {
@@ -16,10 +16,11 @@ import {
   encodeListCursor,
   encodeSearchCursor,
 } from '../cursor';
-import { bookmarkTags, bookmarks, tags } from '../schema';
+import { bookmarks } from '../schema';
 import { getSettings } from '../settings';
 import { slugify } from '../slug';
 import { publicBookmarkCondition, bookmarkEffectiveVisibility } from '../visibility';
+import { withBookmarkTagWrites } from './bookmark-tags';
 import { assertCategoryExists } from './categories';
 import { ServiceError } from './errors';
 
@@ -98,86 +99,6 @@ function toDto(row: BookmarkRow): BookmarkDto {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-function cleanTagNames(names: string[] | undefined): Array<{ name: string; slug: string }> {
-  if (names === undefined) return [];
-  const unique = new Map<string, string>();
-  for (const raw of names) {
-    const name = raw.trim();
-    const slug = slugify(name);
-    if (name && slug && !unique.has(slug)) unique.set(slug, name);
-  }
-  return [...unique].slice(0, 30).map(([slug, name]) => ({ slug, name }));
-}
-
-export async function replaceTags(db: Db, bookmarkId: number, names: string[] | undefined) {
-  if (names === undefined) return;
-  const clean = cleanTagNames(names);
-  await db.delete(bookmarkTags).where(eq(bookmarkTags.bookmarkId, bookmarkId));
-  if (clean.length === 0) return;
-
-  const slugs = clean.map((tag) => tag.slug);
-  await db.insert(tags).values(clean).onConflictDoNothing({ target: tags.slug });
-  const resolved = await db.select({ id: tags.id }).from(tags).where(inArray(tags.slug, slugs));
-  if (resolved.length > 0) {
-    await db
-      .insert(bookmarkTags)
-      .values(resolved.map((tag) => ({ bookmarkId, tagId: tag.id })))
-      .onConflictDoNothing();
-  }
-}
-
-/** 导入时以块为单位解析标签，避免为每条书签重复查询和写入相同标签。 */
-export async function replaceTagsBatch(
-  db: Db,
-  entries: Array<{ bookmarkId: number; names: string[] | undefined }>,
-) {
-  const cleaned = new Map<number, ReturnType<typeof cleanTagNames>>();
-  const uniqueTags = new Map<string, string>();
-  for (const { bookmarkId, names } of entries) {
-    if (names === undefined) continue;
-    const tagsForBookmark = cleanTagNames(names);
-    cleaned.set(bookmarkId, tagsForBookmark);
-    for (const tag of tagsForBookmark) {
-      if (!uniqueTags.has(tag.slug)) uniqueTags.set(tag.slug, tag.name);
-    }
-  }
-  if (cleaned.size === 0) return;
-
-  await db.delete(bookmarkTags).where(inArray(bookmarkTags.bookmarkId, [...cleaned.keys()]));
-  if (uniqueTags.size === 0) return;
-
-  // D1 statements support at most 100 bound parameters; each inserted row has two.
-  const tagEntries = [...uniqueTags].map(([slug, name]) => ({ slug, name }));
-  const tagIds = new Map<string, number>();
-  for (let index = 0; index < tagEntries.length; index += 40) {
-    const chunk = tagEntries.slice(index, index + 40);
-    await db.insert(tags).values(chunk).onConflictDoNothing({ target: tags.slug });
-    const resolved = await db
-      .select({ id: tags.id, slug: tags.slug })
-      .from(tags)
-      .where(
-        inArray(
-          tags.slug,
-          chunk.map((tag) => tag.slug),
-        ),
-      );
-    for (const tag of resolved) tagIds.set(tag.slug, tag.id);
-  }
-
-  const links = [...cleaned].flatMap(([bookmarkId, tagNames]) =>
-    tagNames.flatMap(({ slug }) => {
-      const tagId = tagIds.get(slug);
-      return tagId === undefined ? [] : [{ bookmarkId, tagId }];
-    }),
-  );
-  for (let index = 0; index < links.length; index += 40) {
-    await db
-      .insert(bookmarkTags)
-      .values(links.slice(index, index + 40))
-      .onConflictDoNothing();
-  }
 }
 
 function viewCondition(view: BookmarkView): ReturnType<typeof sql> {
@@ -489,7 +410,9 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       urlNormalized: normalizeUrl(input.url),
     })
     .returning();
-  await replaceTags(db, bookmark.id, input.tags);
+  await withBookmarkTagWrites(db, (replace) =>
+    replace([{ bookmarkId: bookmark.id, names: input.tags }]),
+  );
   return getBookmark(db, bookmark.id, true);
 }
 
@@ -523,7 +446,7 @@ export async function updateBookmark(
     })
     .where(eq(bookmarks.id, id))
     .returning();
-  await replaceTags(db, id, input.tags);
+  await withBookmarkTagWrites(db, (replace) => replace([{ bookmarkId: id, names: input.tags }]));
   return getBookmark(db, bookmark.id, true);
 }
 

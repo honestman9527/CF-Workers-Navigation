@@ -19,7 +19,8 @@ import {
   serializeHtmlFolderEnd,
   serializeHtmlFolderStart,
 } from '../transfer/html';
-import { getBookmark, listExportBookmarks, normalizeUrl, replaceTagsBatch } from './bookmarks';
+import { withBookmarkTagWrites } from './bookmark-tags';
+import { getBookmark, listExportBookmarks, normalizeUrl } from './bookmarks';
 import { listCategories } from './categories';
 import { ServiceError } from './errors';
 
@@ -28,7 +29,6 @@ import { ServiceError } from './errors';
 // the limit with headroom.
 const INSERT_CHUNK_SIZE = 9;
 const UPDATE_CHUNK_SIZE = 25;
-const TAG_CHUNK_SIZE = 100;
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -368,19 +368,7 @@ export async function importTransferData(
     summary.bookmarksCreated += 1;
   }
 
-  let tagWrites: Array<{ bookmarkId: number; names: string[] | undefined }> = [];
-  async function flushTagWrites() {
-    if (tagWrites.length === 0) return;
-    const pending = tagWrites;
-    tagWrites = [];
-    await replaceTagsBatch(db, pending);
-  }
-  async function queueTagWrites(entries: typeof tagWrites) {
-    if (tagWrites.length + entries.length > TAG_CHUNK_SIZE) await flushTagWrites();
-    tagWrites.push(...entries);
-  }
-
-  try {
+  await withBookmarkTagWrites(db, async (replaceTags) => {
     for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
       const created = await db
         .insert(bookmarks)
@@ -400,15 +388,13 @@ export async function importTransferData(
           })),
         )
         .returning({ id: bookmarks.id });
-      await queueTagWrites(
+      await replaceTags(
         created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].tags })),
       );
     }
-  } finally {
-    await flushTagWrites();
-  }
+  });
 
-  try {
+  await withBookmarkTagWrites(db, async (replaceTags) => {
     for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
       const statements = chunk.map(({ id, bookmark }) =>
         db
@@ -427,13 +413,11 @@ export async function importTransferData(
           .where(eq(bookmarks.id, id)),
       );
       await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-      await queueTagWrites(
+      await replaceTags(
         chunk.map(({ id, bookmark }) => ({ bookmarkId: id, names: bookmark.tags })),
       );
     }
-  } finally {
-    await flushTagWrites();
-  }
+  });
 
   return summary;
 }

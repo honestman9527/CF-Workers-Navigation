@@ -118,7 +118,10 @@ transferRoutes.post('/import', async (c) => {
     return c.json(summary, 200);
   } catch (error) {
     if (error instanceof ServiceError) return handleServiceError(c, error);
-    console.error('Bookmark import failed', error);
+    console.error(
+      'Bookmark import failed',
+      ...(error instanceof AggregateError ? error.errors : [error]),
+    );
     return jsonError(c, 500, 'internal_error', '数据库写入失败，请查看 Worker 日志');
   }
 });

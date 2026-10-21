@@ -191,19 +191,19 @@ describe('transfer api', () => {
         tags: ['Retry'],
       })),
     });
-    const db = drizzle(env.DB);
-    const insert = db.insert.bind(db);
-    const writes = vi.spyOn(db, 'insert');
-    writes.mockImplementationOnce(insert).mockImplementationOnce(() => {
-      throw new Error('Second import batch failed');
+    let bookmarkBatches = 0;
+    const db = drizzle(env.DB, {
+      logger: {
+        logQuery(query) {
+          if (query.startsWith('insert into "bookmarks"') && ++bookmarkBatches === 2) {
+            throw new Error('Second import batch failed');
+          }
+        },
+      },
     });
-    try {
-      await expect(importTransferData(db, parseJson(payload), 'skip')).rejects.toThrow(
-        'Second import batch failed',
-      );
-    } finally {
-      writes.mockRestore();
-    }
+    await expect(importTransferData(db, parseJson(payload), 'skip')).rejects.toThrow(
+      'Second import batch failed',
+    );
     const savedCount = Number(
       await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count'),
     );
@@ -222,6 +222,114 @@ describe('transfer api', () => {
       bookmarksSkipped: savedCount,
     });
     expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(13);
+    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count')).toBe(
+      13,
+    );
+  });
+
+  it.each([
+    { count: 25, strategy: 'skip', queryBudget: 4 },
+    { count: 100, strategy: 'update', queryBudget: 6 },
+  ] as const)(
+    'retains the tag query budget for $count bookmarks with $strategy',
+    async ({ count, strategy, queryBudget }) => {
+      const data = parseJson(
+        JSON.stringify({
+          version: 2,
+          bookmarks: Array.from({ length: count }, (_, index) => ({
+            title: `Budget ${index}`,
+            url: `https://tag-budget-${index}.example.com`,
+            visibility: 'private',
+            tags: ['Shared'],
+          })),
+        }),
+      );
+      if (strategy === 'update') await importTransferData(drizzle(env.DB), data, 'skip');
+      let tagQueries = 0;
+      const db = drizzle(env.DB, {
+        logger: {
+          logQuery(query, params) {
+            expect(params.length).toBeLessThanOrEqual(100);
+            if (/"(?:bookmark_tags|tags)"/.test(query)) tagQueries += 1;
+          },
+        },
+      });
+      const summary = await importTransferData(db, data, strategy);
+      expect(summary).toMatchObject(
+        strategy === 'skip'
+          ? { bookmarksCreated: count, bookmarksUpdated: 0 }
+          : { bookmarksCreated: 0, bookmarksUpdated: count },
+      );
+      expect(tagQueries).toBeLessThanOrEqual(queryBudget);
+      expect(
+        await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count'),
+      ).toBe(count);
+    },
+  );
+
+  it('logs both bookmark and tag failures, returns the existing 500, and can be repaired with update', async () => {
+    const payload = JSON.stringify({
+      version: 2,
+      bookmarks: Array.from({ length: 13 }, (_, index) => ({
+        title: `Double failure ${index}`,
+        url: `https://double-failure-${index}.example.com`,
+        tags: ['Recovered'],
+      })),
+    });
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`CREATE TRIGGER fail_bookmark_batch BEFORE INSERT ON bookmarks
+          WHEN NEW.title = 'Double failure 9'
+          BEGIN SELECT RAISE(ABORT, 'Bookmark batch failure'); END`),
+        env.DB.prepare(`CREATE TRIGGER fail_tag_cleanup BEFORE INSERT ON tags
+          BEGIN SELECT RAISE(ABORT, 'Tag cleanup failure'); END`),
+      ]);
+      const response = await app.fetch(
+        new Request('https://example.com/api/v1/transfer/import?format=json', {
+          method: 'POST',
+          headers: adminHeaders,
+          body: payload,
+        }),
+        env,
+      );
+      expect(response.status).toBe(500);
+      expect(await response.json()).toEqual({
+        error: { code: 'internal_error', message: '数据库写入失败，请查看 Worker 日志' },
+      });
+      const logged = errorLog.mock.calls.find(([message]) => message === 'Bookmark import failed');
+      expect(logged).toEqual([
+        'Bookmark import failed',
+        expect.objectContaining({
+          cause: expect.objectContaining({
+            message: expect.stringContaining('Bookmark batch failure'),
+          }),
+        }),
+        expect.objectContaining({
+          cause: expect.objectContaining({
+            message: expect.stringContaining('Tag cleanup failure'),
+          }),
+        }),
+      ]);
+      expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(
+        9,
+      );
+      expect(
+        await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count'),
+      ).toBe(0);
+    } finally {
+      errorLog.mockRestore();
+      await env.DB.batch([
+        env.DB.prepare('DROP TRIGGER IF EXISTS fail_bookmark_batch'),
+        env.DB.prepare('DROP TRIGGER IF EXISTS fail_tag_cleanup'),
+      ]);
+    }
+    const retried = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json&strategy=update',
+      { method: 'POST', headers: adminHeaders, body: payload },
+    );
+    expect(retried.status).toBe(200);
+    expect(await retried.json()).toMatchObject({ bookmarksCreated: 4, bookmarksUpdated: 9 });
     expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count')).toBe(
       13,
     );
