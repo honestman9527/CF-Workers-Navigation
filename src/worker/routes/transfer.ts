@@ -6,9 +6,9 @@ import { z } from 'zod';
 
 import { jsonError } from '../errors';
 import { handleServiceError } from '../http';
-import { listCategories } from '../services/categories';
 import { ServiceError } from '../services/errors';
-import { exportTransferStream, importTransferData } from '../services/transfer';
+import { importTransferData } from '../services/transfer';
+import { exportTransferStream, prepareTransferExport } from '../services/transfer-export';
 import { detectFormat } from '../transfer/detect';
 import { parseHtml } from '../transfer/html';
 import { parseJson } from '../transfer/json';
@@ -49,7 +49,7 @@ transferRoutes.get('/export/prepare', async (c) => {
   if (format === 'auto') {
     return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
   }
-  await listCategories(c.get('db'), true);
+  await prepareTransferExport(c.get('db'));
   return c.json({ ready: true });
 });
 

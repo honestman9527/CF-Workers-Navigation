@@ -267,45 +267,6 @@ export async function listBookmarks(
   };
 }
 
-const EXPORT_PAGE_SIZE = 300;
-
-/** 导出按游标读取有界批次；分类参数只匹配直属书签。 */
-export async function listExportBookmarks(
-  db: Db,
-  cursorValue?: string,
-  categoryId?: number | null,
-): Promise<BookmarkPage> {
-  const cursor = decodeListCursor(cursorValue);
-  const categoryCondition =
-    categoryId === undefined
-      ? sql`1 = 1`
-      : categoryId === null
-        ? sql`b.category_id IS NULL`
-        : sql`b.category_id = ${categoryId}`;
-  const cursorCondition = cursor
-    ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
-    : sql``;
-  const rows = await db.all<BookmarkRow>(sql`
-    WITH bookmark_page AS MATERIALIZED (
-      SELECT b.id FROM bookmarks b
-      WHERE ${categoryCondition} ${cursorCondition}
-      ORDER BY b.created_at DESC, b.id DESC
-      LIMIT ${EXPORT_PAGE_SIZE + 1}
-    )
-    ${listSelect}
-    GROUP BY b.id
-    ORDER BY b.created_at DESC, b.id DESC
-  `);
-  const hasMore = rows.length > EXPORT_PAGE_SIZE;
-  const items = (hasMore ? rows.slice(0, EXPORT_PAGE_SIZE) : rows).map(toDto);
-  const last = rows[EXPORT_PAGE_SIZE - 1];
-  return {
-    items,
-    nextCursor:
-      hasMore && last ? encodeListCursor({ createdAt: last.created_at, id: last.id }) : null,
-  };
-}
-
 function buildFtsQuery(raw: string): string {
   return raw
     .split(/\s+/)

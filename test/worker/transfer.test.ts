@@ -1,11 +1,13 @@
 import type { ImportSummary } from '../../src/shared/api/types';
+import type { TransferBookmark, TransferData } from '../../src/worker/transfer/types';
 
 import { env, exports } from 'cloudflare:workers';
 import { drizzle } from 'drizzle-orm/d1';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '../../src/worker/app';
-import { exportTransferStream, importTransferData } from '../../src/worker/services/transfer';
+import { importTransferData } from '../../src/worker/services/transfer';
+import { exportTransferStream } from '../../src/worker/services/transfer-export';
 import { detectFormat } from '../../src/worker/transfer/detect';
 import { parseHtml } from '../../src/worker/transfer/html';
 import { parseJson } from '../../src/worker/transfer/json';
@@ -691,20 +693,17 @@ describe('transfer api', () => {
         },
       );
       expect(response.status).toBe(200);
-      const db = drizzle(env.DB);
-      const all = db.all.bind(db);
-      const query = vi.spyOn(db, 'all');
-      query
-        .mockImplementationOnce(all)
-        .mockImplementationOnce(all)
-        .mockRejectedValueOnce(new Error('Second export page failed'));
-      try {
-        const stream = await exportTransferStream(db, format);
-        await expect(new Response(stream).text()).rejects.toThrow('Second export page failed');
-        expect(query).toHaveBeenCalledTimes(3);
-      } finally {
-        query.mockRestore();
-      }
+      const db = drizzle(env.DB, {
+        logger: {
+          logQuery(query) {
+            if (query.includes('bookmark_page') && query.includes('b.created_at <')) {
+              throw new Error('Second export page failed');
+            }
+          },
+        },
+      });
+      const stream = await exportTransferStream(db, format);
+      await expect(new Response(stream).text()).rejects.toThrow('Second export page failed');
       const recovered = await exports.default.fetch(
         `https://example.com/api/v1/transfer/export?format=${format}`,
         { headers: adminHeaders },
@@ -768,6 +767,8 @@ describe('transfer api', () => {
     );
     expect(response.status).toBe(200);
     const parsed = parseHtml(await response.text());
+    expect(parsed.bookmarks).toHaveLength(2);
+    expect(new Set(parsed.bookmarks.map((bookmark) => bookmark.url)).size).toBe(2);
     expect(parsed.categories?.find((item) => item.slug === 'stream-child')?.parentSlug).toBe(
       'stream-parent',
     );
@@ -805,6 +806,84 @@ describe('transfer api', () => {
     expect(
       data.bookmarks.find((bookmark) => bookmark.url.includes('categorized-export'))?.categorySlug,
     ).toBe(category.slug);
+  });
+
+  it('exports the exact backup projection with original timestamps, explicit privacy, and null fields', async () => {
+    const categories = [
+      {
+        name: 'Private root',
+        slug: 'backup-root',
+        parentSlug: null,
+        icon: null,
+        visibility: 'private',
+      },
+      {
+        name: 'Child',
+        slug: 'backup-child',
+        parentSlug: 'backup-root',
+        icon: 'Folder',
+        visibility: 'public',
+      },
+    ];
+    const rich = {
+      title: 'Rich & historical',
+      visibility: 'public',
+      url: 'https://rich-backup.example.com/path#hash',
+      description: 'A description <with> & symbols',
+      iconUrl: 'https://icons.example.com/rich.png',
+      isPinned: true,
+      categorySlug: 'backup-child',
+      tags: ['Docs', 'Design'],
+      archivedAt: '2026-09-02T11:12:13.123Z',
+      deletedAt: '2026-09-03T12:13:14.456Z',
+      addedAt: '2026-09-01T10:11:12.345Z',
+    } satisfies TransferBookmark;
+    const empty = {
+      title: 'Empty fields',
+      visibility: 'private',
+      url: 'https://empty-backup.example.com',
+      description: null,
+      iconUrl: null,
+      isPinned: false,
+      categorySlug: null,
+      tags: [],
+      archivedAt: null,
+      deletedAt: null,
+      addedAt: '2026-09-04 00:00:00',
+    } satisfies TransferBookmark;
+    const imported = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          version: 2,
+          categories,
+          bookmarks: [rich, empty],
+        }),
+      },
+    );
+    expect(imported.status).toBe(200);
+    const response = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      {
+        headers: adminHeaders,
+      },
+    );
+    expect(response.status).toBe(200);
+    const data = await response.json<TransferData>();
+    expect(Object.keys(data).sort()).toEqual(['bookmarks', 'categories', 'exportedAt', 'version']);
+    expect(data.version).toBe(2);
+    expect(Number.isFinite(Date.parse(data.exportedAt))).toBe(true);
+    expect(data.categories).toEqual(categories);
+    expect(data.bookmarks).toHaveLength(2);
+    for (const expected of [rich, empty]) {
+      const record = data.bookmarks.find((bookmark) => bookmark.url === expected.url);
+      expect(record && { ...record, tags: record.tags.toSorted() }).toEqual({
+        ...expected,
+        tags: expected.tags.toSorted(),
+      });
+    }
   });
 
   it('imports a category tree and restores bookmark assignment', async () => {

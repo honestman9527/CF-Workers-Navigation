@@ -10,6 +10,8 @@ Worker、Web、shared 分别使用独立的 TypeScript 配置，隔离 Cloudflar
 
 书签编辑与备份导入通过 `src/worker/services/bookmark-tags.ts` 的 `withBookmarkTagWrites` 共用标签替换规则。该 module 的 interface 是一个有作用域的回调：调用者按顺序提交已经写入的书签及目标标签，implementation 负责跨批缓冲、D1 参数分块和退出收尾，导入流程无需了解标签批次容量。普通编辑使用单次替换，导入在新增和更新阶段各使用一个作用域，维持原有跨书签批次聚合。D1 继续作为现有 adapter；[标签关联](../GLOSSARY.md)的规则与验证集中在同一 seam，以获得 locality 和两类调用者共用的 leverage。失败与部分写入规则见[导入与导出](import-export.md#导入)。
 
+备份导出由 `src/worker/services/transfer-export.ts` 集中负责预检、分类读取、有界书签读取和两种格式的流协调。读取直接投影为备份字段，不经过交互书签 DTO，也不计算分类计数或有效权限；JSON 与 HTML 继续使用各自现有的格式生成过程。导入匹配与写入仍在 `services/transfer.ts`，格式规则见[导入与导出](import-export.md)。
+
 Wrangler 配置中的绑定声明生成到 `src/worker/bindings.d.ts`；密钥声明单独维护在 `env.d.ts`。生成与一致性检查命令见[使用与本地开发](usage.md#常用命令)。
 
 Web 构建自动生成静态资源 `_headers`：CSP 仅允许本站脚本，并按最终 HTML 计算内联主题初始化脚本的 SHA-256；自定义图标和背景图片允许 HTTP、HTTPS 与 data 图片，动态样式保留内联支持。静态页面禁止嵌入框架、设置 `nosniff` 与 `no-referrer`；API 响应头契约见 [API 与权限](api.md#基础规则)。带内容哈希的 `/assets/*` 使用一年 immutable 浏览器缓存，HTML 继续按平台默认规则重新验证。

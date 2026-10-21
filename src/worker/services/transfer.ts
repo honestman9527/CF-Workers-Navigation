@@ -1,9 +1,7 @@
-import type { Bookmark } from '../../shared/api/types';
 import type {
   ImportStrategy,
   ImportSummary,
   TransferBookmark,
-  TransferCategory,
   TransferData,
 } from '../transfer/types';
 import type { Db } from '../types';
@@ -13,14 +11,8 @@ import { eq, sql } from 'drizzle-orm';
 import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
-import {
-  HTML_EXPORT_HEADER,
-  serializeHtmlBookmark,
-  serializeHtmlFolderEnd,
-  serializeHtmlFolderStart,
-} from '../transfer/html';
 import { withBookmarkTagWrites } from './bookmark-tags';
-import { getBookmark, listExportBookmarks, normalizeUrl } from './bookmarks';
+import { getBookmark, normalizeUrl } from './bookmarks';
 import { listCategories } from './categories';
 import { ServiceError } from './errors';
 
@@ -36,122 +28,6 @@ function chunks<T>(items: T[], size: number): T[][] {
     result.push(items.slice(index, index + size));
   }
   return result;
-}
-
-function toTransferBookmark(bookmark: Bookmark): TransferBookmark {
-  return {
-    title: bookmark.title,
-    visibility: bookmark.visibility,
-    url: bookmark.url,
-    description: bookmark.description,
-    iconUrl: bookmark.iconUrl,
-    isPinned: bookmark.isPinned,
-    categorySlug: bookmark.categorySlug,
-    tags: bookmark.tags,
-    archivedAt: bookmark.archivedAt,
-    deletedAt: bookmark.deletedAt,
-    addedAt: bookmark.createdAt,
-  };
-}
-
-function streamText(chunks: AsyncGenerator<string>): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    async pull(controller) {
-      try {
-        const { value, done } = await chunks.next();
-        if (done) controller.close();
-        else controller.enqueue(encoder.encode(value));
-      } catch (error) {
-        controller.error(error);
-      }
-    },
-    async cancel() {
-      await chunks.return('');
-    },
-  });
-}
-
-type ExportCategory = Awaited<ReturnType<typeof listCategories>>[number];
-
-async function* jsonExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
-  const idToSlug = new Map(categoriesList.map((category) => [category.id, category.slug]));
-  const exportedCategories: TransferCategory[] = categoriesList.map((category) => ({
-    name: category.name,
-    visibility: category.visibility,
-    slug: category.slug,
-    icon: category.icon,
-    parentSlug: category.parentId !== null ? (idToSlug.get(category.parentId) ?? null) : null,
-  }));
-  yield `{"version":2,"exportedAt":${JSON.stringify(new Date().toISOString())},"categories":${JSON.stringify(exportedCategories)},"bookmarks":[`;
-  let cursor: string | undefined;
-  let first = true;
-  do {
-    const page = await listExportBookmarks(db, cursor);
-    if (page.items.length > 0) {
-      yield `${first ? '' : ','}${page.items.map((bookmark) => JSON.stringify(toTransferBookmark(bookmark))).join(',')}`;
-      first = false;
-    }
-    cursor = page.nextCursor ?? undefined;
-  } while (cursor);
-  yield ']}\n';
-}
-
-async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
-  type Node = { category: ExportCategory; children: Node[] };
-  const nodes = new Map(
-    categoriesList.map((category) => [category.id, { category, children: [] as Node[] }]),
-  );
-  const roots: Node[] = [];
-  for (const category of categoriesList) {
-    const node = nodes.get(category.id)!;
-    const parent = category.parentId === null ? undefined : nodes.get(category.parentId);
-    if (parent && parent !== node) parent.children.push(node);
-    else roots.push(node);
-  }
-
-  async function* folder(node: Node, indent: string): AsyncGenerator<string> {
-    yield `${serializeHtmlFolderStart(node.category.name, indent)}\n`;
-    let cursor: string | undefined;
-    do {
-      const page = await listExportBookmarks(db, cursor, node.category.id);
-      if (page.items.length > 0) {
-        yield `${page.items.map((bookmark) => serializeHtmlBookmark(toTransferBookmark(bookmark), `${indent}    `)).join('\n')}\n`;
-      }
-      cursor = page.nextCursor ?? undefined;
-    } while (cursor);
-    for (const child of node.children) yield* folder(child, `${indent}    `);
-    yield `${serializeHtmlFolderEnd(indent)}\n`;
-  }
-
-  yield `${HTML_EXPORT_HEADER}\n`;
-  for (const root of roots) yield* folder(root, '    ');
-
-  let cursor: string | undefined;
-  let opened = false;
-  do {
-    const page = await listExportBookmarks(db, cursor, null);
-    if (page.items.length > 0) {
-      if (!opened) {
-        yield `${serializeHtmlFolderStart('未分类', '    ')}\n`;
-        opened = true;
-      }
-      yield `${page.items.map((bookmark) => serializeHtmlBookmark(toTransferBookmark(bookmark), '        ')).join('\n')}\n`;
-    }
-    cursor = page.nextCursor ?? undefined;
-  } while (cursor);
-  if (opened) yield `${serializeHtmlFolderEnd('    ')}\n`;
-  yield '</DL><p>\n';
-}
-
-export async function exportTransferStream(
-  db: Db,
-  format: 'json' | 'html',
-): Promise<ReadableStream<Uint8Array>> {
-  const categoriesList = await listCategories(db, true);
-  return streamText(
-    format === 'json' ? jsonExport(db, categoriesList) : htmlExport(db, categoriesList),
-  );
 }
 
 /** 按 slug 建立分类映射并补齐缺失分类，返回 slug → id 映射。 */
