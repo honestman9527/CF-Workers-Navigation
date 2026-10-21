@@ -8,7 +8,7 @@ import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { cn } from '@/lib/utils';
 import { domainOf } from '@shared/search';
 
-import { categoryPath } from './categoryBrowse';
+import { categoryPath, categorySectionId } from './categoryBrowse';
 import { CategoryNavigation } from './CategoryNavigation';
 import { FrontButton } from './controls';
 import { type BookmarkFeed, useBookmarkFeed } from './useBookmarkFeed';
@@ -202,7 +202,7 @@ export function BookmarkSection({
   return (
     <section
       ref={section}
-      id={`section-${slug}`}
+      id={categorySectionId(pinned ? undefined : (root?.slug ?? 'uncategorized'))}
       aria-labelledby={`heading-${slug}`}
       className="min-h-48 scroll-mt-24 border-t border-border/50 py-8 sm:py-10"
     >

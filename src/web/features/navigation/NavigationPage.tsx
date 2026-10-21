@@ -1,6 +1,6 @@
 import type { Bookmark, BookmarkInput } from '@shared/api/types';
 
-import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowRight, Globe, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -23,16 +23,9 @@ import {
 } from '@shared/search';
 
 import { BookmarkSection, FeedContent, type BookmarkActions } from './BookmarkSection';
-import { categoryPath } from './categoryBrowse';
 import { FrontButton } from './controls';
 import { NavigationMenu } from './NavigationMenu';
-import {
-  parseNavigationSearch,
-  readSearchMode,
-  saveSearchMode,
-  type NavigationSearch,
-  type SearchMode,
-} from './search';
+import { type SearchMode } from './search';
 import { useBookmarkFeed } from './useBookmarkFeed';
 import { useCategoryBrowse } from './useCategoryBrowse';
 
@@ -51,11 +44,6 @@ function NavigationSurface() {
   const auth = useAuthContext();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const location = useLocation();
-  const search = parseNavigationSearch(location.search);
-  const [preferredMode, setPreferredMode] = useState(readSearchMode);
-  const mode = search.mode ?? preferredMode;
-  const [draft, setDraft] = useState(search.q ?? '');
   const [composing, setComposing] = useState(false);
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
@@ -107,18 +95,13 @@ function NavigationSurface() {
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
   const tags = useApiData(loadTags, { onUnauthorized: unauthorized });
   const roots = useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
+  const browse = useCategoryBrowse(roots, Boolean(categories.data));
+  const { search, mode, searching, update } = browse;
+  const [draft, setDraft] = useState(search.q ?? '');
   const engines = settings?.searchEngines.length ? settings.searchEngines : DEFAULT_SEARCH_ENGINES;
   const engineId = search.engine ?? settings?.defaultEngineId ?? engines[0]?.id;
   const bang = parseBangQuery(draft, engines);
   const engine = engines.find((item) => item.id === (bang.engineId ?? engineId));
-  const searching = mode === 'site' && Boolean(search.q || search.tag || search.untagged);
-  const browse = useCategoryBrowse(
-    location.state.__TSR_key ?? location.href,
-    roots,
-    search.category,
-    searching,
-    Boolean(categories.data),
-  );
   const results = useBookmarkFeed({
     query: search.q,
     tag: search.tag,
@@ -128,17 +111,9 @@ function NavigationSurface() {
     onUnauthorized: unauthorized,
   });
 
-  function update(next: NavigationSearch, replace = false) {
-    browse.remember();
-    return navigate({ to: '/', search: parseNavigationSearch(next), replace, resetScroll: false });
-  }
   useEffect(() => {
     document.title = '书签柜';
   }, []);
-  useEffect(() => {
-    saveSearchMode(mode);
-    setPreferredMode(mode);
-  }, [mode]);
   useEffect(() => {
     setDraft(search.q ?? '');
     setHighlighted(-1);
@@ -146,16 +121,10 @@ function NavigationSurface() {
   useEffect(() => {
     if (composing || draft.trim() === (search.q ?? '')) return;
     const timer = window.setTimeout(() => {
-      browse.remember();
-      void navigate({
-        to: '/',
-        search: (prev) => ({ ...prev, mode, q: draft.trim() || undefined }),
-        replace: true,
-        resetScroll: false,
-      });
+      void update((prev) => ({ ...prev, mode, q: draft.trim() || undefined }), true);
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [draft, search.q, mode, navigate, composing, browse.remember]);
+  }, [draft, search.q, mode, update, composing]);
   useEffect(() => {
     const focus = (event: KeyboardEvent) => {
       if (canFocusSearch(event)) {
@@ -168,46 +137,11 @@ function NavigationSurface() {
   }, []);
   function selectCategory(category: string) {
     setDraft('');
-    void update({
-      ...search,
-      mode,
-      category,
-      q: undefined,
-      tag: undefined,
-      untagged: undefined,
-    }).then(() => {
-      const section = document.getElementById(
-        `section-category-${categoryPath(roots, category)[0]?.slug}`,
-      );
-      section?.querySelector<HTMLElement>('[aria-current="page"]')?.focus({ preventScroll: true });
-    });
+    void browse.selectCategory(category);
   }
   function locateSection(rootSlug?: string) {
-    const category =
-      rootSlug === 'uncategorized'
-        ? rootSlug
-        : rootSlug
-          ? (browse.selections[rootSlug] ?? rootSlug)
-          : undefined;
     setDraft('');
-    void update({
-      ...search,
-      mode,
-      category,
-      q: undefined,
-      tag: undefined,
-      untagged: undefined,
-    }).then(() => {
-      document
-        .getElementById(
-          rootSlug === 'uncategorized'
-            ? 'section-uncategorized'
-            : rootSlug
-              ? `section-category-${rootSlug}`
-              : 'section-common',
-        )
-        ?.scrollIntoView({ block: 'start', behavior: 'instant' });
-    });
+    void browse.locateSection(rootSlug);
   }
   function selectMode(next: SearchMode) {
     update({ ...search, mode: next, q: draft.trim() || undefined });

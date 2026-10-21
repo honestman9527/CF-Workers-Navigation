@@ -1,19 +1,37 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { categoryPath, type CategorySelections, resolveSelections } from './categoryBrowse';
+import {
+  categoryPath,
+  categorySectionId,
+  type CategorySelections,
+  resolveSelections,
+} from './categoryBrowse';
+import {
+  parseNavigationSearch,
+  readSearchMode,
+  saveSearchMode,
+  type NavigationSearch,
+} from './search';
 
 type Snapshot = { selections: CategorySelections; top: number; browseTop: number };
 
-/** 历史快照和分区选择仅存在于本次挂载中，刷新只按 URL 重建目标路径。 */
-export function useCategoryBrowse(
-  entryKey: string,
-  roots: CategoryNode[],
-  category: string | undefined,
-  searching: boolean,
-  ready: boolean,
-) {
+/** URL、模式偏好与历史快照在此协作；调用者不编排记忆、导航和 DOM 恢复。 */
+export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const search = parseNavigationSearch(location.search);
+  const entryKey = location.state.__TSR_key ?? location.href;
+  const category = search.category;
+  const [preferredMode, setPreferredMode] = useState(readSearchMode);
+  const mode = search.mode ?? preferredMode;
+  const searching = mode === 'site' && Boolean(search.q || search.tag || search.untagged);
+  useEffect(() => {
+    saveSearchMode(mode);
+    setPreferredMode(mode);
+  }, [mode]);
   const [snapshots] = useState(() => new Map<string, Snapshot>());
   const [frame, setFrame] = useState<{ key: string; selections: CategorySelections }>({
     key: entryKey,
@@ -51,7 +69,7 @@ export function useCategoryBrowse(
       if (!searching && category) {
         const root = categoryPath(roots, category)[0];
         document
-          .getElementById(root ? `section-category-${root.slug}` : `section-${category}`)
+          .getElementById(categorySectionId(root?.slug ?? category))
           ?.scrollIntoView({ block: 'start', behavior: 'instant' });
       } else {
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -69,5 +87,69 @@ export function useCategoryBrowse(
     };
   }, [entryKey, category, roots, searching, ready, snapshots, remember]);
 
-  return { selections, activeRoot: categoryPath(roots, category)[0]?.slug, remember };
+  const update = useCallback(
+    (
+      next: NavigationSearch | ((previous: NavigationSearch) => NavigationSearch),
+      replace = false,
+    ) => {
+      remember();
+      return navigate({
+        to: '/',
+        search: (previous) =>
+          parseNavigationSearch(
+            typeof next === 'function' ? next(parseNavigationSearch(previous)) : next,
+          ),
+        replace,
+        resetScroll: false,
+      });
+    },
+    [navigate, remember],
+  );
+
+  async function selectCategory(slug: string) {
+    await update((previous) => ({
+      ...previous,
+      mode,
+      category: slug,
+      q: undefined,
+      tag: undefined,
+      untagged: undefined,
+    }));
+    const root = categoryPath(roots, slug)[0];
+    document
+      .getElementById(categorySectionId(root?.slug ?? slug))
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.focus({ preventScroll: true });
+  }
+
+  async function locateSection(rootSlug?: string) {
+    const selected =
+      rootSlug === 'uncategorized'
+        ? rootSlug
+        : rootSlug
+          ? (selections[rootSlug] ?? rootSlug)
+          : undefined;
+    await update((previous) => ({
+      ...previous,
+      mode,
+      category: selected,
+      q: undefined,
+      tag: undefined,
+      untagged: undefined,
+    }));
+    document
+      .getElementById(categorySectionId(rootSlug))
+      ?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
+
+  return {
+    search,
+    mode,
+    searching,
+    selections,
+    activeRoot: categoryPath(roots, category)[0]?.slug,
+    update,
+    selectCategory,
+    locateSection,
+  };
 }

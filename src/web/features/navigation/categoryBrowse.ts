@@ -1,5 +1,11 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
+/** DOM 定位与分区呈现共用同一标识，常用分区不带分类 slug。 */
+export function categorySectionId(rootSlug?: string): string {
+  if (!rootSlug) return 'section-common';
+  return rootSlug === 'uncategorized' ? 'section-uncategorized' : `section-category-${rootSlug}`;
+}
+
 /** 根到目标的路径，只使用当前身份可见的分类。 */
 export function categoryPath(nodes: CategoryNode[], slug?: string): CategoryNode[] {
   if (!slug) return [];
