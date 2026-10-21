@@ -8,6 +8,7 @@ import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
+import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { buildCategoryTree } from '@nav/features/categories/tree';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 import { useApiData } from '@nav/hooks/useApiData';
@@ -48,8 +49,6 @@ function NavigationSurface() {
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
   const [overrides, setOverrides] = useState<Record<number, Bookmark>>({});
-  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
-  const pinRequests = useRef(new Set<number>());
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
@@ -151,43 +150,40 @@ function NavigationSurface() {
     update({ ...search, mode, q: undefined, tag: undefined, untagged: undefined }, true);
   }
 
-  async function pin(bookmark: Bookmark) {
-    if (pinRequests.current.has(bookmark.id)) return;
-    pinRequests.current.add(bookmark.id);
-    setPendingIds(new Set(pinRequests.current));
-    try {
-      const saved = await api.updateBookmark('', bookmark.id, { isPinned: !bookmark.isPinned });
+  const mutations = useBookmarkMutations({
+    onContentChange(change) {
+      if (change.kind === 'pinned' || change.kind === 'created' || change.kind === 'updated') {
+        const saved = change.bookmark;
+        setOverrides((previous) => ({ ...previous, [saved.id]: saved }));
+        if (change.kind === 'pinned') setPinnedVersion((value) => value + 1);
+        else setVersion((value) => value + 1);
+      }
+    },
+    reloadTags: tags.refresh,
+    reloadCategories: categories.refresh,
+    onSuccess(change) {
       if (!alive.current) return;
-      setOverrides((prev) => ({ ...prev, [saved.id]: saved }));
-      setPinnedVersion((value) => value + 1);
-      setNotice(saved.isPinned ? '已加入常用' : '已取消常用');
-    } catch (error) {
-      if (alive.current) setNotice(error instanceof Error ? error.message : '操作失败，请重试');
-    } finally {
-      pinRequests.current.delete(bookmark.id);
-      if (alive.current) setPendingIds(new Set(pinRequests.current));
-    }
-  }
+      if (change.kind === 'pinned') {
+        setNotice(change.bookmark.isPinned ? '已加入常用' : '已取消常用');
+      } else if (change.kind === 'created' || change.kind === 'updated') {
+        setEditor(null);
+        setNotice('书签已保存');
+      }
+    },
+    onError(message) {
+      if (alive.current) setNotice(message);
+    },
+  });
   async function saveBookmark(value: BookmarkInput) {
-    const saved =
-      editor && editor !== 'new'
-        ? await api.updateBookmark('', editor.id, value)
-        : await api.createBookmark('', value);
-    if (!alive.current) return;
-    setOverrides((prev) => ({ ...prev, [saved.id]: saved }));
-    setVersion((value) => value + 1);
-    categories.refresh();
-    tags.refresh();
-    setEditor(null);
-    setNotice('书签已保存');
+    await mutations.save(value, editor && editor !== 'new' ? editor.id : undefined);
   }
   const actions: BookmarkActions = {
     authed: auth.authed,
-    pendingIds,
+    pendingIds: mutations.pendingIds,
     overrides,
     onEdit: setEditor,
     onPin: (bookmark) => {
-      void pin(bookmark);
+      void mutations.togglePin(bookmark);
     },
   };
   const targetAvailable =

@@ -1,21 +1,25 @@
+import type { Bookmark } from '@shared/api/types';
+
 // @vitest-environment jsdom
 import { act } from 'react';
 import { expect, it, vi } from 'vitest';
 
+import { api } from '@nav/api/client';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 
 import { mount } from '../../render';
 
-vi.mock('@nav/components/Toast', () => ({ pushToast: vi.fn() }));
+vi.mock('@nav/api/client', () => ({ api: { updateBookmark: vi.fn() } }));
 
 it('同一书签提交期间禁止重复调用，失败后释放并允许重试', async () => {
   const onError = vi.fn();
   let result!: ReturnType<typeof useBookmarkMutations>;
   function Harness() {
     result = useBookmarkMutations({
-      refreshPage: vi.fn(),
+      onContentChange: vi.fn(),
       reloadTags: vi.fn(),
       reloadCategories: vi.fn(),
+      onSuccess: vi.fn(),
       onError,
     });
     return null;
@@ -23,7 +27,7 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
   const app = await mount(<Harness />);
   try {
     let reject!: (error: Error) => void;
-    const action = vi.fn().mockImplementation(
+    vi.mocked(api.updateBookmark).mockImplementation(
       () =>
         new Promise((_, fail) => {
           reject = fail;
@@ -31,22 +35,20 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
     );
     let pending!: Promise<void>;
     await act(() => {
-      pending = result.mutate(action, '已加入常用', { bookmarkId: 1, refreshRelated: false });
+      pending = result.togglePin({ id: 1, isPinned: false } as Bookmark);
     });
     expect(result.pendingIds.has(1)).toBe(true);
-    await act(async () => result.mutate(action, '已加入常用', { bookmarkId: 1 }));
-    expect(action).toHaveBeenCalledOnce();
+    await act(async () => result.togglePin({ id: 1, isPinned: false } as Bookmark));
+    expect(api.updateBookmark).toHaveBeenCalledOnce();
     await act(async () => {
       reject(new Error('失败'));
       await pending;
     });
     expect(result.pendingIds.has(1)).toBe(false);
     expect(onError).toHaveBeenCalledWith('失败');
-    const retry = vi.fn().mockResolvedValue(undefined);
-    await act(async () =>
-      result.mutate(retry, '已加入常用', { bookmarkId: 1, refreshRelated: false }),
-    );
-    expect(retry).toHaveBeenCalledOnce();
+    vi.mocked(api.updateBookmark).mockResolvedValue({ id: 1, isPinned: true } as Bookmark);
+    await act(async () => result.togglePin({ id: 1, isPinned: false } as Bookmark));
+    expect(api.updateBookmark).toHaveBeenCalledTimes(2);
     expect(result.pendingIds.has(1)).toBe(false);
   } finally {
     await app.cleanup();

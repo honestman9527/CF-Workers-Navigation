@@ -40,6 +40,7 @@ vi.mock('@nav/api/client', () => ({
     getCategories: vi.fn(),
     getTags: vi.fn(),
     getPublicSettings: vi.fn(),
+    updateBookmark: vi.fn(),
   },
   ApiError: class extends Error {},
 }));
@@ -148,6 +149,36 @@ it('同时展示常用及多个一级分类；子分类切换在原分区取数'
     expect.objectContaining({ category: '开发', limit: 12 }),
     expect.any(AbortSignal),
   );
+});
+
+it('常用切换覆盖各分区条目，只刷新常用资源，不刷新分类和标签', async () => {
+  auth.authed = true;
+  let pinned = false;
+  const bookmark = item(2);
+  vi.mocked(api.getBookmarks).mockImplementation(async (_token, options) => ({
+    items: options?.pinned
+      ? pinned
+        ? [{ ...bookmark, isPinned: true }]
+        : []
+      : options?.category === 'uncategorized'
+        ? []
+        : [bookmark],
+    nextCursor: null,
+  }));
+  vi.mocked(api.updateBookmark).mockImplementationOnce(async () => {
+    pinned = true;
+    return { ...bookmark, isPinned: true };
+  });
+  app = await mount(<Host />);
+  const requests = vi.mocked(api.getBookmarks).mock.calls.length;
+  await click(app.container.querySelector('[aria-label="加入常用：网站2"]')!);
+  expect(api.updateBookmark).toHaveBeenCalledWith('', 2, { isPinned: true });
+  expect(api.getBookmarks).toHaveBeenCalledTimes(requests + 1);
+  expect(vi.mocked(api.getBookmarks).mock.calls.at(-1)?.[1]).toMatchObject({ pinned: true });
+  expect(api.getCategories).toHaveBeenCalledOnce();
+  expect(api.getTags).toHaveBeenCalledOnce();
+  expect(app.container.querySelectorAll('[aria-label="取消常用：网站2"]')).toHaveLength(3);
+  expect(app.container.textContent).toContain('已加入常用');
 });
 
 it('设置首载失败提供原地重试，恢复时保留搜索输入与已加载书签', async () => {

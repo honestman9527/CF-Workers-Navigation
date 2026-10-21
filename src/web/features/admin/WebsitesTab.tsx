@@ -41,7 +41,10 @@ import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
-import { ConfirmStateDialog } from '@nav/features/bookmarks/ConfirmStateDialog';
+import {
+  ConfirmStateDialog,
+  type ConfirmRequest,
+} from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
@@ -97,6 +100,7 @@ export function WebsitesTab() {
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [pageSize, setPageSize] = useState<number>(20);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmRequest | null>(null);
 
   // 搜索防抖：250ms 后同步到查询条件。
   useEffect(() => {
@@ -129,11 +133,28 @@ export function WebsitesTab() {
     onUnauthorized: handleUnauthorized,
   });
 
-  const { confirmState, mutate, askConfirm, setConfirmState, pendingIds } = useBookmarkMutations({
-    refreshPage: page.refresh,
+  const mutations = useBookmarkMutations({
+    onContentChange: page.refresh,
     reloadTags: refreshTags,
     reloadCategories: refreshCategories,
     onError: reportError,
+    onSuccess(change) {
+      if (change.kind === 'created' || change.kind === 'updated') setEditor(null);
+      const message =
+        change.kind === 'pinned'
+          ? change.bookmark.isPinned
+            ? '已加入常用'
+            : '已取消常用'
+          : {
+              created: '书签已创建',
+              updated: '书签已更新',
+              archived: '已归档',
+              restored: '已恢复',
+              trashed: '已移入回收站',
+              deleted: '已永久删除',
+            }[change.kind];
+      pushToast(message, 'success');
+    },
   });
 
   const tagOptions = useMemo(
@@ -359,17 +380,8 @@ export function WebsitesTab() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() =>
-                                void mutate(
-                                  () =>
-                                    api.updateBookmark('', bookmark.id, {
-                                      isPinned: !bookmark.isPinned,
-                                    }),
-                                  bookmark.isPinned ? '已取消常用' : '已加入常用',
-                                  { bookmarkId: bookmark.id, refreshRelated: false },
-                                )
-                              }
-                              disabled={pendingIds.has(bookmark.id)}
+                              onClick={() => void mutations.togglePin(bookmark)}
+                              disabled={mutations.pendingIds.has(bookmark.id)}
                               aria-label={bookmark.isPinned ? '取消常用' : '加入常用'}
                               title={bookmark.isPinned ? '取消常用' : '加入常用'}
                             >
@@ -393,14 +405,13 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() =>
-                                askConfirm({
+                                setConfirmState({
                                   title: `归档「${bookmark.title}」？`,
                                   description:
                                     '归档后书签会移入「已归档」状态，可随时取消归档恢复。',
                                   confirmLabel: '归档',
                                   destructive: false,
-                                  successMessage: '已归档',
-                                  action: () => api.archiveBookmark('', bookmark.id),
+                                  action: () => mutations.changeState(bookmark.id, 'archive'),
                                 })
                               }
                               aria-label="归档"
@@ -412,12 +423,11 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() =>
-                                askConfirm({
+                                setConfirmState({
                                   title: `移入回收站「${bookmark.title}」？`,
                                   description: '可以将书签移入回收站，之后仍可从回收站恢复。',
                                   confirmLabel: '移入回收站',
-                                  successMessage: '已移入回收站',
-                                  action: () => api.deleteBookmark('', bookmark.id),
+                                  action: () => mutations.changeState(bookmark.id, 'trash'),
                                 })
                               }
                               aria-label="移入回收站"
@@ -432,9 +442,7 @@ export function WebsitesTab() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() =>
-                                void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
-                              }
+                              onClick={() => void mutations.changeState(bookmark.id, 'restore')}
                               aria-label="恢复"
                               title="从回收站恢复"
                             >
@@ -444,12 +452,11 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() =>
-                                askConfirm({
+                                setConfirmState({
                                   title: `永久删除「${bookmark.title}」？`,
                                   description: '此操作不可撤销，记录将从回收站中彻底移除。',
                                   confirmLabel: '永久删除',
-                                  successMessage: '已永久删除',
-                                  action: () => api.permanentDeleteBookmark('', bookmark.id),
+                                  action: () => mutations.changeState(bookmark.id, 'delete'),
                                 })
                               }
                               aria-label="永久删除"
@@ -464,9 +471,7 @@ export function WebsitesTab() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() =>
-                                void mutate(() => api.restoreBookmark('', bookmark.id), '已恢复')
-                              }
+                              onClick={() => void mutations.changeState(bookmark.id, 'restore')}
                               aria-label="取消归档"
                               title="恢复到使用中"
                             >
@@ -557,14 +562,7 @@ export function WebsitesTab() {
             }
             onClose={() => setEditor(null)}
             onSubmit={async (input: BookmarkInput) => {
-              if (editor !== 'new' && editor !== null)
-                await api.updateBookmark('', editor.id, input);
-              else await api.createBookmark('', input);
-              setEditor(null);
-              page.refresh();
-              await refreshTags();
-              await refreshCategories();
-              pushToast(editor === 'new' ? '书签已创建' : '书签已更新', 'success');
+              await mutations.save(input, editor && editor !== 'new' ? editor.id : undefined);
             }}
           />
         ) : null}

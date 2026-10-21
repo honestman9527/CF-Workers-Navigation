@@ -1,8 +1,14 @@
-import type { ConfirmRequest } from './useBookmarkMutations';
-
 import { ConfirmDialog } from '@nav/components/ConfirmDialog';
 
-/** 统一渲染 useBookmarkMutations 的二次确认状态：工作区与后台「网站管理」共用。 */
+export type ConfirmRequest = {
+  title: string;
+  description?: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  action: () => Promise<unknown>;
+};
+
+/** 确认状态属于后台呈现，动作通过书签写入 module 执行。 */
 export function ConfirmStateDialog({
   state,
   onClose,

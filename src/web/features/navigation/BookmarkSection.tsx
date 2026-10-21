@@ -15,7 +15,7 @@ import { type BookmarkFeed, useBookmarkFeed } from './useBookmarkFeed';
 
 export type BookmarkActions = {
   authed: boolean;
-  pendingIds: Set<number>;
+  pendingIds: ReadonlySet<number>;
   overrides: Record<number, Bookmark>;
   onEdit: (bookmark: Bookmark) => void;
   onPin: (bookmark: Bookmark) => void;
