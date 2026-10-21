@@ -9,6 +9,7 @@
 - [database.md](database.md) 维护数据模型、索引、触发器、查询预算与迁移兼容规则；[deployment.md](deployment.md) 维护部署目标、密钥、发布验证、远程迁移执行与恢复步骤。
 - [usage.md](usage.md) 维护用户可观察的页面交互、失败恢复、本地开发与视觉确认清单；[DESIGN.md](../DESIGN.md) 维护视觉规范、主题、对比度、焦点可见性与动效呈现。
 - [import-export.md](import-export.md) 维护文件格式、兼容性、匹配策略、限制、部分写入和取消语义；其他文档引用这些传输规则。
+- [agents/review.md](agents/review.md) 维护共享异步状态的场景验证、审查范围和需求依据的交接方式；Git 授权与必需检查仍以根 AGENTS.md 为准。
 
 ## 维护步骤
 
