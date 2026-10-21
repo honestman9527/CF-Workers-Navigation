@@ -42,3 +42,17 @@
 - 准备部署：运行完整 `pnpm check` 和 `pnpm build`，并完成 [docs/deployment.md](docs/deployment.md) 的发布前检查与目标、迁移核对。
 - 前端视觉效果由人工确认，清单见 [docs/usage.md](docs/usage.md#视觉确认)；Playwright 不用于自动截图验收。
 - 交付时报告实际检查结果和待人工确认项；不得绕过失败的必需检查或 CI，也不得把未执行的检查写成通过。
+
+## Agent skills
+
+### Issue tracker
+
+工作项以 GitHub Issues 跟踪（`gh` CLI）。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+使用默认五个标签：needs-triage、needs-info、ready-for-agent、ready-for-human、wontfix。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+single-context：根目录 `GLOSSARY.md` + `docs/adr/`，按需创建。See `docs/agents/domain.md`.

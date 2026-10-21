@@ -7,6 +7,7 @@
 - [使用与本地开发](usage.md)：页面交互、错误恢复、旧路由兼容、视觉确认清单与本地命令。
 - [部署](deployment.md)：部署目标、密钥、发布验证、远程迁移、备份恢复与 GitHub Actions。
 - [Apple 设计规范](../DESIGN.md)：视觉基线、主题、对比度、焦点可见性与动效呈现。
+- [代理技能配置](agents/issue-tracker.md)：工程技能使用的 Issue 跟踪、[triage 标签](agents/triage-labels.md)与[领域文档布局](agents/domain.md)。
 
 ## 实现与契约
 
