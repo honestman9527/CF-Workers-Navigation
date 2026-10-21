@@ -20,6 +20,7 @@ type BookmarkMutationEffects = {
  * 前后台共用书签写入与刷新规则；呈现决定游标覆盖或页码刷新及反馈外观。
  * 保存失败向编辑器传播，其余操作通过 onError 反馈。卸载后停止内容刷新，
  * 反馈仍由呈现决定生命周期，让后台共享提示可跨管理页面保留。
+ * 同一书签的冲突提交明确报错，由呈现保留草稿或提示稍后重试。
  */
 export function useBookmarkMutations(options: BookmarkMutationEffects) {
   const effects = useRef(options);
@@ -47,9 +48,9 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
   async function commit<T extends BookmarkChange>(
     id: number | undefined,
     write: () => Promise<T>,
-  ): Promise<T | undefined> {
+  ): Promise<T> {
     const key = id ?? 'new';
-    if (pending.current.has(key)) return;
+    if (pending.current.has(key)) throw new Error('该书签正在处理中，请稍后重试');
     pending.current.add(key);
     publishPending();
     try {
@@ -68,7 +69,7 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
     }
   }
 
-  async function save(input: BookmarkInput, id?: number): Promise<Bookmark | undefined> {
+  async function save(input: BookmarkInput, id?: number): Promise<Bookmark> {
     const kind = id === undefined ? 'created' : 'updated';
     const change = await commit(id, async () => ({
       kind,
@@ -77,7 +78,7 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
           ? await api.createBookmark('', input)
           : await api.updateBookmark('', id, input),
     }));
-    return change?.bookmark;
+    return change.bookmark;
   }
 
   async function togglePin(bookmark: Bookmark) {

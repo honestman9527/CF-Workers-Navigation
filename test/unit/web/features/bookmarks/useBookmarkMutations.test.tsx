@@ -5,6 +5,7 @@ import { act } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
+import { useBookmarkEditor } from '@nav/features/bookmarks/useBookmarkEditor';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 
 import { mount } from '../../render';
@@ -20,7 +21,24 @@ vi.mock('@nav/api/client', () => ({
   },
 }));
 
-const bookmark = { id: 1, title: '网站', url: 'https://example.com', isPinned: false } as Bookmark;
+const bookmark: Bookmark = {
+  id: 1,
+  title: '网站',
+  url: 'https://example.com',
+  isPinned: false,
+  tags: [],
+  iconUrl: 'https://example.com/icon.png',
+  description: null,
+  categoryId: null,
+  categorySlug: null,
+  categoryName: null,
+  visibility: 'public',
+  effectiveVisibility: 'public',
+  archivedAt: null,
+  deletedAt: null,
+  createdAt: '2026-10-01 00:00:00',
+  updatedAt: '2026-10-01 00:00:00',
+};
 const input: BookmarkInput = { title: bookmark.title, url: bookmark.url, tags: ['Docs'] };
 const effects = {
   onContentChange: vi.fn(),
@@ -149,7 +167,7 @@ it('卸载后不刷新旧内容，完成反馈仍可由后台共享提示接收'
   expect(effects.onSuccess).toHaveBeenCalledOnce();
 });
 
-it('新增提交期间合并重复提交，完成后释放保护', async () => {
+it('新增提交期间明确拒绝重复提交，完成后释放保护', async () => {
   let resolve!: (saved: Bookmark) => void;
   vi.mocked(api.createBookmark).mockImplementationOnce(
     () =>
@@ -158,12 +176,12 @@ it('新增提交期间合并重复提交，完成后释放保护', async () => {
       }),
   );
   app = await mount(<Harness />);
-  let pending!: Promise<Bookmark | undefined>;
+  let pending!: Promise<Bookmark>;
   await act(() => {
     pending = current.save(input);
   });
   await act(async () => {
-    expect(await current.save(input)).toBeUndefined();
+    await expect(current.save(input)).rejects.toThrow('正在处理');
   });
   expect(api.createBookmark).toHaveBeenCalledOnce();
   await act(async () => {
@@ -174,4 +192,128 @@ it('新增提交期间合并重复提交，完成后释放保护', async () => {
     await current.save(input);
   });
   expect(api.createBookmark).toHaveBeenCalledTimes(2);
+});
+
+it('常用请求期间保存显示冲突并保留草稿，完成后可重新保存', async () => {
+  let editor!: ReturnType<typeof useBookmarkEditor>;
+  function EditorHarness() {
+    current = useBookmarkMutations(effects);
+    editor = useBookmarkEditor({
+      open: true,
+      bookmark,
+      onSubmit: async (value) => {
+        await current.save(value, bookmark.id);
+      },
+    });
+    return null;
+  }
+  let resolve!: (saved: Bookmark) => void;
+  vi.mocked(api.updateBookmark).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  app = await mount(<EditorHarness />);
+  let pin!: Promise<void>;
+  await act(() => {
+    editor.setForm((previous) => ({ ...previous, title: '修改后的标题' }));
+    editor.setTagDraft('工具');
+    pin = current.togglePin(bookmark);
+  });
+  try {
+    await act(async () => {
+      await editor.submit();
+    });
+    expect(editor.error).toContain('正在处理');
+    expect(editor.form.title).toBe('修改后的标题');
+    expect(editor.tagDraft).toBe('工具');
+    expect(editor.loading).toBe(false);
+    expect(current.pendingIds.has(1)).toBe(true);
+    expect(api.updateBookmark).toHaveBeenCalledOnce();
+    expect(effects.onSuccess).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => {
+      resolve({ ...bookmark, isPinned: true });
+      await pin;
+    });
+  }
+  await act(async () => {
+    await editor.submit();
+  });
+  expect(api.updateBookmark).toHaveBeenLastCalledWith(
+    '',
+    1,
+    expect.objectContaining({
+      title: '修改后的标题',
+      tags: ['工具'],
+    }),
+  );
+  expect(editor.error).toBeNull();
+  expect(effects.onSuccess).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'updated' }));
+});
+
+it.each([
+  { state: 'archive', method: 'archiveBookmark' },
+  { state: 'restore', method: 'restoreBookmark' },
+  { state: 'trash', method: 'deleteBookmark' },
+  { state: 'delete', method: 'permanentDeleteBookmark' },
+] as const)('常用请求期间 $state 明确反馈冲突，完成后仍可执行', async ({ state, method }) => {
+  let resolve!: (saved: Bookmark) => void;
+  vi.mocked(api.updateBookmark).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  app = await mount(<Harness />);
+  let pin!: Promise<void>;
+  await act(() => {
+    pin = current.togglePin(bookmark);
+  });
+  try {
+    await act(async () => {
+      await current.changeState(1, state);
+    });
+    expect(api[method]).not.toHaveBeenCalled();
+    expect(effects.onError).toHaveBeenCalledWith(expect.stringContaining('正在处理'));
+    expect(effects.onSuccess).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => {
+      resolve({ ...bookmark, isPinned: true });
+      await pin;
+    });
+  }
+  await act(async () => {
+    await current.changeState(1, state);
+  });
+  expect(api[method]).toHaveBeenCalledOnce();
+});
+
+it('不同书签仍可同时写入', async () => {
+  let resolve!: (saved: Bookmark) => void;
+  vi.mocked(api.updateBookmark).mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  app = await mount(<Harness />);
+  let pin!: Promise<void>;
+  await act(() => {
+    pin = current.togglePin(bookmark);
+  });
+  try {
+    await act(async () => {
+      await current.save(input, 2);
+    });
+    expect(api.updateBookmark).toHaveBeenCalledWith('', 2, input);
+    expect(effects.onError).not.toHaveBeenCalled();
+    expect(current.pendingIds.has(1)).toBe(true);
+  } finally {
+    await act(async () => {
+      resolve({ ...bookmark, isPinned: true });
+      await pin;
+    });
+  }
 });

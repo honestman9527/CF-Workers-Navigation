@@ -40,6 +40,7 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
     expect(result.pendingIds.has(1)).toBe(true);
     await act(async () => result.togglePin({ id: 1, isPinned: false } as Bookmark));
     expect(api.updateBookmark).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenLastCalledWith('该书签正在处理中，请稍后重试');
     await act(async () => {
       reject(new Error('失败'));
       await pending;
