@@ -1,3 +1,4 @@
+import type { TransferLog } from '../observability';
 import type {
   ImportStrategy,
   ImportSummary,
@@ -6,14 +7,14 @@ import type {
 } from '../transfer/types';
 import type { Db } from '../types';
 
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
+import { bookmarkEffectiveVisibility, categoryEffectiveVisibility } from '../visibility';
 import { withBookmarkTagWrites } from './bookmark-tags';
-import { getBookmark, normalizeUrl } from './bookmarks';
-import { listCategories } from './categories';
+import { normalizeUrl } from './bookmarks';
 import { ServiceError } from './errors';
 
 // D1 limits the number of bound parameters per statement. Each bookmark insert
@@ -21,6 +22,55 @@ import { ServiceError } from './errors';
 // the limit with headroom.
 const INSERT_CHUNK_SIZE = 9;
 const UPDATE_CHUNK_SIZE = 25;
+const MATCH_CHUNK_SIZE = 90;
+
+type ImportMatch = {
+  id: number;
+  urlNormalized: string;
+  url: string;
+  addedAt: string;
+  deletedAt: string | null;
+  visibility: Visibility;
+  effectiveVisibility: Visibility;
+};
+
+async function readImportMatches(db: Db, data: TransferData): Promise<ImportMatch[]> {
+  const activeUrls = new Set(
+    data.bookmarks
+      .filter((bookmark) => bookmark.deletedAt == null)
+      .map((bookmark) => normalizeUrl(bookmark.url)),
+  );
+  const deletedUrls = new Set(
+    data.bookmarks
+      .filter((bookmark) => bookmark.deletedAt != null)
+      .map((bookmark) => normalizeUrl(bookmark.url)),
+  );
+  if (!activeUrls.size && !deletedUrls.size) return [];
+  const projection = sql`SELECT b.id, b.url_normalized AS urlNormalized, b.url,
+    b.created_at AS addedAt, b.deleted_at AS deletedAt, b.visibility,
+    ${bookmarkEffectiveVisibility} AS effectiveVisibility FROM bookmarks b`;
+  const matches: ImportMatch[] = [];
+  for (const [urls, status] of [
+    [activeUrls, sql`b.deleted_at IS NULL`],
+    [deletedUrls, sql`b.deleted_at IS NOT NULL`],
+  ] as const) {
+    for (const batch of chunks([...urls], MATCH_CHUNK_SIZE)) {
+      matches.push(
+        ...(await db.all<ImportMatch>(
+          sql`${projection} WHERE ${status} AND ${inArray(sql`b.url_normalized`, batch)}`,
+        )),
+      );
+    }
+  }
+  // Old records may predate normalized URLs; only this exceptional subset needs normalization.
+  const legacy = await db.all<ImportMatch>(sql`${projection} WHERE b.url_normalized = ''`);
+  matches.push(
+    ...legacy.filter((row) =>
+      (row.deletedAt === null ? activeUrls : deletedUrls).has(normalizeUrl(row.url)),
+    ),
+  );
+  return matches;
+}
 
 function chunks<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
@@ -31,7 +81,11 @@ function chunks<T>(items: T[], size: number): T[][] {
 }
 
 /** 按 slug 建立分类映射并补齐缺失分类，返回 slug → id 映射。 */
-async function upsertCategoriesForImport(db: Db, data: TransferData): Promise<Map<string, number>> {
+async function upsertCategoriesForImport(
+  db: Db,
+  data: TransferData,
+  log?: TransferLog,
+): Promise<Map<string, number>> {
   const slugToId = new Map<string, number>();
 
   const bySlug = new Map<
@@ -114,6 +168,7 @@ async function upsertCategoriesForImport(db: Db, data: TransferData): Promise<Ma
       })
       .returning({ id: categories.id });
     slugToId.set(entry.slug, created.id);
+    log?.count('categoriesCreated', 1);
     sortOrder += 1;
   }
 
@@ -140,6 +195,7 @@ export async function importTransferData(
   db: Db,
   data: TransferData,
   strategy: ImportStrategy,
+  log?: TransferLog,
 ): Promise<ImportSummary> {
   const summary: ImportSummary = {
     bookmarksCreated: 0,
@@ -147,15 +203,10 @@ export async function importTransferData(
     bookmarksUpdated: 0,
     errors: [],
   };
-  const existingRows = await db
-    .select({
-      id: bookmarks.id,
-      urlNormalized: bookmarks.urlNormalized,
-      url: bookmarks.url,
-      addedAt: bookmarks.createdAt,
-      deletedAt: bookmarks.deletedAt,
-    })
-    .from(bookmarks);
+  log?.phase('match');
+  const existingRows = await readImportMatches(db, data);
+  log?.count('matchedRecords', existingRows.length);
+  const existingById = new Map(existingRows.map((row) => [row.id, row]));
   const existing = new Map<string, number>();
   const deletedByIdentity = new Map<string, number[]>();
   const deletedByUrlAndTime = new Map<string, number[]>();
@@ -201,10 +252,12 @@ export async function importTransferData(
       if (id !== undefined) deletedMatches.set(index, id);
     }
   }
-  const categorySlugToId = await upsertCategoriesForImport(db, data);
-  const categoryPrivacy = new Map(
-    (await listCategories(db, true)).map((item) => [item.id, item.effectiveVisibility]),
-  );
+  log?.phase('categories');
+  const categorySlugToId = await upsertCategoriesForImport(db, data, log);
+  const categoryRows = await db.all<{ id: number; effectiveVisibility: Visibility }>(sql`
+    SELECT c.id, ${categoryEffectiveVisibility} AS effectiveVisibility FROM categories c
+  `);
+  const categoryPrivacy = new Map(categoryRows.map((item) => [item.id, item.effectiveVisibility]));
   const resolveCategoryId = (bookmark: TransferBookmark): number | null => {
     const id = bookmark.categorySlug ? categorySlugToId.get(bookmark.categorySlug) : undefined;
     return id ?? null;
@@ -225,7 +278,7 @@ export async function importTransferData(
       if (!isDeleted) existing.set(normalized, -1);
       if (strategy === 'update') {
         if (bookmark.visibility === undefined) {
-          const current = await getBookmark(db, id, true);
+          const current = existingById.get(id)!;
           const targetId = resolveCategoryId(bookmark);
           const losesProtection =
             current.effectiveVisibility === 'private' &&
@@ -244,56 +297,78 @@ export async function importTransferData(
     summary.bookmarksCreated += 1;
   }
 
-  await withBookmarkTagWrites(db, async (replaceTags) => {
-    for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
-      const created = await db
-        .insert(bookmarks)
-        .values(
-          chunk.map((bookmark) => ({
-            title: bookmark.title,
-            url: bookmark.url,
-            description: bookmark.description ?? null,
-            iconUrl: bookmark.iconUrl ?? null,
-            isPinned: bookmark.isPinned ?? false,
-            categoryId: resolveCategoryId(bookmark),
-            visibility: bookmark.visibility ?? 'private',
-            archivedAt: bookmark.archivedAt ?? null,
-            deletedAt: bookmark.deletedAt ?? null,
-            createdAt: bookmark.addedAt ?? undefined,
-            urlNormalized: normalizeUrl(bookmark.url),
-          })),
-        )
-        .returning({ id: bookmarks.id });
-      await replaceTags(
-        created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].tags })),
-      );
-    }
-  });
+  await withBookmarkTagWrites(
+    db,
+    async (replaceTags) => {
+      for (const chunk of chunks(inserts, INSERT_CHUNK_SIZE)) {
+        log?.phase('insert-bookmarks');
+        const created = await db
+          .insert(bookmarks)
+          .values(
+            chunk.map((bookmark) => ({
+              title: bookmark.title,
+              url: bookmark.url,
+              description: bookmark.description ?? null,
+              iconUrl: bookmark.iconUrl ?? null,
+              isPinned: bookmark.isPinned ?? false,
+              categoryId: resolveCategoryId(bookmark),
+              visibility: bookmark.visibility ?? 'private',
+              archivedAt: bookmark.archivedAt ?? null,
+              deletedAt: bookmark.deletedAt ?? null,
+              createdAt: bookmark.addedAt ?? undefined,
+              urlNormalized: normalizeUrl(bookmark.url),
+            })),
+          )
+          .returning({ id: bookmarks.id })
+          .catch((error) => {
+            log?.failure(error);
+            throw error;
+          });
+        log?.count('bookmarksCreated', created.length);
+        await replaceTags(
+          created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].tags })),
+        );
+      }
+    },
+    () => log?.phase('tags'),
+  );
 
-  await withBookmarkTagWrites(db, async (replaceTags) => {
-    for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
-      const statements = chunk.map(({ id, bookmark }) =>
-        db
-          .update(bookmarks)
-          .set({
-            title: bookmark.title,
-            description: bookmark.description ?? null,
-            iconUrl: bookmark.iconUrl ?? null,
-            isPinned: bookmark.isPinned ?? false,
-            categoryId: resolveCategoryId(bookmark),
-            ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
-            archivedAt: bookmark.archivedAt ?? null,
-            deletedAt: bookmark.deletedAt ?? null,
-            updatedAt: sql`CURRENT_TIMESTAMP`,
-          })
-          .where(eq(bookmarks.id, id)),
-      );
-      await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
-      await replaceTags(
-        chunk.map(({ id, bookmark }) => ({ bookmarkId: id, names: bookmark.tags })),
-      );
-    }
-  });
+  await withBookmarkTagWrites(
+    db,
+    async (replaceTags) => {
+      for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
+        log?.phase('update-bookmarks');
+        const statements = chunk.map(({ id, bookmark }) =>
+          db
+            .update(bookmarks)
+            .set({
+              title: bookmark.title,
+              description: bookmark.description ?? null,
+              iconUrl: bookmark.iconUrl ?? null,
+              isPinned: bookmark.isPinned ?? false,
+              categoryId: resolveCategoryId(bookmark),
+              ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
+              archivedAt: bookmark.archivedAt ?? null,
+              deletedAt: bookmark.deletedAt ?? null,
+              updatedAt: sql`CURRENT_TIMESTAMP`,
+            })
+            .where(eq(bookmarks.id, id)),
+        );
+        await db
+          .batch(statements as [(typeof statements)[number], ...typeof statements])
+          .catch((error) => {
+            log?.failure(error);
+            throw error;
+          });
+        log?.count('bookmarksUpdated', chunk.length);
+        await replaceTags(
+          chunk.map(({ id, bookmark }) => ({ bookmarkId: id, names: bookmark.tags })),
+        );
+      }
+    },
+    () => log?.phase('tags'),
+  );
 
+  log?.count('bookmarksSkipped', summary.bookmarksSkipped);
   return summary;
 }

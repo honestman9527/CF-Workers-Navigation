@@ -7,6 +7,7 @@ export type Bindings = Env & {
 export type Db = DrizzleD1Database;
 
 export type Variables = {
+  requestId: string;
   authed: boolean;
   db: Db;
 };

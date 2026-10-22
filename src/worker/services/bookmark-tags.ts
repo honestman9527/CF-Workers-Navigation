@@ -118,6 +118,7 @@ async function writeTags(db: Db, entries: readonly BookmarkTagWrite[]) {
 export async function withBookmarkTagWrites<T>(
   db: Db,
   operation: (replace: ReplaceBookmarkTags) => Promise<T>,
+  onFlush?: () => void,
 ): Promise<T> {
   let pending: BookmarkTagWrite[] = [];
   async function flush() {
@@ -125,6 +126,7 @@ export async function withBookmarkTagWrites<T>(
     const entries = pending;
     // A partially failed replacement must not be retried during scope cleanup.
     pending = [];
+    onFlush?.();
     await writeTags(db, entries);
   }
   const replace: ReplaceBookmarkTags = async (entries) => {

@@ -1,4 +1,5 @@
 import type { Visibility } from '../../shared/api/types';
+import type { TransferLog } from '../observability';
 import type { ExportFormat, TransferBookmark, TransferCategory } from '../transfer/types';
 import type { Db } from '../types';
 
@@ -46,8 +47,16 @@ function readExportCategories(db: Db): Promise<ExportCategory[]> {
 }
 
 /** 启动前确认分类可读；不预扫描书签分页，也不保证后续下载成功。 */
-export async function prepareTransferExport(db: Db): Promise<void> {
-  await readExportCategories(db);
+export async function prepareTransferExport(db: Db, log?: TransferLog): Promise<void> {
+  log?.phase('categories');
+  try {
+    const categoriesList = await readExportCategories(db);
+    log?.count('categoriesRead', categoriesList.length);
+    log?.finish('success');
+  } catch (error) {
+    log?.finish('failed', error);
+    throw error;
+  }
 }
 
 function toTransferBookmark(row: ExportBookmarkRow): TransferBookmark {
@@ -76,6 +85,7 @@ async function readExportPage(
   db: Db,
   cursorValue?: string,
   categoryId?: number | null,
+  log?: TransferLog,
 ): Promise<{ items: TransferBookmark[]; nextCursor: string | null }> {
   const cursor = decodeListCursor(cursorValue);
   const categoryCondition =
@@ -106,6 +116,7 @@ async function readExportPage(
     ORDER BY b.created_at DESC, b.id DESC
   `);
   const hasMore = rows.length > EXPORT_PAGE_SIZE;
+  log?.count('bookmarksRead', Math.min(rows.length, EXPORT_PAGE_SIZE));
   const last = rows[EXPORT_PAGE_SIZE - 1];
   return {
     items: (hasMore ? rows.slice(0, EXPORT_PAGE_SIZE) : rows).map(toTransferBookmark),
@@ -114,25 +125,37 @@ async function readExportPage(
   };
 }
 
-function streamText(chunks: AsyncGenerator<string>): ReadableStream<Uint8Array> {
+function streamText(chunks: AsyncGenerator<string>, log?: TransferLog): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  let cancelled = false;
   return new ReadableStream({
     async pull(controller) {
       try {
         const { value, done } = await chunks.next();
-        if (done) controller.close();
-        else controller.enqueue(encoder.encode(value));
+        if (cancelled) return;
+        if (done) {
+          log?.finish('success');
+          controller.close();
+        } else controller.enqueue(encoder.encode(value));
       } catch (error) {
+        if (cancelled) return;
+        log?.finish('failed', error);
         controller.error(error);
       }
     },
     async cancel() {
+      cancelled = true;
+      log?.finish('cancelled');
       await chunks.return('');
     },
   });
 }
 
-async function* jsonExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
+async function* jsonExport(
+  db: Db,
+  categoriesList: ExportCategory[],
+  log?: TransferLog,
+): AsyncGenerator<string> {
   const idToSlug = new Map(categoriesList.map((category) => [category.id, category.slug]));
   const exportedCategories: TransferCategory[] = categoriesList.map((category) => ({
     name: category.name,
@@ -145,7 +168,7 @@ async function* jsonExport(db: Db, categoriesList: ExportCategory[]): AsyncGener
   let cursor: string | undefined;
   let first = true;
   do {
-    const page = await readExportPage(db, cursor);
+    const page = await readExportPage(db, cursor, undefined, log);
     if (page.items.length > 0) {
       yield `${first ? '' : ','}${page.items.map((bookmark) => JSON.stringify(bookmark)).join(',')}`;
       first = false;
@@ -155,7 +178,11 @@ async function* jsonExport(db: Db, categoriesList: ExportCategory[]): AsyncGener
   yield ']}\n';
 }
 
-async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGenerator<string> {
+async function* htmlExport(
+  db: Db,
+  categoriesList: ExportCategory[],
+  log?: TransferLog,
+): AsyncGenerator<string> {
   type Node = { category: ExportCategory; children: Node[] };
   const nodes = new Map(
     categoriesList.map((category) => [category.id, { category, children: [] as Node[] }]),
@@ -172,7 +199,7 @@ async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGener
     yield `${serializeHtmlFolderStart(node.category.name, indent)}\n`;
     let cursor: string | undefined;
     do {
-      const page = await readExportPage(db, cursor, node.category.id);
+      const page = await readExportPage(db, cursor, node.category.id, log);
       if (page.items.length > 0) {
         yield `${page.items.map((bookmark) => serializeHtmlBookmark(bookmark, `${indent}    `)).join('\n')}\n`;
       }
@@ -188,7 +215,7 @@ async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGener
   let cursor: string | undefined;
   let opened = false;
   do {
-    const page = await readExportPage(db, cursor, null);
+    const page = await readExportPage(db, cursor, null, log);
     if (page.items.length > 0) {
       if (!opened) {
         yield `${serializeHtmlFolderStart('未分类', '    ')}\n`;
@@ -205,9 +232,20 @@ async function* htmlExport(db: Db, categoriesList: ExportCategory[]): AsyncGener
 export async function exportTransferStream(
   db: Db,
   format: ExportFormat,
+  log?: TransferLog,
 ): Promise<ReadableStream<Uint8Array>> {
-  const categoriesList = await readExportCategories(db);
-  return streamText(
-    format === 'json' ? jsonExport(db, categoriesList) : htmlExport(db, categoriesList),
-  );
+  log?.format(format);
+  log?.phase('categories');
+  try {
+    const categoriesList = await readExportCategories(db);
+    log?.count('categoriesRead', categoriesList.length);
+    log?.phase('stream');
+    return streamText(
+      format === 'json' ? jsonExport(db, categoriesList, log) : htmlExport(db, categoriesList, log),
+      log,
+    );
+  } catch (error) {
+    log?.finish('failed', error);
+    throw error;
+  }
 }

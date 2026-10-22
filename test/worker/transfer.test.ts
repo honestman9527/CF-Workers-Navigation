@@ -6,6 +6,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import app from '../../src/worker/app';
+import { createTransferLog } from '../../src/worker/observability';
 import { importTransferData } from '../../src/worker/services/transfer';
 import { exportTransferStream } from '../../src/worker/services/transfer-export';
 import { detectFormat } from '../../src/worker/transfer/detect';
@@ -269,6 +270,49 @@ describe('transfer api', () => {
     },
   );
 
+  it('batches legacy permission reads without interactive DTO aggregation', async () => {
+    const data = parseJson(
+      JSON.stringify({
+        version: 1,
+        bookmarks: Array.from({ length: 120 }, (_, index) => ({
+          title: `Legacy budget ${index}`,
+          url: `https://legacy-budget-${index}.example.com`,
+          tags: [],
+        })),
+      }),
+    );
+    await importTransferData(drizzle(env.DB), data, 'skip');
+    const reads: string[] = [];
+    const db = drizzle(env.DB, {
+      logger: {
+        logQuery(query, params) {
+          expect(params.length).toBeLessThanOrEqual(100);
+          if (/^\s*(select|with)/i.test(query)) reads.push(query);
+        },
+      },
+    });
+    expect((await importTransferData(db, data, 'update')).bookmarksUpdated).toBe(120);
+    expect(reads.length).toBeLessThanOrEqual(8);
+    expect(reads.join('\n')).not.toMatch(/json_group_array|COUNT\(/i);
+  });
+
+  it('matches legacy empty normalized URLs while ignoring unrelated records', async () => {
+    await env.DB.prepare(
+      "INSERT INTO bookmarks (title, url, url_normalized, visibility) VALUES ('Legacy', 'https://legacy-empty.example.com/', '', 'public')",
+    ).run();
+    const data = parseJson(
+      JSON.stringify({
+        version: 1,
+        bookmarks: [{ title: 'Updated legacy', url: 'https://legacy-empty.example.com', tags: [] }],
+      }),
+    );
+    const result = await importTransferData(drizzle(env.DB), data, 'update');
+    expect(result).toMatchObject({ bookmarksCreated: 0, bookmarksUpdated: 1 });
+    expect(await env.DB.prepare('SELECT title FROM bookmarks').first('title')).toBe(
+      'Updated legacy',
+    );
+  });
+
   it('logs both bookmark and tag failures, returns the existing 500, and can be repaired with update', async () => {
     const payload = JSON.stringify({
       version: 2,
@@ -299,20 +343,27 @@ describe('transfer api', () => {
       expect(await response.json()).toEqual({
         error: { code: 'internal_error', message: '数据库写入失败，请查看 Worker 日志' },
       });
-      const logged = errorLog.mock.calls.find(([message]) => message === 'Bookmark import failed');
-      expect(logged).toEqual([
-        'Bookmark import failed',
-        expect.objectContaining({
-          cause: expect.objectContaining({
-            message: expect.stringContaining('Bookmark batch failure'),
-          }),
-        }),
-        expect.objectContaining({
-          cause: expect.objectContaining({
-            message: expect.stringContaining('Tag cleanup failure'),
-          }),
-        }),
-      ]);
+      const logged = errorLog.mock.calls
+        .map(([entry]) => entry)
+        .find((entry) => entry.event === 'transfer' && entry.outcome === 'failed');
+      expect(logged).toMatchObject({
+        operation: 'import',
+        phase: 'tags',
+        requestId: expect.any(String),
+        counts: { bookmarksCreated: 9 },
+        failures: [
+          {
+            role: 'operation',
+            phase: 'insert-bookmarks',
+            type: expect.any(String),
+            cause: expect.any(Object),
+          },
+          { role: 'cleanup', phase: 'tags', type: expect.any(String), cause: expect.any(Object) },
+        ],
+      });
+      expect(JSON.stringify(logged)).not.toMatch(
+        /double-failure|Double failure|Recovered|params:|INSERT INTO/i,
+      );
       expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(
         9,
       );
@@ -702,8 +753,25 @@ describe('transfer api', () => {
           },
         },
       });
-      const stream = await exportTransferStream(db, format);
-      await expect(new Response(stream).text()).rejects.toThrow('Second export page failed');
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const stream = await exportTransferStream(
+          db,
+          format,
+          createTransferLog('export', 'failed-stream'),
+        );
+        await expect(new Response(stream).text()).rejects.toThrow('Second export page failed');
+        expect(errorLog).toHaveBeenCalledWith(
+          expect.objectContaining({
+            requestId: 'failed-stream',
+            phase: 'stream',
+            outcome: 'failed',
+            counts: { categoriesRead: 0, bookmarksRead: 300 },
+          }),
+        );
+      } finally {
+        errorLog.mockRestore();
+      }
       const recovered = await exports.default.fetch(
         `https://example.com/api/v1/transfer/export?format=${format}`,
         { headers: adminHeaders },

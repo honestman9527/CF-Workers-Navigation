@@ -2,10 +2,11 @@ import type { ImportStrategy, TransferData } from '../transfer/types';
 import type { AppEnv } from '../types';
 
 import { Hono } from 'hono';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 import { jsonError } from '../errors';
 import { handleServiceError } from '../http';
+import { createTransferLog } from '../observability';
 import { ServiceError } from '../services/errors';
 import { importTransferData } from '../services/transfer';
 import { exportTransferStream, prepareTransferExport } from '../services/transfer-export';
@@ -45,12 +46,20 @@ async function readImportBody(request: Request): Promise<string | null> {
 const transferRoutes = new Hono<AppEnv>();
 
 transferRoutes.get('/export/prepare', async (c) => {
-  const format = formatQuerySchema.parse(c.req.query('format'));
-  if (format === 'auto') {
-    return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
+  const log = createTransferLog('export-prepare', c.get('requestId'));
+  try {
+    const format = formatQuerySchema.parse(c.req.query('format'));
+    if (format === 'auto') {
+      log.finish('rejected');
+      return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
+    }
+    log.format(format);
+    await prepareTransferExport(c.get('db'), log);
+    return c.json({ ready: true });
+  } catch (error) {
+    log.finish(error instanceof ZodError ? 'rejected' : 'failed', error);
+    throw error;
   }
-  await prepareTransferExport(c.get('db'));
-  return c.json({ ready: true });
 });
 
 function timestampForFilename(): string {
@@ -72,57 +81,78 @@ function filenameFromContentType(contentType: string): string {
 }
 
 transferRoutes.get('/export', async (c) => {
-  const format = formatQuerySchema.parse(c.req.query('format'));
-  if (format === 'auto') {
-    return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
+  const log = createTransferLog('export', c.get('requestId'));
+  try {
+    const format = formatQuerySchema.parse(c.req.query('format'));
+    if (format === 'auto') {
+      log.finish('rejected');
+      return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
+    }
+    const body = await exportTransferStream(c.get('db'), format, log);
+    return new Response(body, {
+      headers: {
+        'Content-Type': `${format === 'json' ? 'application/json' : 'text/html'}; charset=utf-8`,
+        'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.${format}"`,
+      },
+    });
+  } catch (error) {
+    log.finish(error instanceof ZodError ? 'rejected' : 'failed', error);
+    throw error;
   }
-  const body = await exportTransferStream(c.get('db'), format);
-  return new Response(body, {
-    headers: {
-      'Content-Type': `${format === 'json' ? 'application/json' : 'text/html'}; charset=utf-8`,
-      'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.${format}"`,
-    },
-  });
 });
 
 transferRoutes.post('/import', async (c) => {
-  const requestedFormat = formatQuerySchema.parse(c.req.query('format'));
-  const strategy: ImportStrategy = strategyQuerySchema.parse(c.req.query('strategy'));
-
-  const body = await readImportBody(c.req.raw);
-  if (body === null) {
-    return jsonError(c, 413, 'too_large', `文件过大（超过 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）`);
-  }
-
-  let format: 'html' | 'json';
+  const log = createTransferLog('import', c.get('requestId'));
+  let writing = false;
   try {
-    format =
-      requestedFormat === 'auto'
-        ? detectFormat(filenameFromContentType(c.req.header('Content-Type') ?? ''), body)
-        : requestedFormat;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '无法识别文件格式';
-    return jsonError(c, 400, 'validation_error', message);
-  }
-
-  let data: TransferData;
-  try {
-    data = format === 'json' ? parseJson(body) : parseHtml(body);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '解析失败';
-    return jsonError(c, 400, 'validation_error', message);
-  }
-
-  try {
-    const summary = await importTransferData(c.get('db'), data, strategy);
+    const requestedFormat = formatQuerySchema.parse(c.req.query('format'));
+    const strategy: ImportStrategy = strategyQuerySchema.parse(c.req.query('strategy'));
+    const body = await readImportBody(c.req.raw);
+    if (body === null) {
+      log.finish('rejected');
+      return jsonError(c, 413, 'too_large', `文件过大（超过 ${MAX_IMPORT_BYTES / 1024 / 1024}MB）`);
+    }
+    log.phase('parse');
+    let format: 'html' | 'json';
+    try {
+      format =
+        requestedFormat === 'auto'
+          ? detectFormat(filenameFromContentType(c.req.header('Content-Type') ?? ''), body)
+          : requestedFormat;
+    } catch (error) {
+      log.finish('rejected', error);
+      return jsonError(
+        c,
+        400,
+        'validation_error',
+        error instanceof Error ? error.message : '无法识别文件格式',
+      );
+    }
+    log.format(format);
+    let data: TransferData;
+    try {
+      data = format === 'json' ? parseJson(body) : parseHtml(body);
+    } catch (error) {
+      log.finish('rejected', error);
+      return jsonError(
+        c,
+        400,
+        'validation_error',
+        error instanceof Error ? error.message : '解析失败',
+      );
+    }
+    writing = true;
+    const summary = await importTransferData(c.get('db'), data, strategy, log);
+    log.finish('success');
     return c.json(summary, 200);
   } catch (error) {
-    if (error instanceof ServiceError) return handleServiceError(c, error);
-    console.error(
-      'Bookmark import failed',
-      ...(error instanceof AggregateError ? error.errors : [error]),
+    log.finish(
+      error instanceof ServiceError || error instanceof ZodError ? 'rejected' : 'failed',
+      error,
     );
-    return jsonError(c, 500, 'internal_error', '数据库写入失败，请查看 Worker 日志');
+    if (error instanceof ServiceError) return handleServiceError(c, error);
+    if (writing) return jsonError(c, 500, 'internal_error', '数据库写入失败，请查看 Worker 日志');
+    throw error;
   }
 });
 

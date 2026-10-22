@@ -7,6 +7,7 @@ import { API_V1_PREFIX } from '../shared/api/endpoints';
 import { authContext, requireAuth } from './auth';
 import { getDb } from './db';
 import { jsonError, zodErrorMessage } from './errors';
+import { safeFailure } from './observability';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
 import bookmarksRoutes from './routes/bookmarks';
@@ -27,6 +28,7 @@ api.route('/tags', tagsRoutes);
 api.route('/transfer', transferRoutes);
 
 app.use('*', async (c, next) => {
+  c.set('requestId', crypto.randomUUID());
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'no-referrer');
@@ -83,7 +85,11 @@ app.onError((error, c) => {
     return jsonError(c, 409, 'conflict', 'Unique constraint failed');
   }
 
-  console.error(error);
+  console.error({
+    event: 'request-error',
+    requestId: c.get('requestId'),
+    failure: safeFailure(error),
+  });
   return jsonError(c, 500, 'internal_error', 'Internal server error');
 });
 
