@@ -20,7 +20,7 @@ import { bookmarks } from '../schema';
 import { getSettings } from '../settings';
 import { slugify } from '../slug';
 import { publicBookmarkCondition, bookmarkEffectiveVisibility } from '../visibility';
-import { withBookmarkTagWrites } from './bookmark-tags';
+import { bookmarkTagStatements } from './bookmark-tags';
 import { assertCategoryExists } from './categories';
 import { ServiceError } from './errors';
 
@@ -358,7 +358,7 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
   if (input.categoryId !== undefined && input.categoryId !== null) {
     await assertCategoryExists(db, input.categoryId);
   }
-  const [bookmark] = await db
+  const write = db
     .insert(bookmarks)
     .values({
       title: input.title,
@@ -371,9 +371,14 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       urlNormalized: normalizeUrl(input.url),
     })
     .returning();
-  await withBookmarkTagWrites(db, (replace) =>
-    replace([{ bookmarkId: bookmark.id, names: input.tags }]),
-  );
+  const [[bookmark]] = await db.batch([
+    write,
+    ...bookmarkTagStatements(
+      db,
+      and(eq(bookmarks.urlNormalized, normalizeUrl(input.url)), isNull(bookmarks.deletedAt))!,
+      input.tags,
+    ),
+  ]);
   return getBookmark(db, bookmark.id, true);
 }
 
@@ -391,7 +396,7 @@ export async function updateBookmark(
   if (input.categoryId !== undefined && input.categoryId !== null) {
     await assertCategoryExists(db, input.categoryId);
   }
-  const [bookmark] = await db
+  const write = db
     .update(bookmarks)
     .set({
       ...(input.title !== undefined ? { title: input.title } : {}),
@@ -407,7 +412,10 @@ export async function updateBookmark(
     })
     .where(eq(bookmarks.id, id))
     .returning();
-  await withBookmarkTagWrites(db, (replace) => replace([{ bookmarkId: id, names: input.tags }]));
+  const [[bookmark]] = await db.batch([
+    write,
+    ...bookmarkTagStatements(db, eq(bookmarks.id, id), input.tags),
+  ]);
   return getBookmark(db, bookmark.id, true);
 }
 

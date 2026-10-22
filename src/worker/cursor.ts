@@ -7,11 +7,13 @@ function encode(value: object): string {
   return btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
-function decode<T>(raw: string): T {
+function decode(raw: string): Record<string, unknown> {
   try {
     const padded =
       raw.replaceAll('-', '+').replaceAll('_', '/') + '==='.slice((raw.length + 3) % 4);
-    return JSON.parse(atob(padded)) as T;
+    const value: unknown = JSON.parse(atob(padded));
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    return value as Record<string, unknown>;
   } catch {
     throw new ServiceError(400, 'validation_error', 'Invalid cursor');
   }
@@ -23,7 +25,7 @@ export function encodeListCursor(value: ListCursor): string {
 
 export function decodeListCursor(raw: string | undefined): ListCursor | null {
   if (!raw) return null;
-  const value = decode<Partial<ListCursor>>(raw);
+  const value = decode(raw);
   const id = value.id;
   if (
     typeof value.createdAt !== 'string' ||
@@ -42,13 +44,14 @@ export function encodeSearchCursor(value: SearchCursor): string {
 
 export function decodeSearchCursor(raw: string | undefined): SearchCursor | null {
   if (!raw) return null;
-  const value = decode<Partial<SearchCursor>>(raw);
+  const value = decode(raw);
   const id = value.id;
   if (
     typeof value.rank !== 'number' ||
     !Number.isFinite(value.rank) ||
     typeof id !== 'number' ||
-    !Number.isInteger(id)
+    !Number.isInteger(id) ||
+    id <= 0
   ) {
     throw new ServiceError(400, 'validation_error', 'Invalid cursor');
   }

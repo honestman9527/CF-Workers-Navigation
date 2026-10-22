@@ -15,10 +15,12 @@ export function CategoryFilter({
   categories,
   selectedSlug,
   onSelect,
+  disabled = false,
 }: {
   categories: Category[];
   selectedSlug?: string;
   onSelect: (slug: string | undefined) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selectedName = useMemo(
@@ -35,7 +37,10 @@ export function CategoryFilter({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant={selectedSlug ? 'default' : 'outline'} size="lg" />}>
+      <PopoverTrigger
+        disabled={disabled}
+        render={<Button variant={selectedSlug ? 'default' : 'outline'} size="lg" />}
+      >
         <FolderTree data-icon="inline-start" />
         <span className="max-w-32 truncate">{selectedName ?? '全部分类'}</span>
         <ChevronDown

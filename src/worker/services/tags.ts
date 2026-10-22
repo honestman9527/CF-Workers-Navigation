@@ -107,12 +107,16 @@ export async function mergeTag(db: Db, sourceId: number, targetId: number): Prom
     .where(inArray(tags.id, [sourceId, targetId]));
   if (found.length !== 2) throw new ServiceError(404, 'not_found', '标签不存在');
 
-  await db.run(sql`
-    INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id)
-    SELECT bookmark_id, ${targetId} FROM bookmark_tags WHERE tag_id = ${sourceId}
-  `);
-  await db.delete(bookmarkTags).where(eq(bookmarkTags.tagId, sourceId));
-  await db.delete(tags).where(eq(tags.id, sourceId));
+  await db.batch([
+    db
+      .insert(bookmarkTags)
+      .select(sql`
+      SELECT bookmark_id, ${targetId} FROM bookmark_tags WHERE tag_id = ${sourceId}
+    `)
+      .onConflictDoNothing(),
+    db.delete(bookmarkTags).where(eq(bookmarkTags.tagId, sourceId)),
+    db.delete(tags).where(eq(tags.id, sourceId)),
+  ]);
   return getTagDto(db, targetId);
 }
 
@@ -121,6 +125,8 @@ export async function deleteTag(db: Db, id: number): Promise<void> {
   if (!target) throw new ServiceError(404, 'not_found', '标签不存在');
 
   // 手动清理关联，避免依赖部分环境外键动作。
-  await db.delete(bookmarkTags).where(eq(bookmarkTags.tagId, id));
-  await db.delete(tags).where(eq(tags.id, id));
+  await db.batch([
+    db.delete(bookmarkTags).where(eq(bookmarkTags.tagId, id)),
+    db.delete(tags).where(eq(tags.id, id)),
+  ]);
 }

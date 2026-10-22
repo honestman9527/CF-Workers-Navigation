@@ -8,7 +8,9 @@
 
 Worker、Web、shared 分别使用独立的 TypeScript 配置，隔离 Cloudflare Worker、浏览器和共享代码的运行时类型。测试统一放在 `test/`，分为 `unit/` 和 `worker/`。
 
-书签编辑与备份导入通过 `src/worker/services/bookmark-tags.ts` 的 `withBookmarkTagWrites` 共用标签替换规则。该 module 的 interface 是一个有作用域的回调：调用者按顺序提交已经写入的书签及目标标签，implementation 负责跨批缓冲、D1 参数分块和退出收尾，导入流程无需了解标签批次容量。普通编辑使用单次替换，导入在新增和更新阶段各使用一个作用域，维持原有跨书签批次聚合。D1 继续作为现有 adapter；[标签关联](../GLOSSARY.md)的规则与验证集中在同一 seam，以获得 locality 和两类调用者共用的 leverage。失败与部分写入规则见[导入与导出](import-export.md#导入)。
+普通书签保存与备份导入共用 `src/worker/services/bookmark-tags.ts` 的标签规范化规则：省略标签保留关联，空数组清空，按 slug 去重并限制数量。普通新增、编辑将书签本体、标签创建和关联替换编入同一个 D1 batch，任一 SQL 失败会整体回滚；标签合并和删除同样采用原子 batch。新增书签的关联通过批内规范化 URL 查询定位，不先提交本体再补标签。提交后的网络或响应读取失败仍需通过刷新确认最终状态。
+
+导入继续使用 `withBookmarkTagWrites` 的作用域回调，内部负责跨批缓冲、D1 参数分块和退出收尾；导入在新增和更新阶段各使用一个作用域，保持跨书签批次聚合。该作用域与标签替换不保证原子性，失败与部分写入规则见[导入与导出](import-export.md#导入)。
 
 备份导出由 `src/worker/services/transfer-export.ts` 集中负责预检、分类读取、有界书签读取和两种格式的流协调。读取直接投影为备份字段，不经过交互书签 DTO，也不计算分类计数或有效权限；JSON 与 HTML 继续使用各自现有的格式生成过程。导入匹配与写入仍在 `services/transfer.ts`，格式规则见[导入与导出](import-export.md)。
 

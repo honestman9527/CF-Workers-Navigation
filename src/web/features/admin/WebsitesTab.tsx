@@ -53,6 +53,8 @@ import { useApiData } from '@nav/hooks/useApiData';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 import { domainOf } from '@shared/search';
 
+import { AdminErrorAlert } from './AdminErrorAlert';
+
 const BookmarkForm = lazy(() =>
   import('@nav/features/bookmarks/BookmarkForm').then((module) => ({
     default: module.BookmarkForm,
@@ -122,14 +124,24 @@ export function WebsitesTab() {
   });
 
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
-  const { data: tags, refresh: refreshTags } = useApiData(loadTags, {
+  const {
+    data: tags,
+    refresh: refreshTags,
+    error: tagsError,
+    loading: tagsLoading,
+  } = useApiData(loadTags, {
     onUnauthorized: handleUnauthorized,
   });
   const loadCategories = useCallback(
     (signal: AbortSignal) => api.getCategories(undefined, signal),
     [],
   );
-  const { data: categories, refresh: refreshCategories } = useApiData(loadCategories, {
+  const {
+    data: categories,
+    refresh: refreshCategories,
+    error: categoriesError,
+    loading: categoriesLoading,
+  } = useApiData(loadCategories, {
     onUnauthorized: handleUnauthorized,
   });
 
@@ -179,6 +191,31 @@ export function WebsitesTab() {
         </p>
       </div>
 
+      {categoriesError ? (
+        <AdminErrorAlert
+          message={`分类加载失败：${categoriesError}`}
+          onRetry={refreshCategories}
+          retrying={categoriesLoading}
+        />
+      ) : null}
+      {tagsError ? (
+        <AdminErrorAlert
+          message={`标签加载失败：${tagsError}`}
+          onRetry={refreshTags}
+          retrying={tagsLoading}
+        />
+      ) : null}
+      {categoriesLoading ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          分类加载中…
+        </p>
+      ) : null}
+      {tagsLoading ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          标签加载中…
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
         <ToggleGroup
           aria-label="状态筛选"
@@ -226,12 +263,14 @@ export function WebsitesTab() {
           categories={categories ?? []}
           selectedSlug={categorySlug}
           onSelect={setCategorySlug}
+          disabled={categoriesLoading && categories === null}
         />
 
         <select
           value={tagSlug ?? ''}
           onChange={(event) => setTagSlug(event.target.value || undefined)}
           aria-label="按标签筛选"
+          disabled={tagsLoading && tags === null}
           className="h-11 max-w-full rounded-lg border border-border/70 bg-card px-2.5 text-xs outline-none focus-visible:border-primary/50"
         >
           {tagOptions.map((option) => (

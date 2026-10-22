@@ -27,6 +27,8 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 - 本地使用 `pnpm db:migrate:local` 应用未执行迁移，D1 状态保存在 `.wrangler/state`；验证新库初始化与已有数据库升级路径，并运行覆盖变更的 Worker 集成测试。
 - 远程迁移前的备份、目标确认与执行流程见[部署](deployment.md)。`pnpm run deploy` 不会自动应用数据库迁移。
 
+普通书签保存、标签合并与删除使用单个原子 batch；数据库写入失败会回滚该操作的本体、标签与关联变更，包含触发器维护的全文索引。批量导入仍按[传输规则](import-export.md#导入)允许部分写入。
+
 ## D1 查询预算
 
 按 [D1 官方限制](https://developers.cloudflare.com/d1/platform/limits/)，每条 SQL 最多 100 个绑定参数、100 KB SQL 文本，最长运行 30 秒；一次 Worker 调用的 D1 查询上限为 Free 50 次、Paid 1000 次。`batch()` 中每条 SQL 仍分别受参数和长度限制，不能用批处理掩盖超限查询。

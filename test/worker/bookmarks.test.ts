@@ -211,6 +211,24 @@ describe('bookmark pagination and filters', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'validation_error' } });
   });
 
+  it.each([null, [], 1, 'cursor', {}, { id: -1, rank: 0, createdAt: '2026-10-01' }])(
+    'rejects a decodable invalid cursor %j for lists and search',
+    async (value) => {
+      const cursor = btoa(JSON.stringify(value))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/, '');
+      for (const path of [
+        `bookmarks?cursor=${cursor}`,
+        `bookmarks/search?q=example&cursor=${cursor}`,
+      ]) {
+        const response = await exports.default.fetch(`${API}/${path}`, { headers: adminHeaders });
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({ error: { code: 'validation_error' } });
+      }
+    },
+  );
+
   it('paginates with offset + total without duplicates', async () => {
     const created = await Promise.all(
       Array.from({ length: 5 }, (_, index) =>

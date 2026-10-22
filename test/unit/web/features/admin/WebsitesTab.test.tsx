@@ -72,6 +72,23 @@ it('加载失败显示错误和重试，不误报为空结果', async () => {
   }
 });
 
+it.each([
+  { method: 'getCategories', label: '分类' },
+  { method: 'getTags', label: '标签' },
+] as const)('$label 索引首次失败有独立重试入口', async ({ method, label }) => {
+  mocks.error = null;
+  vi.mocked(api[method]).mockRejectedValueOnce(new Error(`${label}网络中断`));
+  const app = await mount(<WebsitesTab />);
+  try {
+    expect(app.container.textContent).toContain(`${label}加载失败：${label}网络中断`);
+    await click(buttonWithText(app.container, '重试'));
+    expect(api[method]).toHaveBeenCalledTimes(2);
+    expect(app.container.textContent).not.toContain(`${label}网络中断`);
+  } finally {
+    await app.cleanup();
+  }
+});
+
 it('状态始终保持单选，重复点击不会清空，离开使用中会清除仅常用', async () => {
   const app = await mount(<WebsitesTab />);
   try {
@@ -86,6 +103,37 @@ it('状态始终保持单选，重复点击不会清空，离开使用中会清�
     expect(
       app.container.querySelectorAll('[data-slot="toggle-group-item"][aria-pressed="true"]'),
     ).toHaveLength(1);
+  } finally {
+    await app.cleanup();
+  }
+});
+
+it('保存后的标签刷新失败保留原筛选项，重试期间不重复提交读取', async () => {
+  mocks.error = null;
+  vi.mocked(api.getTags)
+    .mockResolvedValueOnce([{ id: 1, name: '保留标签', slug: 'kept', bookmarkCount: 1 }])
+    .mockRejectedValueOnce(new Error('刷新断网'));
+  vi.mocked(api.createBookmark).mockResolvedValue({ id: 2 } as Bookmark);
+  const app = await mount(<WebsitesTab />);
+  try {
+    await click(buttonWithText(app.container, '添加书签'));
+    await click(buttonWithText(app.container, '提交测试草稿'));
+    expect(app.container.textContent).toContain('标签加载失败：刷新断网');
+    expect(app.container.querySelector('select[aria-label="按标签筛选"]')?.textContent).toContain(
+      '保留标签',
+    );
+    let finish!: (value: []) => void;
+    vi.mocked(api.getTags).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const retry = buttonWithText(app.container, '重试');
+    await click(retry);
+    await click(retry);
+    expect(api.getTags).toHaveBeenCalledTimes(3);
+    await act(() => finish([]));
   } finally {
     await app.cleanup();
   }

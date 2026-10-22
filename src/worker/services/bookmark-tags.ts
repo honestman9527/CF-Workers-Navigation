@@ -1,8 +1,11 @@
+import type { SQL } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
+
 import type { Db } from '../types';
 
-import { inArray } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 
-import { bookmarkTags, tags } from '../schema';
+import { bookmarks, bookmarkTags, tags } from '../schema';
 import { slugify } from '../slug';
 
 // D1 allows 100 bound parameters per statement. Tag and relation inserts bind
@@ -21,6 +24,42 @@ function cleanTagNames(names: readonly string[]): Array<{ name: string; slug: st
     if (name && slug && !unique.has(slug)) unique.set(slug, name);
   }
   return [...unique].slice(0, 30).map(([slug, name]) => ({ slug, name }));
+}
+
+/** Ordinary saves include these statements in the same batch as the bookmark write. */
+export function bookmarkTagStatements(
+  db: Db,
+  condition: SQL,
+  names: readonly string[] | undefined,
+): BatchItem<'sqlite'>[] {
+  if (names === undefined) return [];
+  const cleaned = cleanTagNames(names);
+  const statements: BatchItem<'sqlite'>[] = [
+    db
+      .delete(bookmarkTags)
+      .where(
+        inArray(
+          bookmarkTags.bookmarkId,
+          db.select({ id: bookmarks.id }).from(bookmarks).where(condition),
+        ),
+      ),
+  ];
+  if (cleaned.length) {
+    statements.push(
+      db.insert(tags).values(cleaned).onConflictDoNothing({ target: tags.slug }),
+      db
+        .insert(bookmarkTags)
+        .select(sql`
+        SELECT bookmarks.id, tags.id FROM bookmarks CROSS JOIN tags
+        WHERE ${condition} AND ${inArray(
+          tags.slug,
+          cleaned.map((tag) => tag.slug),
+        )}
+      `)
+        .onConflictDoNothing(),
+    );
+  }
+  return statements;
 }
 
 async function writeTags(db: Db, entries: readonly BookmarkTagWrite[]) {
