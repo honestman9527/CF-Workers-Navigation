@@ -23,6 +23,7 @@ import {
   parseBangQuery,
 } from '@shared/search';
 
+import { createBookmarkFeedCache } from './bookmarkFeedCache';
 import { BookmarkSection, FeedContent, type BookmarkActions } from './BookmarkSection';
 import { FrontButton } from './controls';
 import { NavigationMenu } from './NavigationMenu';
@@ -48,7 +49,7 @@ function NavigationSurface() {
   const [composing, setComposing] = useState(false);
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
-  const [overrides, setOverrides] = useState<Record<number, Bookmark>>({});
+  const [feedCache] = useState(createBookmarkFeedCache);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
@@ -86,11 +87,8 @@ function NavigationSurface() {
     retry: retrySettings,
   } = useSettings(unauthorized);
   useBackground(settings);
-  const loadCategories = useCallback(
-    (signal: AbortSignal) => api.getCategories(undefined, signal),
-    [],
-  );
-  const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
+  const loadCategories = useCallback((signal: AbortSignal) => api.getCategories(signal), []);
+  const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
   const tags = useApiData(loadTags, { onUnauthorized: unauthorized });
   const roots = useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
@@ -102,6 +100,7 @@ function NavigationSurface() {
   const bang = parseBangQuery(draft, engines);
   const engine = engines.find((item) => item.id === (bang.engineId ?? engineId));
   const results = useBookmarkFeed({
+    coordinator: feedCache,
     query: search.q,
     tag: search.tag,
     untagged: search.untagged,
@@ -154,13 +153,13 @@ function NavigationSurface() {
     onContentChange(change) {
       if (change.kind === 'pinned' || change.kind === 'created' || change.kind === 'updated') {
         const saved = change.bookmark;
-        setOverrides((previous) => ({ ...previous, [saved.id]: saved }));
+        feedCache.apply(saved);
         if (change.kind === 'pinned') setPinnedVersion((value) => value + 1);
         else setVersion((value) => value + 1);
       }
     },
-    reloadTags: tags.refresh,
-    reloadCategories: categories.refresh,
+    invalidateTags: tags.refresh,
+    invalidateCategories: categories.refresh,
     onSuccess(change) {
       if (!alive.current) return;
       if (change.kind === 'pinned') {
@@ -180,7 +179,7 @@ function NavigationSurface() {
   const actions: BookmarkActions = {
     authed: auth.authed,
     pendingIds: mutations.pendingIds,
-    overrides,
+    cache: feedCache,
     onEdit: setEditor,
     onPin: (bookmark) => {
       void mutations.togglePin(bookmark);

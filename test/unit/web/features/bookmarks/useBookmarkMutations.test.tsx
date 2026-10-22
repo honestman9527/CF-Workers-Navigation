@@ -42,8 +42,8 @@ const bookmark: Bookmark = {
 const input: BookmarkInput = { title: bookmark.title, url: bookmark.url, tags: ['Docs'] };
 const effects = {
   onContentChange: vi.fn(),
-  reloadTags: vi.fn(),
-  reloadCategories: vi.fn(),
+  invalidateTags: vi.fn(),
+  invalidateCategories: vi.fn(),
   onSuccess: vi.fn(),
   onError: vi.fn(),
 };
@@ -70,18 +70,18 @@ it('新增和编辑共用写后刷新规则，向呈现提供已保存记录', a
   await act(async () => {
     expect(await current.save(input)).toEqual(bookmark);
   });
-  expect(api.createBookmark).toHaveBeenCalledWith('', input);
+  expect(api.createBookmark).toHaveBeenCalledWith(input);
   expect(effects.onContentChange).toHaveBeenLastCalledWith({ kind: 'created', bookmark });
   await act(async () => {
     await current.save(input, bookmark.id);
   });
-  expect(api.updateBookmark).toHaveBeenCalledWith('', bookmark.id, input);
+  expect(api.updateBookmark).toHaveBeenCalledWith(bookmark.id, input);
   expect(effects.onSuccess).toHaveBeenLastCalledWith({
     kind: 'updated',
     bookmark: { ...bookmark, isPinned: true },
   });
-  expect(effects.reloadTags).toHaveBeenCalledTimes(2);
-  expect(effects.reloadCategories).toHaveBeenCalledTimes(2);
+  expect(effects.invalidateTags).toHaveBeenCalledTimes(2);
+  expect(effects.invalidateCategories).toHaveBeenCalledTimes(2);
 });
 
 it('保存失败由编辑器处理，不刷新、不提示成功，随后仍可重试', async () => {
@@ -99,18 +99,38 @@ it('保存失败由编辑器处理，不刷新、不提示成功，随后仍可�
   expect(effects.onSuccess).toHaveBeenCalledOnce();
 });
 
+it('索引失效通知不延长写入锁，也不推迟保存成功反馈', async () => {
+  let finish!: () => void;
+  effects.invalidateTags.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  app = await mount(<Harness />);
+  await act(async () => {
+    expect(await current.save(input)).toEqual(bookmark);
+  });
+  expect(effects.onSuccess).toHaveBeenCalledOnce();
+  await act(async () => {
+    await current.save(input);
+  });
+  expect(api.createBookmark).toHaveBeenCalledTimes(2);
+  finish();
+});
+
 it('常用切换提供已保存记录，但不刷新标签或分类', async () => {
   app = await mount(<Harness />);
   await act(async () => {
     await current.togglePin(bookmark);
   });
-  expect(api.updateBookmark).toHaveBeenCalledWith('', 1, { isPinned: true });
+  expect(api.updateBookmark).toHaveBeenCalledWith(1, { isPinned: true });
   expect(effects.onContentChange).toHaveBeenCalledWith({
     kind: 'pinned',
     bookmark: { ...bookmark, isPinned: true },
   });
-  expect(effects.reloadTags).not.toHaveBeenCalled();
-  expect(effects.reloadCategories).not.toHaveBeenCalled();
+  expect(effects.invalidateTags).not.toHaveBeenCalled();
+  expect(effects.invalidateCategories).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -123,10 +143,10 @@ it.each([
   await act(async () => {
     await current.changeState(1, state);
   });
-  expect(api[method]).toHaveBeenCalledWith('', 1);
+  expect(api[method]).toHaveBeenCalledWith(1);
   expect(effects.onContentChange).toHaveBeenCalledWith(expect.objectContaining({ kind }));
-  expect(effects.reloadTags).toHaveBeenCalledOnce();
-  expect(effects.reloadCategories).toHaveBeenCalledOnce();
+  expect(effects.invalidateTags).toHaveBeenCalledOnce();
+  expect(effects.invalidateCategories).toHaveBeenCalledOnce();
   expect(effects.onSuccess).toHaveBeenCalledWith(expect.objectContaining({ kind }));
 });
 
@@ -138,8 +158,8 @@ it('状态操作失败保留原内容并交由当前呈现反馈', async () => {
   });
   expect(effects.onError).toHaveBeenCalledWith('归档失败');
   expect(effects.onContentChange).not.toHaveBeenCalled();
-  expect(effects.reloadTags).not.toHaveBeenCalled();
-  expect(effects.reloadCategories).not.toHaveBeenCalled();
+  expect(effects.invalidateTags).not.toHaveBeenCalled();
+  expect(effects.invalidateCategories).not.toHaveBeenCalled();
   expect(effects.onSuccess).not.toHaveBeenCalled();
 });
 
@@ -163,7 +183,7 @@ it('卸载后不刷新旧内容，完成反馈仍可由后台共享提示接收'
     await pending;
   });
   expect(effects.onContentChange).not.toHaveBeenCalled();
-  expect(effects.reloadTags).not.toHaveBeenCalled();
+  expect(effects.invalidateTags).not.toHaveBeenCalled();
   expect(effects.onSuccess).toHaveBeenCalledOnce();
 });
 
@@ -242,7 +262,6 @@ it('常用请求期间保存显示冲突并保留草稿，完成后可重新保�
     await editor.submit();
   });
   expect(api.updateBookmark).toHaveBeenLastCalledWith(
-    '',
     1,
     expect.objectContaining({
       title: '修改后的标题',
@@ -307,7 +326,7 @@ it('不同书签仍可同时写入', async () => {
     await act(async () => {
       await current.save(input, 2);
     });
-    expect(api.updateBookmark).toHaveBeenCalledWith('', 2, input);
+    expect(api.updateBookmark).toHaveBeenCalledWith(2, input);
     expect(effects.onError).not.toHaveBeenCalled();
     expect(current.pendingIds.has(1)).toBe(true);
   } finally {

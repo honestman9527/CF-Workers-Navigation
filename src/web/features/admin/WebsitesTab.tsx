@@ -123,7 +123,7 @@ export function WebsitesTab() {
     onError: reportError,
   });
 
-  const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
+  const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const {
     data: tags,
     refresh: refreshTags,
@@ -132,10 +132,7 @@ export function WebsitesTab() {
   } = useApiData(loadTags, {
     onUnauthorized: handleUnauthorized,
   });
-  const loadCategories = useCallback(
-    (signal: AbortSignal) => api.getCategories(undefined, signal),
-    [],
-  );
+  const loadCategories = useCallback((signal: AbortSignal) => api.getCategories(signal), []);
   const {
     data: categories,
     refresh: refreshCategories,
@@ -147,8 +144,8 @@ export function WebsitesTab() {
 
   const mutations = useBookmarkMutations({
     onContentChange: page.refresh,
-    reloadTags: refreshTags,
-    reloadCategories: refreshCategories,
+    invalidateTags: refreshTags,
+    invalidateCategories: refreshCategories,
     onError: reportError,
     onSuccess(change) {
       if (change.kind === 'created' || change.kind === 'updated') setEditor(null);

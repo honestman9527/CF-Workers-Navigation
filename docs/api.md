@@ -105,3 +105,5 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 | 502       | `bad_gateway`      | 上游服务失败                                                       |
 
 普通书签新增、编辑及标签合并、删除的数据库写入以操作为单位原子提交；数据库中途失败不保留该操作的部分变更。非法游标（包括可解码但非对象或字段不合法的 JSON）返回 `400 validation_error`。导入的部分写入语义见[导入与导出](import-export.md#导入)。
+
+共享 TypeScript 客户端在 `createApiClient({ getToken, fetch, baseUrl })` 初始化时配置认证；各方法不再接受 token 参数。Web 使用 Cookie，Bearer 调用者通过 `getToken` 提供凭据，例如 `getBookmarks(options, signal)`、`updateBookmark(id, input)`。HTTP 认证协议与响应保持不变。

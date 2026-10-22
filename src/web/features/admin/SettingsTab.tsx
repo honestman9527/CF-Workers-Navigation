@@ -203,7 +203,7 @@ function EngineFormDialog({
 export function SettingsTab() {
   const auth = useAuthContext();
   const cacheSettings = useSetAtom(updateSettingsCacheAtom);
-  const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(undefined, signal), []);
+  const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(signal), []);
   const {
     data: settings,
     loading,
@@ -242,7 +242,7 @@ export function SettingsTab() {
     setSaving(true);
     setError(null);
     try {
-      const saved = await api.updateSettings('', draft);
+      const saved = await api.updateSettings(draft);
       setData(saved);
       setDraft(saved);
       cacheSettings(saved);

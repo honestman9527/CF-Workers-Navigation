@@ -16,7 +16,7 @@ describe('nav shared api client', () => {
       fetch,
     });
 
-    await client.searchBookmarks(undefined, 'cloud flare');
+    await client.searchBookmarks('cloud flare');
 
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = fetch.mock.calls[0];
@@ -31,8 +31,8 @@ describe('nav shared api client', () => {
         async () => new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }),
       );
     const client = createApiClient({ baseUrl: 'https://nav.example.com', fetch });
-    await client.getBookmarks(undefined, { untagged: true });
-    await client.searchBookmarks(undefined, 'demo', { untagged: true, tag: 'untagged' });
+    await client.getBookmarks({ untagged: true });
+    await client.searchBookmarks('demo', { untagged: true, tag: 'untagged' });
     expect(fetch.mock.calls[0]?.[0]).toBe('https://nav.example.com/api/v1/bookmarks?untagged=true');
     const query = new URL(String(fetch.mock.calls[1]?.[0])).searchParams;
     expect(query.get('untagged')).toBe('true');
@@ -49,7 +49,7 @@ describe('nav shared api client', () => {
     const client = createApiClient({ fetch });
     const controller = new AbortController();
 
-    await client.getBookmarks(undefined, undefined, controller.signal);
+    await client.getBookmarks(undefined, controller.signal);
 
     expect(fetch.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
@@ -67,7 +67,7 @@ describe('nav shared api client', () => {
     );
     const client = createApiClient({ baseUrl: 'https://nav.example.com', fetch });
 
-    await client.getFavicon(undefined, 'https://example.com/path');
+    await client.getFavicon('https://example.com/path');
 
     expect(fetch.mock.calls[0]?.[0]).toBe(
       'https://nav.example.com/api/v1/bookmarks/favicon?url=https%3A%2F%2Fexample.com%2Fpath',
@@ -83,7 +83,7 @@ describe('nav shared api client', () => {
     );
     const client = createApiClient({ fetch });
 
-    await expect(client.getBookmarks(undefined)).rejects.toMatchObject({
+    await expect(client.getBookmarks()).rejects.toMatchObject({
       status: 403,
       code: 'forbidden',
       message: 'No access',

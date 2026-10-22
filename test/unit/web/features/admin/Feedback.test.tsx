@@ -163,7 +163,7 @@ it('标签合并使用单选目标，失败保留选择并可重试', async () =
   expect(dialog.textContent).toContain('操作失败，请重试');
   expect(dialog.querySelector('[role="radio"]')?.getAttribute('aria-checked')).toBe('true');
   await click(confirm);
-  expect(api.mergeTag).toHaveBeenLastCalledWith('', 1, 2);
+  expect(api.mergeTag).toHaveBeenLastCalledWith(1, 2);
   expect(document.querySelector('[role="dialog"]')).toBeNull();
 });
 
@@ -192,7 +192,7 @@ it('分类菜单排序刷新保留展开状态，新建子类入口仍展开父�
     (item) => item.textContent?.trim() === '下移',
   )!;
   await click(down);
-  expect(api.reorderCategories).toHaveBeenCalledWith('', [3, 1]);
+  expect(api.reorderCategories).toHaveBeenCalledWith([3, 1]);
   expect(app.container.textContent).toContain('已有子项');
   await click(app.container.querySelector<HTMLButtonElement>('[aria-label="收起分类"]')!);
   await click(

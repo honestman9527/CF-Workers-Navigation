@@ -137,7 +137,7 @@ it('网址变化取消元数据请求，迟到响应不覆盖新网址的编辑�
   );
   await setup();
   await click(app.container.querySelector<HTMLButtonElement>('[aria-label="自动填写"]')!);
-  const signal = vi.mocked(api.getMetadata).mock.calls[0][2]!;
+  const signal = vi.mocked(api.getMetadata).mock.calls[0][1]!;
   await fill(
     app.container.querySelector<HTMLInputElement>('#bookmark-url')!,
     'https://new.example.com',
@@ -177,7 +177,7 @@ it('卸载编辑器取消图标补全，迟到结果不再发起书签保存', a
   await click(buttonWithText(app.container, '自定义图标'));
   await fill(app.container.querySelector<HTMLInputElement>('#bookmark-icon')!, '');
   await submit();
-  const signal = vi.mocked(api.getFavicon).mock.calls[0][2]!;
+  const signal = vi.mocked(api.getFavicon).mock.calls[0][1]!;
   await app.cleanup();
   expect(signal.aborted).toBe(true);
   await act(async () =>

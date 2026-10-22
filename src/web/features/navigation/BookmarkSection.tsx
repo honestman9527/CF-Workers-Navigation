@@ -1,6 +1,8 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 import type { Bookmark } from '@shared/api/types';
 
+import type { BookmarkFeedCache } from './bookmarkFeedCache';
+
 import { Pencil, Star } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -16,7 +18,7 @@ import { type BookmarkFeed, useBookmarkFeed } from './useBookmarkFeed';
 export type BookmarkActions = {
   authed: boolean;
   pendingIds: ReadonlySet<number>;
-  overrides: Record<number, Bookmark>;
+  cache: BookmarkFeedCache;
   onEdit: (bookmark: Bookmark) => void;
   onPin: (bookmark: Bookmark) => void;
 };
@@ -50,8 +52,7 @@ export function FeedContent({
       ) : null}
       {feed.items.length > 0 ? (
         <ul className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {feed.items.map((original, index) => {
-            const bookmark = actions.overrides[original.id] ?? original;
+          {feed.items.map((bookmark, index) => {
             return (
               <li
                 key={bookmark.id}
@@ -174,6 +175,7 @@ export function BookmarkSection({
   const slug = pinned ? 'common' : root ? `category-${root.slug}` : 'uncategorized';
   const category = pinned ? undefined : (selected?.slug ?? 'uncategorized');
   const feed = useBookmarkFeed({
+    coordinator: actions.cache,
     pinned: pinned || undefined,
     category,
     enabled: visible || active,

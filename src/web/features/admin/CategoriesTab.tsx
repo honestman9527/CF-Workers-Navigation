@@ -61,10 +61,7 @@ export function CategoriesTab() {
   // 仅显示一级分类；展开状态在当前页面的数据刷新后保留。
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const loadCategories = useCallback(
-    (signal: AbortSignal) => api.getCategories(undefined, signal),
-    [],
-  );
+  const loadCategories = useCallback((signal: AbortSignal) => api.getCategories(signal), []);
   const {
     data: categories,
     loading,
@@ -106,7 +103,7 @@ export function CategoriesTab() {
     const parentId = create.parentId === 'root' ? null : create.parentId;
     await run(
       async () => {
-        await api.createCategory('', { name, parentId, visibility: createVisibility });
+        await api.createCategory({ name, parentId, visibility: createVisibility });
         setCreate(null);
         setCreateName('');
       },
@@ -128,7 +125,7 @@ export function CategoriesTab() {
     }
     await run(
       async () => {
-        await api.updateCategory('', editing.id, { name });
+        await api.updateCategory(editing.id, { name });
         setEditing(null);
       },
       {
@@ -139,7 +136,7 @@ export function CategoriesTab() {
   }
 
   async function setIcon(category: Category, icon: string) {
-    await run(() => api.updateCategory('', category.id, { icon }), {
+    await run(() => api.updateCategory(category.id, { icon }), {
       message: '图标已更新',
       refresh,
     });
@@ -152,12 +149,12 @@ export function CategoriesTab() {
     if (index < 0 || target < 0 || target >= ids.length) return;
     const next = [...ids];
     [next[index], next[target]] = [next[target], next[index]];
-    await run(() => api.reorderCategories('', next), { message: '排序已更新', refresh });
+    await run(() => api.reorderCategories(next), { message: '排序已更新', refresh });
   }
 
   async function moveTo(category: Category, parentId: number | null) {
     if (category.parentId === parentId) return;
-    await run(() => api.updateCategory('', category.id, { parentId }), {
+    await run(() => api.updateCategory(category.id, { parentId }), {
       message: '分类已移动',
       refresh,
     });
@@ -165,7 +162,7 @@ export function CategoriesTab() {
 
   async function remove(target: Category) {
     setConfirmDelete(null);
-    await run(() => api.deleteCategory('', target.id), { message: '分类已删除', refresh });
+    await run(() => api.deleteCategory(target.id), { message: '分类已删除', refresh });
   }
 
   const confirmDeleteMeta = useMemo(() => {
@@ -504,7 +501,7 @@ export function CategoriesTab() {
               if (!permissionTarget) return;
               void run(
                 async () => {
-                  await api.updateCategory('', permissionTarget.id, { visibility: permission });
+                  await api.updateCategory(permissionTarget.id, { visibility: permission });
                   setPermissionTarget(null);
                 },
                 { message: '分类权限已更新', refresh },

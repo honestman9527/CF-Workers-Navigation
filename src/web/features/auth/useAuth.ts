@@ -18,7 +18,7 @@ export function useAuth() {
     async (signal?: AbortSignal) => {
       const current = generation.current;
       try {
-        await api.me(undefined, signal);
+        await api.me(signal);
         if (current === generation.current && !signal?.aborted && !authRef.current)
           transition(true);
       } catch (error) {

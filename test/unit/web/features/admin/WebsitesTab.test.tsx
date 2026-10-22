@@ -178,7 +178,7 @@ it('后台常用操作刷新页码列表，保留分类和标签索引', async (
   const app = await mount(<WebsitesTab />);
   try {
     await click(app.container.querySelector('[aria-label="加入常用"]')!);
-    expect(api.updateBookmark).toHaveBeenCalledWith('', 1, { isPinned: true });
+    expect(api.updateBookmark).toHaveBeenCalledWith(1, { isPinned: true });
     expect(mocks.refresh).toHaveBeenCalledOnce();
     expect(api.getTags).toHaveBeenCalledOnce();
     expect(api.getCategories).toHaveBeenCalledOnce();
@@ -195,7 +195,7 @@ it('后台编辑保存通过共同规则刷新内容和索引并关闭编辑器'
   try {
     await click(buttonWithText(app.container, '添加书签'));
     await click(buttonWithText(app.container, '提交测试草稿'));
-    expect(api.createBookmark).toHaveBeenCalledWith('', {
+    expect(api.createBookmark).toHaveBeenCalledWith({
       title: '新增网站',
       url: 'https://new.example.com',
     });

@@ -8,5 +8,71 @@
     "**/dist/**",
     "**/coverage/**",
     "worker-configuration.d.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["src/shared/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(web|worker)(/|$)|^@(?:nav)?/",
+                "message": "shared 不得依赖 Web 或 Worker。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/worker/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)web(/|$)|^@(?:nav)?/",
+                "message": "Worker 不得依赖 Web。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/web/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)worker(/|$)",
+                "message": "Web 通过 shared 契约访问 Worker。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/web/features/navigation/**/*.{ts,tsx}", "src/web/features/bookmarks/use*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)worker(/|$)|(^|/)(features/admin|admin|components/ui)(/|$)",
+                "message": "前台和共享书签逻辑不得依赖 Worker 或后台呈现。"
+              }
+            ]
+          }
+        ]
+      }
+    }
   ]
 }

@@ -141,7 +141,6 @@ it('默认权限参与设置草稿和保存，且不进入公开缓存', async (
   });
   await click('保存设置');
   expect(api.updateSettings).toHaveBeenCalledWith(
-    '',
     expect.objectContaining({ defaultBookmarkVisibility: 'private' }),
   );
   expect(store.get(settingsStateAtom).settings).not.toHaveProperty('defaultBookmarkVisibility');

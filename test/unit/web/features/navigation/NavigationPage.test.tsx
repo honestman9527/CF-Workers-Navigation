@@ -110,7 +110,7 @@ beforeEach(() => {
     backgroundImageUrl: '',
     backgroundImageEnabled: false,
   });
-  vi.mocked(api.getBookmarks).mockImplementation(async (_token, options) => ({
+  vi.mocked(api.getBookmarks).mockImplementation(async (options) => ({
     items:
       options?.category === 'uncategorized'
         ? []
@@ -145,7 +145,6 @@ it('同时展示常用及多个一级分类；子分类切换在原分区取数'
   );
   expect(route.search.category).toBe('开发');
   expect(api.getBookmarks).toHaveBeenCalledWith(
-    undefined,
     expect.objectContaining({ category: '开发', limit: 12 }),
     expect.any(AbortSignal),
   );
@@ -155,7 +154,7 @@ it('常用切换覆盖各分区条目，只刷新常用资源，不刷新分类�
   auth.authed = true;
   let pinned = false;
   const bookmark = item(2);
-  vi.mocked(api.getBookmarks).mockImplementation(async (_token, options) => ({
+  vi.mocked(api.getBookmarks).mockImplementation(async (options) => ({
     items: options?.pinned
       ? pinned
         ? [{ ...bookmark, isPinned: true }]
@@ -172,9 +171,9 @@ it('常用切换覆盖各分区条目，只刷新常用资源，不刷新分类�
   app = await mount(<Host />);
   const requests = vi.mocked(api.getBookmarks).mock.calls.length;
   await click(app.container.querySelector('[aria-label="加入常用：网站2"]')!);
-  expect(api.updateBookmark).toHaveBeenCalledWith('', 2, { isPinned: true });
+  expect(api.updateBookmark).toHaveBeenCalledWith(2, { isPinned: true });
   expect(api.getBookmarks).toHaveBeenCalledTimes(requests + 1);
-  expect(vi.mocked(api.getBookmarks).mock.calls.at(-1)?.[1]).toMatchObject({ pinned: true });
+  expect(vi.mocked(api.getBookmarks).mock.calls.at(-1)?.[0]).toMatchObject({ pinned: true });
   expect(api.getCategories).toHaveBeenCalledOnce();
   expect(api.getTags).toHaveBeenCalledOnce();
   expect(app.container.querySelectorAll('[aria-label="取消常用：网站2"]')).toHaveLength(3);
@@ -251,7 +250,6 @@ it('显式站内模式优先于浏览器记忆，标签与关键词组合查询'
   localStorage.setItem('nav-search-mode', 'web');
   app = await mount(<Host initial={{ mode: 'site', q: 'React', tag: 'react' }} />);
   expect(api.searchBookmarks).toHaveBeenCalledWith(
-    undefined,
     'React',
     expect.objectContaining({ tag: 'react' }),
     expect.any(AbortSignal),
@@ -293,7 +291,7 @@ it('退出身份后立即卸载私有数据和旧索引', async () => {
   const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
   await click(buttonWithText(tools, '开发'));
   await click(buttonWithText(tools, '工具'));
-  const signals = vi.mocked(api.getBookmarks).mock.calls.map((call) => call[2]!);
+  const signals = vi.mocked(api.getBookmarks).mock.calls.map((call) => call[1]!);
   auth.authed = false;
   vi.mocked(api.getBookmarks).mockResolvedValue({ items: [item(9, '公开网站')], nextCursor: null });
   await act(() => route.setSearch({ mode: 'site' }));
@@ -364,7 +362,6 @@ it('返回无显式模式的首页继续沿用最后选择；输入法组合期�
   await act(() => input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
   await settle();
   expect(api.searchBookmarks).toHaveBeenCalledWith(
-    undefined,
     '开发',
     expect.any(Object),
     expect.any(AbortSignal),
@@ -387,7 +384,6 @@ it('逐层展示到四级并可返回祖先，顶部高亮所属一级，选择�
   expect(route.search.category).toBe('开发');
   expect(tools.querySelector('[aria-label="开发子分类"]')?.textContent).toBe('前端');
   expect(api.getBookmarks).toHaveBeenLastCalledWith(
-    undefined,
     expect.objectContaining({ category: 'React' }),
     expect.any(AbortSignal),
   );
@@ -462,4 +458,19 @@ it('后退前进恢复当时各分区的选择和滚动，不被分类锚点覆�
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1250, behavior: 'instant' });
   expect(api.getBookmarks).toHaveBeenCalledTimes(count);
   expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(anchors);
+});
+
+it('常用更新后的新读取采用服务端记录，不被本页旧覆盖遮蔽', async () => {
+  auth.authed = true;
+  vi.mocked(api.updateBookmark).mockResolvedValue({ ...item(2), isPinned: true });
+  app = await mount(<Host />);
+  const section = app.container.querySelector<HTMLElement>('#section-category-工具')!;
+  await click(section.querySelector<HTMLElement>('[aria-label="加入常用：网站2"]')!);
+  vi.mocked(api.getBookmarks).mockResolvedValue({
+    items: [{ ...item(2, '服务端新版'), isPinned: false }],
+    nextCursor: null,
+  });
+  await click(buttonWithText(section, '开发'));
+  expect(section.textContent).toContain('服务端新版');
+  expect(section.querySelector('[aria-label="加入常用：服务端新版"]')).not.toBeNull();
 });

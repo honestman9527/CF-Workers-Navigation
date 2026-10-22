@@ -27,7 +27,7 @@ vi.mock('@nav/api/client', () => ({
 vi.mock('@nav/features/navigation/NavigationPage', () => ({
   NavigationPage: function Page() {
     const auth = useAuthContext();
-    const load = useCallback((signal: AbortSignal) => api.getBookmarks(undefined, {}, signal), []);
+    const load = useCallback((signal: AbortSignal) => api.getBookmarks({}, signal), []);
     const { data } = useApiData(load);
     return createElement(
       'main',
@@ -125,7 +125,7 @@ it('登录退出重新取数，取消旧私有请求且不会被迟到响应覆�
   );
   await click('登录测试');
   expect(container.textContent).toContain('管理员');
-  const privateSignal = vi.mocked(api.getBookmarks).mock.calls.at(-1)![2];
+  const privateSignal = vi.mocked(api.getBookmarks).mock.calls.at(-1)![1];
   vi.mocked(api.me).mockRejectedValue(new Error('expired'));
   await click('退出测试');
   expect(container.textContent).toContain('游客');

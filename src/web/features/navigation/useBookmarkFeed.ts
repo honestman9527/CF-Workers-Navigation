@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@nav/api/client';
 
+import { createBookmarkFeedCache, type BookmarkFeedCache } from './bookmarkFeedCache';
+
 type FeedState = {
   key: string;
   items: Bookmark[];
@@ -33,6 +35,7 @@ export function useBookmarkFeed({
   cacheVisited = false,
   version = 0,
   onUnauthorized,
+  coordinator,
 }: {
   category?: string;
   tag?: string;
@@ -43,9 +46,13 @@ export function useBookmarkFeed({
   cacheVisited?: boolean;
   version?: number;
   onUnauthorized: () => void;
+  coordinator?: BookmarkFeedCache;
 }) {
   const key = JSON.stringify([category, tag, untagged, pinned, query, version]);
   const [state, setState] = useState<FeedState>({ ...empty, key });
+  const stateRef = useRef(state);
+  const [ownCoordinator] = useState(createBookmarkFeedCache);
+  const changes = coordinator ?? ownCoordinator;
   const [retry, setRetry] = useState(0);
   const cache = useRef(new Map<string, FeedState>());
   const cacheVersion = useRef(version);
@@ -58,12 +65,26 @@ export function useBookmarkFeed({
 
   const publish = useCallback(
     (next: FeedState) => {
+      stateRef.current = next;
       if (cacheVisited && (next.loaded || next.error)) {
         cache.current.set(next.key, { ...next, loading: false, loadingMore: false });
       }
       setState(next);
     },
     [cacheVisited],
+  );
+
+  useEffect(
+    () =>
+      changes.subscribe((bookmark) => {
+        const patch = (value: FeedState): FeedState => ({
+          ...value,
+          items: value.items.map((item) => (item.id === bookmark.id ? bookmark : item)),
+        });
+        for (const [cacheKey, value] of cache.current) cache.current.set(cacheKey, patch(value));
+        publish(patch(stateRef.current));
+      }),
+    [changes, publish],
   );
 
   const request = useCallback(
@@ -78,8 +99,8 @@ export function useBookmarkFeed({
         cursor,
       };
       return query
-        ? api.searchBookmarks(undefined, query, options, signal)
-        : api.getBookmarks(undefined, options, signal);
+        ? api.searchBookmarks(query, options, signal)
+        : api.getBookmarks(options, signal);
     },
     [category, tag, untagged, pinned, query],
   );
@@ -95,14 +116,21 @@ export function useBookmarkFeed({
     const saved = cacheVisited ? cache.current.get(key) : undefined;
     busy.current = !saved;
     if (saved) {
-      setState(saved);
+      publish(saved);
       return () => current.abort();
     }
-    setState({ ...empty, key, loading: true });
+    publish({ ...empty, key, loading: true });
+    const read = changes.beginRead(current.signal);
     request(current.signal)
       .then((page) => {
         if (!current.signal.aborted)
-          publish({ ...empty, key, items: page.items, nextCursor: page.nextCursor, loaded: true });
+          publish({
+            ...empty,
+            key,
+            items: read.reconcile(page.items),
+            nextCursor: page.nextCursor,
+            loaded: true,
+          });
       })
       .catch((error: unknown) => {
         if (current.signal.aborted) return;
@@ -113,32 +141,41 @@ export function useBookmarkFeed({
         publish({ ...empty, key, error: error instanceof Error ? error.message : '加载失败' });
       })
       .finally(() => {
+        read.finish();
         if (!current.signal.aborted) busy.current = false;
       });
-    return () => current.abort();
-  }, [key, request, enabled, retry, version, cacheVisited, publish]);
+    return () => {
+      current.abort();
+      read.finish();
+    };
+  }, [key, request, enabled, retry, version, cacheVisited, publish, changes]);
 
   async function loadMore() {
     const current = controller.current;
+    const snapshot = stateRef.current;
     if (
       !enabled ||
       !current ||
       current.signal.aborted ||
       busy.current ||
-      !state.nextCursor ||
-      state.key !== key
+      !snapshot.nextCursor ||
+      snapshot.key !== key
     )
       return;
     busy.current = true;
-    publish({ ...state, loadingMore: true, error: null });
+    publish({ ...snapshot, loadingMore: true, error: null });
+    const read = changes.beginRead(current.signal);
     try {
-      const page = await request(current.signal, state.nextCursor);
+      const page = await request(current.signal, snapshot.nextCursor);
       if (current.signal.aborted) return;
+      const latest = stateRef.current;
       publish({
-        ...state,
+        ...latest,
         items: [
-          ...state.items,
-          ...page.items.filter((item) => !state.items.some((old) => old.id === item.id)),
+          ...latest.items,
+          ...read
+            .reconcile(page.items)
+            .filter((item) => !latest.items.some((old) => old.id === item.id)),
         ],
         nextCursor: page.nextCursor,
         loadingMore: false,
@@ -151,11 +188,12 @@ export function useBookmarkFeed({
         return;
       }
       publish({
-        ...state,
+        ...stateRef.current,
         loadingMore: false,
         error: error instanceof Error ? error.message : '加载失败',
       });
     } finally {
+      read.finish();
       if (!current.signal.aborted) busy.current = false;
     }
   }

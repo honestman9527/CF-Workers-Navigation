@@ -29,7 +29,7 @@ export function TagsTab() {
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Tag | null>(null);
 
-  const loadTags = useCallback((signal: AbortSignal) => api.getTags(undefined, signal), []);
+  const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const {
     data: tags,
     loading,
@@ -49,7 +49,7 @@ export function TagsTab() {
     if (!name) return;
     await run(
       async () => {
-        await api.createTag('', name);
+        await api.createTag(name);
         setCreating(false);
         setCreateName('');
       },
@@ -68,7 +68,7 @@ export function TagsTab() {
     }
     await run(
       async () => {
-        await api.updateTag('', editing.id, name);
+        await api.updateTag(editing.id, name);
         setEditing(null);
       },
       { message: '标签已重命名', refresh },
@@ -80,7 +80,7 @@ export function TagsTab() {
     const source = mergeFor;
     await run(
       async () => {
-        await api.mergeTag('', source.id, mergeTarget);
+        await api.mergeTag(source.id, mergeTarget);
         setMergeFor(null);
         setMergeTarget(null);
       },
@@ -93,7 +93,7 @@ export function TagsTab() {
 
   async function remove(target: Tag) {
     setConfirmDelete(null);
-    await run(() => api.deleteTag('', target.id), { message: '标签已删除', refresh });
+    await run(() => api.deleteTag(target.id), { message: '标签已删除', refresh });
   }
 
   const filtered = useMemo(() => {

@@ -111,7 +111,7 @@ export function OverviewTab() {
   const navigate = useNavigate();
   const auth = useAuthContext();
 
-  const loadStats = useCallback((signal: AbortSignal) => api.getAdminStats(undefined, signal), []);
+  const loadStats = useCallback((signal: AbortSignal) => api.getAdminStats(signal), []);
   const {
     data: stats,
     loading,

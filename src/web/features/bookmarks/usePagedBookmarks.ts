@@ -62,7 +62,6 @@ export function usePagedBookmarks({
     const offset = (page - 1) * pageSize;
     const request = query
       ? api.searchBookmarks(
-          undefined,
           query,
           {
             view,
@@ -76,7 +75,6 @@ export function usePagedBookmarks({
           controller.signal,
         )
       : api.getBookmarks(
-          undefined,
           {
             view,
             category,

@@ -116,7 +116,7 @@ export function useBookmarkEditor({
     setFaviconFetching(true);
     if (showError) setError(null);
     try {
-      const result = await api.getFavicon('', url, current.signal);
+      const result = await api.getFavicon(url, current.signal);
       if (current.signal.aborted) return '';
       if (result.iconUrl) {
         setForm((current) => ({ ...current, iconUrl: result.iconUrl }));
@@ -181,7 +181,7 @@ export function useBookmarkEditor({
     setFetching(true);
     setError(null);
     try {
-      const result = await api.getMetadata('', form.url.trim(), current.signal);
+      const result = await api.getMetadata(form.url.trim(), current.signal);
       if (current.signal.aborted) return;
       setMetadata(result);
       setForm((current) => ({

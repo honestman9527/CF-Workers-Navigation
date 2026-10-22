@@ -34,14 +34,9 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  options: ClientOptions,
-  path: string,
-  init?: RequestInit,
-  token?: string,
-): Promise<T> {
+async function request<T>(options: ClientOptions, path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  const authToken = token ?? options.getToken?.();
+  const authToken = options.getToken?.();
   if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
   if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
@@ -67,44 +62,35 @@ async function request<T>(
 export interface ApiClient {
   login(password: string): Promise<void>;
   logout(): Promise<void>;
-  me(token?: string, signal?: AbortSignal): Promise<{ ok: true }>;
-  getBookmarks(
-    token: string | undefined,
-    options?: BookmarkListOptions,
-    signal?: AbortSignal,
-  ): Promise<BookmarkPage>;
+  me(signal?: AbortSignal): Promise<{ ok: true }>;
+  getBookmarks(options?: BookmarkListOptions, signal?: AbortSignal): Promise<BookmarkPage>;
   searchBookmarks(
-    token: string | undefined,
     query: string,
     options?: BookmarkListOptions,
     signal?: AbortSignal,
   ): Promise<BookmarkPage>;
-  getTags(token?: string, signal?: AbortSignal): Promise<Tag[]>;
-  getCategories(token?: string, signal?: AbortSignal): Promise<Category[]>;
-  createCategory(token: string, input: CategoryInput): Promise<Category>;
-  updateCategory(token: string, id: number, input: Partial<CategoryInput>): Promise<Category>;
-  deleteCategory(token: string, id: number): Promise<void>;
-  reorderCategories(token: string, ids: number[]): Promise<void>;
-  getMetadata(
-    token: string | undefined,
-    url: string,
-    signal?: AbortSignal,
-  ): Promise<MetadataPreview>;
-  getFavicon(token: string | undefined, url: string, signal?: AbortSignal): Promise<FaviconPreview>;
+  getTags(signal?: AbortSignal): Promise<Tag[]>;
+  getCategories(signal?: AbortSignal): Promise<Category[]>;
+  createCategory(input: CategoryInput): Promise<Category>;
+  updateCategory(id: number, input: Partial<CategoryInput>): Promise<Category>;
+  deleteCategory(id: number): Promise<void>;
+  reorderCategories(ids: number[]): Promise<void>;
+  getMetadata(url: string, signal?: AbortSignal): Promise<MetadataPreview>;
+  getFavicon(url: string, signal?: AbortSignal): Promise<FaviconPreview>;
   getPublicSettings(signal?: AbortSignal): Promise<PublicSettings>;
-  getSettings(token?: string, signal?: AbortSignal): Promise<Settings>;
-  updateSettings(token: string, input: Partial<Settings>): Promise<Settings>;
-  createBookmark(token: string, input: BookmarkInput): Promise<Bookmark>;
-  updateBookmark(token: string, id: number, input: Partial<BookmarkInput>): Promise<Bookmark>;
-  deleteBookmark(token: string, id: number): Promise<void>;
-  archiveBookmark(token: string, id: number): Promise<Bookmark>;
-  restoreBookmark(token: string, id: number): Promise<Bookmark>;
-  permanentDeleteBookmark(token: string, id: number): Promise<void>;
-  createTag(token: string, name: string): Promise<Tag>;
-  updateTag(token: string, id: number, name: string): Promise<Tag>;
-  deleteTag(token: string, id: number): Promise<void>;
-  mergeTag(token: string, id: number, targetId: number): Promise<Tag>;
-  getAdminStats(token?: string, signal?: AbortSignal): Promise<AdminStats>;
+  getSettings(signal?: AbortSignal): Promise<Settings>;
+  updateSettings(input: Partial<Settings>): Promise<Settings>;
+  createBookmark(input: BookmarkInput): Promise<Bookmark>;
+  updateBookmark(id: number, input: Partial<BookmarkInput>): Promise<Bookmark>;
+  deleteBookmark(id: number): Promise<void>;
+  archiveBookmark(id: number): Promise<Bookmark>;
+  restoreBookmark(id: number): Promise<Bookmark>;
+  permanentDeleteBookmark(id: number): Promise<void>;
+  createTag(name: string): Promise<Tag>;
+  updateTag(id: number, name: string): Promise<Tag>;
+  deleteTag(id: number): Promise<void>;
+  mergeTag(id: number, targetId: number): Promise<Tag>;
+  getAdminStats(signal?: AbortSignal): Promise<AdminStats>;
 }
 
 export function createApiClient(options: ClientOptions): ApiClient {
@@ -118,155 +104,120 @@ export function createApiClient(options: ClientOptions): ApiClient {
     logout() {
       return request<void>(options, ENDPOINTS.authLogout, { method: 'POST' });
     },
-    me(token, signal) {
-      return request<{ ok: true }>(options, ENDPOINTS.authMe, { signal }, token);
+    me(signal) {
+      return request<{ ok: true }>(options, ENDPOINTS.authMe, { signal });
     },
-    getBookmarks(token, listOptions, signal) {
+    getBookmarks(listOptions, signal) {
       const path = `${ENDPOINTS.bookmarks}${buildQuery({
         ...listOptions,
         pinned: listOptions?.pinned ? 1 : undefined,
       })}`;
-      return request<BookmarkPage>(options, path, { signal }, token);
+      return request<BookmarkPage>(options, path, { signal });
     },
-    searchBookmarks(token, query, listOptions, signal) {
+    searchBookmarks(query, listOptions, signal) {
       const path = `${ENDPOINTS.bookmarksSearch}${buildQuery({ q: query, ...listOptions })}`;
-      return request<BookmarkPage>(options, path, { signal }, token);
+      return request<BookmarkPage>(options, path, { signal });
     },
-    getTags(token, signal) {
-      return request<Tag[]>(options, ENDPOINTS.tags, { signal }, token);
+    getTags(signal) {
+      return request<Tag[]>(options, ENDPOINTS.tags, { signal });
     },
-    getCategories(token, signal) {
-      return request<Category[]>(options, ENDPOINTS.categories, { signal }, token);
+    getCategories(signal) {
+      return request<Category[]>(options, ENDPOINTS.categories, { signal });
     },
-    createCategory(token, input) {
-      return request<Category>(
-        options,
-        ENDPOINTS.categories,
-        { method: 'POST', body: JSON.stringify(input) },
-        token,
-      );
+    createCategory(input) {
+      return request<Category>(options, ENDPOINTS.categories, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
     },
-    updateCategory(token, id, input) {
-      return request<Category>(
-        options,
-        `${ENDPOINTS.categories}/${id}`,
-        { method: 'PUT', body: JSON.stringify(input) },
-        token,
-      );
+    updateCategory(id, input) {
+      return request<Category>(options, `${ENDPOINTS.categories}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
     },
-    deleteCategory(token, id) {
-      return request<void>(options, `${ENDPOINTS.categories}/${id}`, { method: 'DELETE' }, token);
+    deleteCategory(id) {
+      return request<void>(options, `${ENDPOINTS.categories}/${id}`, { method: 'DELETE' });
     },
-    reorderCategories(token, ids) {
-      return request<void>(
-        options,
-        ENDPOINTS.categoriesReorder,
-        { method: 'POST', body: JSON.stringify({ ids }) },
-        token,
-      );
+    reorderCategories(ids) {
+      return request<void>(options, ENDPOINTS.categoriesReorder, {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      });
     },
-    getMetadata(token, url, signal) {
+    getMetadata(url, signal) {
       return request<MetadataPreview>(
         options,
         `${ENDPOINTS.bookmarksMetadata}${buildQuery({ url })}`,
         { signal },
-        token,
       );
     },
-    getFavicon(token, url, signal) {
+    getFavicon(url, signal) {
       return request<FaviconPreview>(
         options,
         `${ENDPOINTS.bookmarksFavicon}${buildQuery({ url })}`,
         { signal },
-        token,
       );
     },
     getPublicSettings(signal) {
       return request<PublicSettings>(options, ENDPOINTS.publicSettings, { signal });
     },
-    getSettings(token, signal) {
-      return request<Settings>(options, ENDPOINTS.settings, { signal }, token);
+    getSettings(signal) {
+      return request<Settings>(options, ENDPOINTS.settings, { signal });
     },
-    updateSettings(token, input) {
-      return request<Settings>(
-        options,
-        ENDPOINTS.settings,
-        { method: 'PUT', body: JSON.stringify(input) },
-        token,
-      );
+    updateSettings(input) {
+      return request<Settings>(options, ENDPOINTS.settings, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
     },
-    createBookmark(token, input) {
-      return request<Bookmark>(
-        options,
-        ENDPOINTS.bookmarks,
-        { method: 'POST', body: JSON.stringify(input) },
-        token,
-      );
+    createBookmark(input) {
+      return request<Bookmark>(options, ENDPOINTS.bookmarks, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
     },
-    updateBookmark(token, id, input) {
-      return request<Bookmark>(
-        options,
-        `${ENDPOINTS.bookmarks}/${id}`,
-        { method: 'PUT', body: JSON.stringify(input) },
-        token,
-      );
+    updateBookmark(id, input) {
+      return request<Bookmark>(options, `${ENDPOINTS.bookmarks}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
     },
-    deleteBookmark(token, id) {
-      return request<void>(options, `${ENDPOINTS.bookmarks}/${id}`, { method: 'DELETE' }, token);
+    deleteBookmark(id) {
+      return request<void>(options, `${ENDPOINTS.bookmarks}/${id}`, { method: 'DELETE' });
     },
-    archiveBookmark(token, id) {
-      return request<Bookmark>(
-        options,
-        `${ENDPOINTS.bookmarks}/${id}/archive`,
-        { method: 'POST' },
-        token,
-      );
+    archiveBookmark(id) {
+      return request<Bookmark>(options, `${ENDPOINTS.bookmarks}/${id}/archive`, { method: 'POST' });
     },
-    restoreBookmark(token, id) {
-      return request<Bookmark>(
-        options,
-        `${ENDPOINTS.bookmarks}/${id}/restore`,
-        { method: 'POST' },
-        token,
-      );
+    restoreBookmark(id) {
+      return request<Bookmark>(options, `${ENDPOINTS.bookmarks}/${id}/restore`, { method: 'POST' });
     },
-    permanentDeleteBookmark(token, id) {
-      return request<void>(
-        options,
-        `${ENDPOINTS.bookmarks}/${id}/permanent`,
-        { method: 'DELETE' },
-        token,
-      );
+    permanentDeleteBookmark(id) {
+      return request<void>(options, `${ENDPOINTS.bookmarks}/${id}/permanent`, { method: 'DELETE' });
     },
-    createTag(token, name) {
-      return request<Tag>(
-        options,
-        ENDPOINTS.tags,
-        { method: 'POST', body: JSON.stringify({ name }) },
-        token,
-      );
+    createTag(name) {
+      return request<Tag>(options, ENDPOINTS.tags, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
     },
-    updateTag(token, id, name) {
-      return request<Tag>(
-        options,
-        `${ENDPOINTS.tags}/${id}`,
-        { method: 'PUT', body: JSON.stringify({ name }) },
-        token,
-      );
+    updateTag(id, name) {
+      return request<Tag>(options, `${ENDPOINTS.tags}/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      });
     },
-    deleteTag(token, id) {
-      return request<void>(options, `${ENDPOINTS.tags}/${id}`, { method: 'DELETE' }, token);
+    deleteTag(id) {
+      return request<void>(options, `${ENDPOINTS.tags}/${id}`, { method: 'DELETE' });
     },
-    mergeTag(token, id, targetId) {
-      return request<Tag>(
-        options,
-        ENDPOINTS.tagsMerge(id),
-        { method: 'POST', body: JSON.stringify({ targetId }) },
-        token,
-      );
+    mergeTag(id, targetId) {
+      return request<Tag>(options, ENDPOINTS.tagsMerge(id), {
+        method: 'POST',
+        body: JSON.stringify({ targetId }),
+      });
     },
-    getAdminStats(token, signal) {
-      return request<AdminStats>(options, ENDPOINTS.adminStats, { signal }, token);
+    getAdminStats(signal) {
+      return request<AdminStats>(options, ENDPOINTS.adminStats, { signal });
     },
   };
 }

@@ -17,8 +17,8 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
   function Harness() {
     result = useBookmarkMutations({
       onContentChange: vi.fn(),
-      reloadTags: vi.fn(),
-      reloadCategories: vi.fn(),
+      invalidateTags: vi.fn(),
+      invalidateCategories: vi.fn(),
       onSuccess: vi.fn(),
       onError,
     });

@@ -47,7 +47,6 @@ it('请求无标签分页与总数，支持搜索分页', async () => {
   props = { ...props, untagged: true, page: 2 };
   await render();
   expect(api.getBookmarks).toHaveBeenCalledWith(
-    undefined,
     expect.objectContaining({ view: 'active', untagged: true, offset: 24, limit: 24 }),
     expect.any(AbortSignal),
   );
@@ -56,7 +55,6 @@ it('请求无标签分页与总数，支持搜索分页', async () => {
   props = { ...props, page: 1, query: 'hello', untagged: undefined };
   await render();
   expect(api.searchBookmarks).toHaveBeenCalledWith(
-    undefined,
     'hello',
     expect.objectContaining({ offset: 0, limit: 24 }),
     expect.any(AbortSignal),
@@ -80,7 +78,7 @@ it('取消的旧响应不会覆盖新页', async () => {
       }),
   );
   await render();
-  const signal = vi.mocked(api.getBookmarks).mock.calls[0][2];
+  const signal = vi.mocked(api.getBookmarks).mock.calls[0][1];
   vi.mocked(api.getBookmarks).mockResolvedValue({ items: [], total: 2, nextCursor: null });
   props = { ...props, tag: 'new' };
   await render();

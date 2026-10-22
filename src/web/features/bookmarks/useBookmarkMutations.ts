@@ -10,14 +10,15 @@ export type BookmarkChange =
 
 type BookmarkMutationEffects = {
   onContentChange: (change: BookmarkChange) => void;
-  reloadTags: () => Promise<unknown> | void;
-  reloadCategories: () => Promise<unknown> | void;
+  invalidateTags: () => void;
+  invalidateCategories: () => void;
   onSuccess: (change: BookmarkChange) => void;
   onError: (message: string) => void;
 };
 
 /**
- * 前后台共用书签写入与刷新规则；呈现决定游标覆盖或页码刷新及反馈外观。
+ * 前后台共用书签写入与失效通知；呈现决定缓存更新或页码刷新及反馈外观。
+ * 失效通知同步发出，不等待索引重新加载；成功反馈只表示写入已提交。
  * 保存失败向编辑器传播，其余操作通过 onError 反馈。卸载后停止内容刷新，
  * 反馈仍由呈现决定生命周期，让后台共享提示可跨管理页面保留。
  * 同一书签的冲突提交明确报错，由呈现保留草稿或提示稍后重试。
@@ -58,7 +59,8 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
       if (mounted.current) {
         effects.current.onContentChange(change);
         if (change.kind !== 'pinned') {
-          await Promise.all([effects.current.reloadTags(), effects.current.reloadCategories()]);
+          effects.current.invalidateTags();
+          effects.current.invalidateCategories();
         }
       }
       effects.current.onSuccess(change);
@@ -74,9 +76,7 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
     const change = await commit(id, async () => ({
       kind,
       bookmark:
-        id === undefined
-          ? await api.createBookmark('', input)
-          : await api.updateBookmark('', id, input),
+        id === undefined ? await api.createBookmark(input) : await api.updateBookmark(id, input),
     }));
     return change.bookmark;
   }
@@ -85,7 +85,7 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
     try {
       await commit(bookmark.id, async () => ({
         kind: 'pinned',
-        bookmark: await api.updateBookmark('', bookmark.id, { isPinned: !bookmark.isPinned }),
+        bookmark: await api.updateBookmark(bookmark.id, { isPinned: !bookmark.isPinned }),
       }));
     } catch (error) {
       effects.current.onError(error instanceof Error ? error.message : '操作失败，请重试');
@@ -97,14 +97,14 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
       await commit(id, async (): Promise<BookmarkChange> => {
         switch (state) {
           case 'archive':
-            return { kind: 'archived', bookmark: await api.archiveBookmark('', id) };
+            return { kind: 'archived', bookmark: await api.archiveBookmark(id) };
           case 'restore':
-            return { kind: 'restored', bookmark: await api.restoreBookmark('', id) };
+            return { kind: 'restored', bookmark: await api.restoreBookmark(id) };
           case 'trash':
-            await api.deleteBookmark('', id);
+            await api.deleteBookmark(id);
             return { kind: 'trashed', id };
           case 'delete':
-            await api.permanentDeleteBookmark('', id);
+            await api.permanentDeleteBookmark(id);
             return { kind: 'deleted', id };
         }
       });

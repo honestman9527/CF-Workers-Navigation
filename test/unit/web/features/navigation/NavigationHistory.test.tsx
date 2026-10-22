@@ -58,7 +58,7 @@ it('真实Router前后退恢复多分区快照与追加内容，深层链接正�
     { id: 5, slug: 'blogs', name: '博客', parentId: 4, sortOrder: 0 },
   ] as Category[]);
   vi.mocked(api.getTags).mockResolvedValue([]);
-  vi.mocked(api.getBookmarks).mockImplementation(async (_token, options) => {
+  vi.mocked(api.getBookmarks).mockImplementation(async (options) => {
     const name = options?.category ?? 'common';
     const id = name.length + (options?.cursor ? 100 : 0);
     return {
