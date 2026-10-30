@@ -278,17 +278,17 @@ export function SettingsTab() {
         <>
           <fieldset disabled={saving} className="min-w-0">
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="mb-5 h-auto max-w-full flex-wrap gap-1 rounded-xl bg-secondary/60 p-1.5">
-                <TabsTrigger className="min-h-10 rounded-lg px-4" value="privacy">
+              <TabsList className="mb-5 h-auto max-w-full flex-wrap gap-1 rounded-xl bg-secondary/60 p-1">
+                <TabsTrigger className="min-h-9 rounded-lg px-4" value="privacy">
                   访问与隐私
                 </TabsTrigger>
-                <TabsTrigger className="min-h-10 rounded-lg px-4" value="appearance">
+                <TabsTrigger className="min-h-9 rounded-lg px-4" value="appearance">
                   外观
                 </TabsTrigger>
-                <TabsTrigger className="min-h-10 rounded-lg px-4" value="icons">
+                <TabsTrigger className="min-h-9 rounded-lg px-4" value="icons">
                   网站图标
                 </TabsTrigger>
-                <TabsTrigger className="min-h-10 rounded-lg px-4" value="engines">
+                <TabsTrigger className="min-h-9 rounded-lg px-4" value="engines">
                   搜索引擎
                 </TabsTrigger>
               </TabsList>
