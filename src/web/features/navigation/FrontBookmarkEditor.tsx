@@ -47,7 +47,7 @@ export function FrontBookmarkEditor({
                 id="bookmark-url"
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
-                placeholder="https://example.com"
+                placeholder="https://workers.cloudflare.com"
                 autoFocus={!props.bookmark}
               />
               <FrontButton

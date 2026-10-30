@@ -30,10 +30,12 @@ export function FrontDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm" />
-        <Dialog.Popup className="front-surface fixed top-1/2 left-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-[1.125rem] border border-border bg-card p-6 text-foreground sm:p-8">
+        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40" />
+        <Dialog.Popup className="front-surface fixed top-1/2 left-1/2 z-50 max-h-[90dvh] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-card p-6 text-foreground sm:p-7">
           <div className="mb-6 flex items-center justify-between gap-4">
-            <Dialog.Title className="text-2xl font-semibold tracking-tight">{title}</Dialog.Title>
+            <Dialog.Title className="text-xl font-semibold tracking-tight sm:text-2xl">
+              {title}
+            </Dialog.Title>
             <Dialog.Close
               disabled={!dismissible}
               render={<FrontButton className="size-11 p-0" aria-label="关闭" />}

@@ -3,11 +3,12 @@ import type { Bookmark } from '@shared/api/types';
 
 import type { BookmarkFeedCache } from './bookmarkFeedCache';
 
-import { Pencil, Star } from 'lucide-react';
+import { Inbox, Pencil, Star } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { cn } from '@/lib/utils';
+import { categoryIcon } from '@nav/features/categories/icons';
 import { domainOf } from '@shared/search';
 
 import { categoryPath, categorySectionId } from './categoryBrowse';
@@ -40,25 +41,25 @@ export function FeedContent({
         <div
           role="status"
           aria-label="正在加载网站"
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
         >
           {Array.from({ length: 4 }, (_, index) => (
             <div
               key={index}
-              className="h-20 animate-pulse rounded-xl bg-secondary/60 motion-reduce:animate-none"
+              className="h-[68px] rounded-xl border border-border/40 bg-secondary/45"
             />
           ))}
         </div>
       ) : null}
       {feed.items.length > 0 ? (
-        <ul className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {feed.items.map((bookmark, index) => {
             return (
               <li
                 key={bookmark.id}
                 className={cn(
-                  'group flex min-w-0 items-center gap-1 rounded-[1.125rem] p-3 transition-colors hover:bg-card',
-                  highlighted === index && 'bg-accent ring-2 ring-primary/30',
+                  'group relative flex min-w-0 items-center gap-2 rounded-xl border border-border/45 bg-background/90 p-3 transition-colors hover:border-primary/40 hover:bg-accent/45 dark:bg-secondary/35 dark:hover:bg-secondary/65',
+                  highlighted === index && 'border-primary bg-accent ring-2 ring-primary/25',
                 )}
               >
                 <a
@@ -66,29 +67,29 @@ export function FeedContent({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`打开 ${bookmark.title}`}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-card">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-secondary/80 dark:bg-card">
                     <ImageWithFallback
                       src={bookmark.iconUrl}
                       loading="lazy"
-                      className="size-7 rounded-md object-contain"
+                      className="size-6 rounded-md object-contain"
                       fallback={
-                        <span className="text-lg font-semibold text-primary">
+                        <span className="text-base font-semibold text-primary">
                           {bookmark.title.charAt(0).toUpperCase()}
                         </span>
                       }
                     />
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span
-                      className="block truncate text-[15px] leading-6 font-semibold"
+                      className="block truncate text-[15px] leading-5 font-semibold text-foreground"
                       title={bookmark.title}
                     >
                       {bookmark.title}
                     </span>
                     <span
-                      className="block truncate text-xs leading-5 text-muted-foreground"
+                      className="mt-1 block truncate text-xs leading-4 text-muted-foreground"
                       title={bookmark.description ?? bookmark.url}
                     >
                       {bookmark.description || domainOf(bookmark.url)}
@@ -96,9 +97,9 @@ export function FeedContent({
                   </span>
                 </a>
                 {actions.authed ? (
-                  <div className="flex shrink-0 flex-col sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                  <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                     <FrontButton
-                      className="min-h-11 w-11 px-0 sm:min-h-8 sm:w-8"
+                      className="min-h-11 w-11 rounded-lg px-0 sm:min-h-8 sm:w-8"
                       aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
                       aria-pressed={bookmark.isPinned}
                       disabled={actions.pendingIds.has(bookmark.id)}
@@ -109,7 +110,7 @@ export function FeedContent({
                       />
                     </FrontButton>
                     <FrontButton
-                      className="min-h-11 w-11 px-0 sm:min-h-8 sm:w-8"
+                      className="min-h-11 w-11 rounded-lg px-0 sm:min-h-8 sm:w-8"
                       aria-label={`编辑：${bookmark.title}`}
                       onClick={() => actions.onEdit(bookmark)}
                     >
@@ -123,7 +124,7 @@ export function FeedContent({
         </ul>
       ) : null}
       {feed.loaded && feed.items.length === 0 ? (
-        <p className="py-6 text-sm text-muted-foreground">{emptyMessage}</p>
+        <p className="py-3 text-sm text-muted-foreground">{emptyMessage}</p>
       ) : null}
       {feed.error ? (
         <div
@@ -135,8 +136,9 @@ export function FeedContent({
         </div>
       ) : null}
       {feed.nextCursor && !feed.error ? (
-        <div className="mt-3 flex justify-center">
+        <div className="mt-4 flex justify-center">
           <FrontButton
+            tone="subtle"
             onClick={() => void feed.loadMore()}
             disabled={feed.loadingMore}
             className="text-primary"
@@ -174,6 +176,7 @@ export function BookmarkSection({
   const selected = path[path.length - 1] ?? root;
   const slug = pinned ? 'common' : root ? `category-${root.slug}` : 'uncategorized';
   const category = pinned ? undefined : (selected?.slug ?? 'uncategorized');
+  const Icon = pinned ? Star : root ? categoryIcon(root.icon) : Inbox;
   const feed = useBookmarkFeed({
     coordinator: actions.cache,
     pinned: pinned || undefined,
@@ -206,16 +209,28 @@ export function BookmarkSection({
       ref={section}
       id={categorySectionId(pinned ? undefined : (root?.slug ?? 'uncategorized'))}
       aria-labelledby={`heading-${slug}`}
-      className="min-h-48 scroll-mt-24 border-t border-border/50 py-8 sm:py-10"
+      className={cn(
+        'scroll-mt-24 rounded-2xl border border-border/45 bg-card/80 p-5 sm:p-6 dark:bg-card/55',
+        active && 'border-primary/35',
+      )}
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-3">
-        <h2
-          id={`heading-${slug}`}
-          tabIndex={-1}
-          className="text-xl font-semibold tracking-tight sm:text-2xl"
-        >
-          {pinned ? '常用网站' : (root?.name ?? '未分类')}
-        </h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
+          <h2
+            id={`heading-${slug}`}
+            tabIndex={-1}
+            className="text-lg font-semibold tracking-tight sm:text-xl"
+          >
+            {pinned ? '常用网站' : (root?.name ?? '未分类')}
+          </h2>
+        </div>
+        {feed.loaded ? (
+          <span className="rounded-full bg-secondary/70 px-2.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+            {feed.items.length}
+            {feed.nextCursor ? '+' : ''} 项
+          </span>
+        ) : null}
       </div>
       {root && (root.children.length > 0 || path.length > 1) ? (
         <CategoryNavigation

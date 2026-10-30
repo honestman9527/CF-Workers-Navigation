@@ -40,9 +40,9 @@ export function CategoryNavigation({
     };
   }, [childrenKey]);
   return (
-    <div className="mb-5 space-y-2 px-3">
+    <div className="mb-4 flex flex-col gap-2.5 rounded-xl bg-secondary/45 p-3">
       <nav aria-label={`${path[0].name}分类路径`}>
-        <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm">
+        <ol className="flex flex-wrap items-center gap-1 text-xs font-medium sm:text-sm">
           {path.map((node, index) => (
             <li key={node.id} className="flex min-w-0 items-center gap-1">
               {index ? (
@@ -55,14 +55,14 @@ export function CategoryNavigation({
                 <span
                   aria-current="page"
                   tabIndex={-1}
-                  className="max-w-64 py-3 break-words text-foreground"
+                  className="inline-flex min-h-8 max-w-64 items-center rounded-lg bg-card px-2.5 py-1 font-semibold break-words text-foreground"
                 >
                   {node.name}
                 </span>
               ) : (
                 <FrontButton
                   onClick={() => onSelect(node.slug)}
-                  className="max-w-64 whitespace-normal text-primary"
+                  className="min-h-8 max-w-64 rounded-lg px-2.5 py-1 whitespace-normal text-primary hover:bg-card"
                 >
                   {node.name}
                 </FrontButton>
@@ -72,12 +72,15 @@ export function CategoryNavigation({
         </ol>
       </nav>
       {current.children.length ? (
-        <>
+        <div className="flex flex-wrap items-start gap-2">
           <ul
             ref={list}
             id={`children-${current.id}`}
             aria-label={`${current.name}子分类`}
-            className={cn('relative flex flex-wrap gap-2', !expanded && 'max-h-24 overflow-hidden')}
+            className={cn(
+              'relative flex flex-1 flex-wrap gap-2',
+              !expanded && 'max-h-24 overflow-hidden',
+            )}
           >
             {current.children.map((node, index) => (
               <li
@@ -86,10 +89,11 @@ export function CategoryNavigation({
                 aria-hidden={!expanded && index >= visibleCount ? true : undefined}
               >
                 <FrontButton
+                  tone="subtle"
                   onClick={() => onSelect(node.slug)}
                   tabIndex={!expanded && index >= visibleCount ? -1 : undefined}
                   aria-hidden={!expanded && index >= visibleCount ? true : undefined}
-                  className="h-11 max-w-full border border-border/60 bg-card px-4 text-sm"
+                  className="min-h-9 max-w-full rounded-xl px-3.5 py-1.5 text-xs sm:text-sm"
                   title={node.name}
                 >
                   <span className="truncate">{node.name}</span>
@@ -108,7 +112,7 @@ export function CategoryNavigation({
               aria-expanded={expanded}
               aria-controls={`children-${current.id}`}
               onClick={() => setExpanded((value) => !value)}
-              className="text-sm text-primary"
+              className="min-h-9 px-3 py-1.5 text-xs text-primary sm:text-sm"
             >
               {expanded ? '收起' : '更多分类'}
               {expanded ? (
@@ -118,7 +122,7 @@ export function CategoryNavigation({
               )}
             </FrontButton>
           ) : null}
-        </>
+        </div>
       ) : null}
     </div>
   );

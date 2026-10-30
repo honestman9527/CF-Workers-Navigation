@@ -32,7 +32,7 @@ export function NavigationMenu({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-40">
-          <Menu.Popup className="front-surface w-56 rounded-[1.125rem] border border-border bg-popover p-2 text-popover-foreground outline-none">
+          <Menu.Popup className="front-surface w-56 rounded-2xl border border-border/60 bg-popover p-2 text-popover-foreground outline-none">
             <Menu.RadioGroup
               value={theme}
               onValueChange={(value) => {
