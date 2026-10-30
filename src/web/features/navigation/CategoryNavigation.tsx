@@ -41,7 +41,7 @@ export function CategoryNavigation({
   }, [childrenKey]);
   return (
     <div className="mb-4 flex flex-col gap-2.5 rounded-xl bg-secondary/45 p-3">
-      <nav aria-label={`${path[0].name}分类路径`}>
+      <nav aria-label={`${path[0].name}分类路径`} className={cn(path.length <= 1 && 'sr-only')}>
         <ol className="flex flex-wrap items-center gap-1 text-xs font-medium sm:text-sm">
           {path.map((node, index) => (
             <li key={node.id} className="flex min-w-0 items-center gap-1">

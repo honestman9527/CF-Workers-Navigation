@@ -1,7 +1,22 @@
 import type { Bookmark, BookmarkInput } from '@shared/api/types';
 
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, Globe, Inbox, Plus, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Globe,
+  Inbox,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Moon,
+  Plus,
+  Search,
+  Settings2,
+  SlidersHorizontal,
+  Star,
+  Sun,
+  X,
+} from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
@@ -216,12 +231,17 @@ function NavigationSurface() {
             <Link
               to="/"
               search={{}}
-              className="flex min-w-0 items-center gap-2.5 rounded-xl text-base font-semibold tracking-tight text-foreground"
+              className="flex min-w-0 items-center gap-3 rounded-xl text-foreground"
             >
-              <BrandIcon className="size-8 shrink-0" />
-              <span className="truncate">书签柜</span>
+              <BrandIcon className="size-9 shrink-0" />
+              <div className="min-w-0">
+                <strong className="block truncate font-display text-base font-semibold">
+                  书签柜
+                </strong>
+                <span className="block truncate text-xs text-muted-foreground">网站导航与整理</span>
+              </div>
             </Link>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
               {auth.authed ? (
                 <FrontButton
                   tone="subtle"
@@ -229,8 +249,8 @@ function NavigationSurface() {
                   className="min-h-10 px-3 text-primary"
                 >
                   <Plus className="size-4" />
-                  <span className="hidden sm:inline lg:hidden">添加书签</span>
-                  <span className="sr-only sm:hidden lg:not-sr-only lg:inline">添加书签</span>
+                  <span className="hidden sm:inline">添加书签</span>
+                  <span className="sr-only sm:hidden">添加书签</span>
                 </FrontButton>
               ) : null}
               <NavigationMenu
@@ -307,22 +327,77 @@ function NavigationSurface() {
             </div>
           </nav>
         </div>
-        <div className="hidden lg:flex lg:flex-col lg:gap-2.5 lg:border-t lg:border-border/45 lg:px-2 lg:pt-4">
-          <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
-            <span>{roots.length} 个一级分类</span>
-            <span>{tags.data?.length ?? 0} 个标签</span>
+        <div className="hidden lg:flex lg:flex-col lg:gap-2 lg:border-t lg:border-border/45 lg:pt-3.5">
+          <div
+            role="group"
+            aria-label="主题设置"
+            className="grid grid-cols-3 gap-1 rounded-xl bg-secondary/75 p-1"
+          >
+            {(
+              [
+                { value: 'light', label: '亮色', shortLabel: '亮色', icon: Sun },
+                { value: 'dark', label: '暗色', shortLabel: '暗色', icon: Moon },
+                { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Settings2 },
+              ] as const
+            ).map(({ value, label, shortLabel, icon: Icon }) => (
+              <FrontButton
+                key={value}
+                aria-pressed={theme === value}
+                aria-label={label}
+                title={label}
+                onClick={() => setTheme(value)}
+                className={cn(
+                  'min-h-8 gap-1.5 rounded-lg px-2 py-1 text-xs',
+                  theme === value
+                    ? 'bg-card font-semibold text-foreground'
+                    : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
+                )}
+              >
+                <Icon className="size-3.5 shrink-0" />
+                <span>{shortLabel}</span>
+              </FrontButton>
+            ))}
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>聚焦搜索框</span>
-            <kbd className="rounded-md border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground">
-              /
-            </kbd>
-          </div>
+          {auth.authed ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              <FrontButton
+                tone="subtle"
+                onClick={() => void navigate({ to: '/admin' })}
+                className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
+              >
+                <LayoutDashboard className="size-3.5 shrink-0" />
+                <span>管理后台</span>
+              </FrontButton>
+              <FrontButton
+                tone="subtle"
+                disabled={loggingOut}
+                onClick={() => void logout()}
+                className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+              >
+                <LogOut className="size-3.5 shrink-0" />
+                <span>{loggingOut ? '退出中…' : '退出登录'}</span>
+              </FrontButton>
+            </div>
+          ) : (
+            <FrontButton
+              tone="subtle"
+              onClick={() =>
+                void navigate({
+                  to: '/login',
+                  search: { redirect: window.location.pathname + window.location.search },
+                })
+              }
+              className="min-h-9 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
+            >
+              <LogIn className="size-3.5 shrink-0" />
+              <span>管理员登录</span>
+            </FrontButton>
+          )}
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col justify-between px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <main className="min-w-0 flex-1">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 书签柜网站导航
@@ -332,6 +407,16 @@ function NavigationSurface() {
                 个标签
               </p>
             </div>
+            {auth.authed ? (
+              <FrontButton
+                tone="primary"
+                onClick={() => setEditor('new')}
+                className="hidden min-h-10 px-4 lg:inline-flex"
+              >
+                <Plus className="size-4" />
+                添加书签
+              </FrontButton>
+            ) : null}
           </div>
           {settingsError ? (
             <div
