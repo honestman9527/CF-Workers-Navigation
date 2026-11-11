@@ -60,17 +60,18 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 
 `GET /bookmarks` 和 `GET /bookmarks/search` 支持以下查询参数：
 
-| 参数       | 当前行为                                                          |
-| ---------- | ----------------------------------------------------------------- |
-| `q`        | 搜索接口必填，长度 1–100；按标题、描述、URL 全文搜索              |
-| `view`     | `active`、`archive`、`trash` 或 `all`，默认 `active`              |
-| `category` | 分类 slug；包含该分类及全部后代。`uncategorized` 只匹配未归类书签 |
-| `tag`      | 标签 slug；与其他 API 筛选条件可组合                              |
-| `untagged` | `true`/`1` 只匹配无标签书签，`false`/`0` 关闭筛选                 |
-| `pinned`   | `true`/`1` 只匹配置顶书签                                         |
-| `limit`    | 每页 1–100 条，默认 24                                            |
-| `cursor`   | 不透明游标；省略 `offset` 时用于连续翻页                          |
-| `offset`   | 非负偏移量；提供后切换为页码模式并返回 `total`                    |
+| 参数           | 当前行为                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `q`            | 搜索接口必填，长度 1–100；按标题、描述、URL 全文搜索                                                         |
+| `view`         | `active`、`archive`、`trash` 或 `all`，默认 `active`                                                         |
+| `category`     | 分类 slug；包含该分类及全部后代。`uncategorized` 只匹配未归类书签                                            |
+| `categoryOnly` | `true`/`1` 仅匹配 `category` 的直属书签；默认或 `false`/`0` 包含后代。无 `category` 时不限制，未分类行为不变 |
+| `tag`          | 标签 slug；与其他 API 筛选条件可组合                                                                         |
+| `untagged`     | `true`/`1` 只匹配无标签书签，`false`/`0` 关闭筛选                                                            |
+| `pinned`       | `true`/`1` 只匹配置顶书签                                                                                    |
+| `limit`        | 每页 1–100 条，默认 24                                                                                       |
+| `cursor`       | 不透明游标；省略 `offset` 时用于连续翻页                                                                     |
+| `offset`       | 非负偏移量；提供后切换为页码模式并返回 `total`                                                               |
 
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 

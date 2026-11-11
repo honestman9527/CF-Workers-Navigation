@@ -114,7 +114,15 @@ beforeEach(() => {
     items:
       options?.category === 'uncategorized'
         ? []
-        : [item(options?.pinned ? 1 : options?.category === '阅读' ? 3 : 2)],
+        : [
+            item(
+              options?.pinned
+                ? 1
+                : ({ 工具: 2, 阅读: 3, 开发: 12, 前端: 14, React: 15, 博客: 16 }[
+                    options?.category ?? ''
+                  ] ?? 2),
+            ),
+          ],
     nextCursor: null,
   }));
   vi.mocked(api.searchBookmarks).mockResolvedValue({ items: [item(4)], nextCursor: null });
@@ -136,23 +144,36 @@ async function submit() {
   );
 }
 
-it('默认只展示常用，一级点击隔离内容，二级切换取数', async () => {
+it('默认只展示常用，一级下所有二级同时平铺，其他一级不取数', async () => {
   app = await mount(<Host />);
   expect(api.getBookmarks).toHaveBeenCalledTimes(1);
   expect(app.container.querySelector('#section-common')?.textContent).toContain('网站1');
-  expect(app.container.querySelector('#section-category-工具')).toBeNull();
   const nav = app.container.querySelector('[aria-label="分类导航"]') as HTMLElement;
   await click(buttonWithText(nav, '工具'));
   const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
-  expect(tools.textContent).toContain('网站2');
+  expect([...tools.querySelectorAll('h3')].map((node) => node.textContent)).toEqual([
+    '直属书签',
+    '开发',
+    '前端',
+    'React',
+  ]);
+  expect(tools.textContent).toContain('网站12');
+  expect(tools.textContent).toContain('网站14');
+  expect(tools.textContent).toContain('网站15');
+  expect(tools.querySelector('button')).toBeNull();
   expect(app.container.querySelector('#section-common')).toBeNull();
   expect(app.container.querySelector('#section-category-阅读')).toBeNull();
-  await click(buttonWithText(tools, '开发'));
-  expect(route.search.category).toBe('开发');
-  expect(api.getBookmarks).toHaveBeenLastCalledWith(
-    expect.objectContaining({ category: '开发', limit: 12 }),
-    expect.any(AbortSignal),
-  );
+  expect(
+    vi
+      .mocked(api.getBookmarks)
+      .mock.calls.slice(1)
+      .map(([options]) => [options?.category, options?.categoryOnly]),
+  ).toEqual([
+    ['工具', true],
+    ['开发', true],
+    ['前端', true],
+    ['React', true],
+  ]);
 });
 
 it('常用切换更新当前条目，分类不重新请求，进入常用读取最新列表', async () => {
@@ -368,24 +389,22 @@ it('返回无显式模式的首页继续沿用最后选择；输入法组合期�
   );
 });
 
-it('二级始终显示全部及同级入口，侧栏只高亮所属一级', async () => {
+it('二级深链接展示全部同级分组，侧栏高亮所属一级', async () => {
   app = await mount(<Host initial={{ category: '开发' }} />);
   const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
-  expect(tools.querySelector('[aria-current="page"]')?.textContent).toBe('开发');
-  expect(buttonWithText(tools, '全部')).not.toBeNull();
-  await click(buttonWithText(tools, 'React'));
-  expect(route.search.category).toBe('React');
+  expect(tools.querySelector('[aria-current="location"] h3')?.textContent).toBe('开发');
+  expect(tools.querySelectorAll('h3')).toHaveLength(4);
+  expect(tools.querySelector('button')).toBeNull();
   expect(
     buttonWithText(
       app.container.querySelector('[aria-label="分类导航"]') as HTMLElement,
       '工具',
     ).getAttribute('aria-current'),
   ).toBe('location');
-  await click(buttonWithText(tools, '全部'));
-  expect(route.search.category).toBe('工具');
+  expect(Element.prototype.scrollIntoView).toHaveBeenCalledOnce();
 });
 
-it('一级点击回全部，并保留关键词标签；分类内搜索后清除保留分类', async () => {
+it('一级点击保留关键词标签，聚合搜索后清除恢复所有分类分组', async () => {
   app = await mount(
     <Host initial={{ category: '开发', q: 'React', tag: 'react', mode: 'site' }} />,
   );
@@ -398,31 +417,29 @@ it('一级点击回全部，并保留关键词标签；分类内搜索后清除�
     buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '工具'),
   );
   expect(route.search).toMatchObject({ category: '工具', q: 'React', tag: 'react' });
-  await click(
-    buttonWithText(app.container.querySelector('#section-category-工具') as HTMLElement, '前端'),
-  );
   expect(api.searchBookmarks).toHaveBeenLastCalledWith(
     'React',
-    expect.objectContaining({ category: '前端', tag: 'react' }),
+    expect.objectContaining({ category: '工具', tag: 'react' }),
     expect.any(AbortSignal),
   );
   await click(buttonWithText(app.container, '清除搜索与筛选'));
-  expect(route.search.category).toBe('前端');
+  expect(route.search.category).toBe('工具');
   expect(route.search.q).toBeUndefined();
   expect(route.search.tag).toBeUndefined();
+  expect(app.container.querySelectorAll('#section-category-工具 h3')).toHaveLength(4);
 });
 
-it('二级深链接只显示所属一级，重新挂载仍恢复当前二级', async () => {
+it('二级深链接重新挂载仍定位对应分组，不读取其他一级', async () => {
   app = await mount(<Host initial={{ category: 'React' }} />);
   expect(
-    app.container.querySelector('#section-category-工具 [aria-current="page"]')?.textContent,
+    app.container.querySelector('#section-category-React[aria-current="location"] h3')?.textContent,
   ).toBe('React');
-  expect(api.getBookmarks).toHaveBeenCalledOnce();
+  expect(api.getBookmarks).toHaveBeenCalledTimes(4);
   expect(app.container.querySelector('#section-category-阅读')).toBeNull();
   await app.cleanup();
   app = await mount(<Host initial={{ category: 'React' }} />);
   expect(
-    app.container.querySelector('#section-category-工具 [aria-current="page"]')?.textContent,
+    app.container.querySelector('#section-category-React[aria-current="location"] h3')?.textContent,
   ).toBe('React');
 });
 
@@ -439,7 +456,9 @@ it('后退前进恢复当前分类、筛选与滚动，不重新请求已缓存�
   window.dispatchEvent(new Event('scroll'));
   const count = vi.mocked(api.getBookmarks).mock.calls.length;
   await act(() => route.setSearch(earlier.search, earlier.key));
-  expect(app.container.querySelector('[aria-current="page"]')?.textContent).toBe('开发');
+  expect(
+    app.container.querySelector('#section-category-开发[aria-current="location"] h3')?.textContent,
+  ).toBe('开发');
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 640, behavior: 'instant' });
   Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
   await act(() => route.setSearch(later.search, later.key));
@@ -458,9 +477,12 @@ it('常用更新后的新读取采用服务端记录，不被本页旧覆盖遮�
     items: [{ ...item(2, '服务端新版'), isPinned: false }],
     nextCursor: null,
   });
-  await click(buttonWithText(section, '开发'));
-  expect(section.textContent).toContain('服务端新版');
-  expect(section.querySelector('[aria-label="加入常用：服务端新版"]')).not.toBeNull();
+  await click(
+    buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '阅读'),
+  );
+  const nextSection = app.container.querySelector('#section-category-阅读')!;
+  expect(nextSection.textContent).toContain('服务端新版');
+  expect(nextSection.querySelector('[aria-label="加入常用：服务端新版"]')).not.toBeNull();
 });
 
 it('常用中搜索明确显示全库，清空回常用，未知分类回默认并提示', async () => {
@@ -506,4 +528,77 @@ it('默认常用与分类索引并行加载，不因索引延迟阻塞书签', a
   expect(app.container.querySelector('#section-common')?.textContent).toContain('网站1');
   await act(() => finish([]));
   expect(api.getBookmarks).toHaveBeenCalledOnce();
+});
+
+it('分组独立追加与重试，空二级保留标题，返回一级恢复追加内容', async () => {
+  let fail = true;
+  vi.mocked(api.getBookmarks).mockImplementation(async (options) => {
+    if (options?.category === '工具' || options?.category === '前端')
+      return { items: [], nextCursor: null };
+    if (options?.category === '开发') {
+      if (options.cursor && fail) {
+        fail = false;
+        throw new Error('开发追加失败');
+      }
+      return {
+        items: options.cursor ? [item(22)] : [item(12)],
+        nextCursor: options.cursor ? null : 'dev-next',
+      };
+    }
+    return { items: [item(15)], nextCursor: null };
+  });
+  app = await mount(<Host initial={{ category: '工具' }} />);
+  expect(app.container.querySelector('#section-category-工具-direct')).toBeNull();
+  expect(app.container.querySelector('#section-category-前端')?.textContent).toContain(
+    '这个分类还没有网站',
+  );
+  const dev = app.container.querySelector('#section-category-开发') as HTMLElement;
+  await click(buttonWithText(dev, '展开更多'));
+  expect(dev.textContent).toContain('开发追加失败');
+  expect(dev.textContent).toContain('网站12');
+  expect(app.container.querySelector('#section-category-React')?.textContent).toContain('网站15');
+  await click(buttonWithText(dev, '重试'));
+  expect(dev.textContent).toContain('网站22');
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      category: '开发',
+      categoryOnly: true,
+      cursor: 'dev-next',
+      limit: 24,
+    }),
+    expect.any(AbortSignal),
+  );
+  const nav = app.container.querySelector('[aria-label="分类导航"]') as HTMLElement;
+  await click(buttonWithText(nav, '阅读'));
+  const count = vi.mocked(api.getBookmarks).mock.calls.length;
+  await click(buttonWithText(nav, '工具'));
+  expect(app.container.querySelector('#section-category-开发')?.textContent).toContain('网站22');
+  expect(api.getBookmarks).toHaveBeenCalledTimes(count);
+});
+
+it('快速切换一级取消全部分组请求，迟到响应不进入新内容或缓存', async () => {
+  const pending: (() => void)[] = [];
+  vi.mocked(api.getBookmarks).mockImplementation((options) => {
+    if (['工具', '开发', '前端', 'React'].includes(options?.category ?? '')) {
+      return new Promise((resolve) =>
+        pending.push(() => resolve({ items: [item(99, '迟到旧内容')], nextCursor: null })),
+      );
+    }
+    return Promise.resolve({ items: [item(3)], nextCursor: null });
+  });
+  app = await mount(<Host initial={{ category: '工具' }} />);
+  const old = vi.mocked(api.getBookmarks).mock.calls.map((call) => call[1]!);
+  await click(
+    buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '阅读'),
+  );
+  expect(old).toHaveLength(4);
+  expect(old.every((signal) => signal.aborted)).toBe(true);
+  await act(() => pending.forEach((resolve) => resolve()));
+  expect(app.container.textContent).not.toContain('迟到旧内容');
+  expect(app.container.querySelector('#section-category-阅读')?.textContent).toContain('网站3');
+  await click(
+    buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '工具'),
+  );
+  expect(api.getBookmarks).toHaveBeenCalledTimes(10);
+  expect(app.container.textContent).not.toContain('迟到旧内容');
 });

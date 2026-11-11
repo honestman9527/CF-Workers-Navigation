@@ -625,3 +625,91 @@ describe('untagged bookmark filter', () => {
     );
   });
 });
+
+describe('direct category bookmark groups', () => {
+  it('keeps subtree defaults and separates direct list/search pages with permissions', async () => {
+    const createCategory = async (name: string, parentId?: number, visibility = 'public') => {
+      const response = await exports.default.fetch(`${API}/categories`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ name, parentId, visibility }),
+      });
+      expect(response.status).toBe(201);
+      return response.json<{ id: number; slug: string }>();
+    };
+    const root = await createCategory('Flat groups');
+    const child = await createCategory('Child group', root.id);
+    const direct = await createBookmark({
+      title: 'flatgroup direct',
+      url: 'https://flat.test/direct',
+      categoryId: root.id,
+      visibility: 'public',
+      tags: ['flatgroup'],
+    });
+    const nested = await createBookmark({
+      title: 'flatgroup child',
+      url: 'https://flat.test/child',
+      categoryId: child.id,
+      visibility: 'public',
+      tags: ['flatgroup'],
+    });
+    await createBookmark({
+      title: 'flatgroup private',
+      url: 'https://flat.test/private',
+      categoryId: root.id,
+      visibility: 'private',
+    });
+    const later = await createBookmark({
+      title: 'flatgroup later',
+      url: 'https://flat.test/later',
+      categoryId: root.id,
+      visibility: 'public',
+      tags: ['flatgroup'],
+    });
+    const ids = (page: BookmarkPage) => page.items.map((item) => item.id);
+    const all = await listBookmarks(`?category=${root.slug}&tag=flatgroup`);
+    expect(ids(all.page)).toEqual(expect.arrayContaining([direct.id, nested.id]));
+    const own = await listBookmarks(
+      `?category=${root.slug}&categoryOnly=true&tag=flatgroup&offset=0&limit=1`,
+    );
+    expect(ids(own.page)).toEqual([later.id]);
+    expect(own.page.total).toBe(2);
+    const search = await searchBookmarks('flatgroup', {
+      category: root.slug,
+      categoryOnly: '1',
+      tag: 'flatgroup',
+    });
+    expect(ids(search.page!)).toEqual(expect.arrayContaining([direct.id, later.id]));
+    expect(ids(search.page!)).not.toContain(nested.id);
+    const response = await exports.default.fetch(
+      `${API}/bookmarks?category=${root.slug}&categoryOnly=true&limit=1`,
+    );
+    expect(response.status).toBe(200);
+    const page = await response.json<BookmarkPage>();
+    expect(ids(page)).toEqual([later.id]);
+    expect(page.nextCursor).not.toBeNull();
+    const nextResponse = await exports.default.fetch(
+      `${API}/bookmarks?category=${root.slug}&categoryOnly=true&limit=1&cursor=${encodeURIComponent(page.nextCursor!)}`,
+    );
+    const nextPage = await nextResponse.json<BookmarkPage>();
+    expect(ids(nextPage)).toEqual([direct.id]);
+    expect(nextPage.nextCursor).toBeNull();
+    expect(
+      (await listBookmarks('?category=missing-flatgroup&categoryOnly=true')).page.items,
+    ).toEqual([]);
+    expect((await listBookmarks(`?category=${root.slug}&categoryOnly=bad`)).response.status).toBe(
+      400,
+    );
+    const privateRoot = await createCategory('Hidden flat groups', undefined, 'private');
+    await createBookmark({
+      title: 'Hidden flatgroup',
+      url: 'https://flat.test/inherited',
+      categoryId: privateRoot.id,
+      visibility: 'public',
+    });
+    const hidden = await exports.default.fetch(
+      `${API}/bookmarks?category=${privateRoot.slug}&categoryOnly=true`,
+    );
+    expect((await hidden.json<BookmarkPage>()).items).toEqual([]);
+  });
+});

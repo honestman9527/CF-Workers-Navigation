@@ -11,8 +11,7 @@ import { cn } from '@/lib/utils';
 import { categoryIcon } from '@nav/features/categories/icons';
 import { domainOf } from '@shared/search';
 
-import { categoryPath, categorySectionId } from './categoryBrowse';
-import { CategoryNavigation } from './CategoryNavigation';
+import { categorySectionId } from './categoryBrowse';
 import { FrontButton } from './controls';
 
 export type BookmarkActions = {
@@ -158,7 +157,6 @@ export function BookmarkSection({
   pinned = false,
   searching = false,
   highlighted,
-  onSelect,
   onClear,
 }: {
   root?: CategoryNode;
@@ -168,7 +166,6 @@ export function BookmarkSection({
   pinned?: boolean;
   searching?: boolean;
   highlighted?: number;
-  onSelect: (slug: string) => void;
   onClear: () => void;
 }) {
   const title =
@@ -202,13 +199,6 @@ export function BookmarkSection({
           </span>
         ) : null}
       </div>
-      {root && root.children.length ? (
-        <CategoryNavigation
-          key={root.slug}
-          path={categoryPath([root], selectedSlug)}
-          onSelect={onSelect}
-        />
-      ) : null}
       <FeedContent
         feed={feed}
         actions={actions}

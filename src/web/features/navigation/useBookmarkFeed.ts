@@ -1,20 +1,14 @@
-import type { Bookmark, BookmarkListOptions } from '@shared/api/types';
+import type { BookmarkListOptions } from '@shared/api/types';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@nav/api/client';
 
-import { createBookmarkFeedCache, type BookmarkFeedCache } from './bookmarkFeedCache';
-
-type FeedState = {
-  key: string;
-  items: Bookmark[];
-  nextCursor: string | null;
-  loading: boolean;
-  loadingMore: boolean;
-  loaded: boolean;
-  error: string | null;
-};
+import {
+  createBookmarkFeedCache,
+  type BookmarkFeedCache,
+  type FeedState,
+} from './bookmarkFeedCache';
 const empty = {
   items: [],
   nextCursor: null,
@@ -27,6 +21,7 @@ const empty = {
 /** 当前范围的游标资源；最近访问范围可恢复，取消的响应不能写入缓存。 */
 export function useBookmarkFeed({
   category,
+  categoryOnly,
   tag,
   untagged,
   pinned,
@@ -39,6 +34,7 @@ export function useBookmarkFeed({
   coordinator,
 }: {
   category?: string;
+  categoryOnly?: boolean;
   tag?: string;
   untagged?: boolean;
   pinned?: boolean;
@@ -59,15 +55,17 @@ export function useBookmarkFeed({
     query,
     version,
     pinned ? pinnedVersion : 0,
+    categoryOnly,
   ]);
-  const [state, setState] = useState<FeedState>({ ...empty, key });
-  const stateRef = useRef(state);
   const [ownCoordinator] = useState(createBookmarkFeedCache);
   const changes = coordinator ?? ownCoordinator;
+  const cache = changes.snapshots;
+  // 分组重新挂载时同步呈现缓存，使布局阶段恢复滚动时已有完整页面高度。
+  const [state, setState] = useState<FeedState>(
+    () => (cacheVisited && cache.get(key)) || { ...empty, key },
+  );
+  const stateRef = useRef(state);
   const [retry, setRetry] = useState(0);
-  const cache = useRef(new Map<string, FeedState>());
-  const cacheVersion = useRef(version);
-  const cachePinnedVersion = useRef(pinnedVersion);
   const controller = useRef<AbortController | null>(null);
   const busy = useRef(false);
   const unauthorized = useRef(onUnauthorized);
@@ -79,13 +77,13 @@ export function useBookmarkFeed({
     (next: FeedState) => {
       stateRef.current = next;
       if (cacheVisited && (next.loaded || next.error)) {
-        cache.current.delete(next.key);
-        cache.current.set(next.key, { ...next, loading: false, loadingMore: false });
-        while (cache.current.size > 24) cache.current.delete(cache.current.keys().next().value!);
+        cache.delete(next.key);
+        cache.set(next.key, { ...next, loading: false, loadingMore: false });
+        while (cache.size > 24) cache.delete(cache.keys().next().value!);
       }
       setState(next);
     },
-    [cacheVisited],
+    [cacheVisited, cache],
   );
 
   useEffect(
@@ -95,7 +93,6 @@ export function useBookmarkFeed({
           ...value,
           items: value.items.map((item) => (item.id === bookmark.id ? bookmark : item)),
         });
-        for (const [cacheKey, value] of cache.current) cache.current.set(cacheKey, patch(value));
         publish(patch(stateRef.current));
       }),
     [changes, publish],
@@ -106,6 +103,7 @@ export function useBookmarkFeed({
       const options: BookmarkListOptions = {
         view: 'active',
         category,
+        categoryOnly,
         tag,
         untagged,
         pinned,
@@ -116,25 +114,18 @@ export function useBookmarkFeed({
         ? api.searchBookmarks(query, options, signal)
         : api.getBookmarks(options, signal);
     },
-    [category, tag, untagged, pinned, query],
+    [category, categoryOnly, tag, untagged, pinned, query],
   );
 
   useEffect(() => {
-    if (cachePinnedVersion.current === pinnedVersion) return;
-    for (const cacheKey of cache.current.keys())
-      if (JSON.parse(cacheKey)[3]) cache.current.delete(cacheKey);
-    cachePinnedVersion.current = pinnedVersion;
-  }, [pinnedVersion]);
+    changes.invalidate(version, pinnedVersion);
+  }, [changes, version, pinnedVersion]);
 
   useEffect(() => {
-    if (cacheVersion.current !== version) {
-      cache.current.clear();
-      cacheVersion.current = version;
-    }
     if (!enabled) return;
     const current = new AbortController();
     controller.current = current;
-    const saved = cacheVisited ? cache.current.get(key) : undefined;
+    const saved = cacheVisited ? cache.get(key) : undefined;
     busy.current = !saved;
     if (saved) {
       publish(saved);
@@ -169,7 +160,18 @@ export function useBookmarkFeed({
       current.abort();
       read.finish();
     };
-  }, [key, request, enabled, retry, version, activePinnedVersion, cacheVisited, publish, changes]);
+  }, [
+    key,
+    request,
+    enabled,
+    retry,
+    version,
+    activePinnedVersion,
+    cacheVisited,
+    publish,
+    changes,
+    cache,
+  ]);
 
   async function loadMore() {
     const current = controller.current;
@@ -222,12 +224,12 @@ export function useBookmarkFeed({
   return {
     ...(state.key === key
       ? state
-      : (cacheVisited && cache.current.get(key)) || { ...empty, key, loading: enabled }),
+      : (cacheVisited && cache.get(key)) || { ...empty, key, loading: enabled }),
     loadMore,
     retry: () => {
       if (state.loaded) void loadMore();
       else {
-        cache.current.delete(key);
+        cache.delete(key);
         setRetry((value) => value + 1);
       }
     },

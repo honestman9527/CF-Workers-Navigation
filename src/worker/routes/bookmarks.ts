@@ -64,6 +64,7 @@ bookmarksRoutes.get('/search', async (c) => {
       {
         view: viewSchema.parse(c.req.query('view')),
         category: slugQuerySchema.parse(c.req.query('category')),
+        categoryOnly: parseBooleanQuery(c.req.query('categoryOnly')),
         tag: slugQuerySchema.parse(c.req.query('tag')),
         untagged: parseBooleanQuery(c.req.query('untagged')),
         pinned: parseBooleanQuery(c.req.query('pinned')),
@@ -103,6 +104,7 @@ bookmarksRoutes.get('/', async (c) => {
         {
           view: viewSchema.parse(c.req.query('view')),
           category: slugQuerySchema.parse(c.req.query('category')),
+          categoryOnly: parseBooleanQuery(c.req.query('categoryOnly')),
           tag: slugQuerySchema.parse(c.req.query('tag')),
           untagged: parseBooleanQuery(c.req.query('untagged')),
           pinned: parseBooleanQuery(c.req.query('pinned')),

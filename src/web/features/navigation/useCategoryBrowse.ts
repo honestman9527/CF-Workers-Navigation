@@ -3,7 +3,7 @@ import type { CategoryNode } from '@nav/features/categories/tree';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { categoryPath } from './categoryBrowse';
+import { categoryPath, categorySectionId } from './categoryBrowse';
 import {
   parseNavigationSearch,
   readSearchMode,
@@ -45,7 +45,16 @@ export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
         previousView.current.category === search.category
           ? browseTops.current.get(search.category ?? '')
           : undefined;
-      window.scrollTo({ top: snapshots.get(entryKey) ?? restored ?? 0, behavior: 'instant' });
+      const top = snapshots.get(entryKey) ?? restored;
+      const target =
+        !searching && search.category
+          ? document.getElementById(categorySectionId(search.category))
+          : null;
+      if (top === undefined && target?.matches('section[aria-current="location"]')) {
+        target.scrollIntoView({ block: 'start', behavior: 'instant' });
+      } else {
+        window.scrollTo({ top: top ?? 0, behavior: 'instant' });
+      }
       lastEntry.current = entryKey;
     }
     previousView.current = { searching, category: search.category };

@@ -42,6 +42,8 @@ export type BookmarkView = 'active' | 'archive' | 'trash' | 'all';
 export type BookmarkListOptions = {
   view?: BookmarkView;
   category?: string;
+  /** 分类仅匹配直属书签，默认仍包含后代。 */
+  categoryOnly?: boolean;
   tag?: string;
   /** 仅返回没有任何标签的书签。 */
   untagged?: boolean;

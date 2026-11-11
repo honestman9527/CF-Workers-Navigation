@@ -42,6 +42,7 @@ import {
 
 import { createBookmarkFeedCache } from './bookmarkFeedCache';
 import { BookmarkSection, type BookmarkActions } from './BookmarkSection';
+import { CategoryGroups } from './CategoryGroups';
 import { FrontButton } from './controls';
 import { NavigationMenu } from './NavigationMenu';
 import { type SearchMode } from './search';
@@ -139,6 +140,7 @@ function NavigationSurface() {
     cacheVisited: true,
     pinnedVersion,
     enabled:
+      (!browse.root || searching) &&
       (!search.category || search.category === 'uncategorized' || Boolean(categories.data)) &&
       !browse.invalidCategory,
     version,
@@ -666,17 +668,27 @@ function NavigationSurface() {
           ) : null}
           {(!search.category || search.category === 'uncategorized' || categories.data) &&
           !browse.invalidCategory ? (
-            <BookmarkSection
-              root={browse.root}
-              selectedSlug={search.category}
-              pinned={!searching && !search.category}
-              searching={searching}
-              actions={actions}
-              feed={results}
-              highlighted={highlighted}
-              onSelect={selectCategory}
-              onClear={clearSearch}
-            />
+            browse.root && !searching ? (
+              <CategoryGroups
+                root={browse.root}
+                selectedSlug={search.category}
+                actions={actions}
+                version={version}
+                pinnedVersion={pinnedVersion}
+                onUnauthorized={unauthorized}
+              />
+            ) : (
+              <BookmarkSection
+                root={browse.root}
+                selectedSlug={search.category}
+                pinned={!searching && !search.category}
+                searching={searching}
+                actions={actions}
+                feed={results}
+                highlighted={highlighted}
+                onClear={clearSearch}
+              />
+            )
           ) : null}
         </main>
         <footer className="mt-8 border-t border-border/40 pt-4 text-xs text-muted-foreground">

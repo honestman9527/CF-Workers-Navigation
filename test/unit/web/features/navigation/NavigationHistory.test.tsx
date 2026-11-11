@@ -45,8 +45,15 @@ afterEach(async () => {
 it('真实Router前后退恢复单一分类与追加内容，不重复锚点跳转', async () => {
   vi.stubGlobal('IntersectionObserver', undefined);
   vi.spyOn(window, 'scrollTo').mockImplementation((options: number | ScrollToOptions) => {
-    if (typeof options === 'object')
+    if (typeof options === 'object') {
+      if (options.top === 720) {
+        // 恢复滚动前必须已渲染追加内容，否则真实浏览器会把位置夹到短页面底部。
+        expect(document.querySelector('#section-category-react')?.textContent).toContain(
+          'react-105',
+        );
+      }
       Object.defineProperty(window, 'scrollY', { configurable: true, value: options.top ?? 0 });
+    }
   });
   Element.prototype.scrollIntoView = vi.fn();
   localStorage.clear();
@@ -83,8 +90,9 @@ it('真实Router前后退恢复单一分类与追加内容，不重复锚点跳�
   const tools = app.container.querySelector('#section-category-tools') as HTMLElement;
 
   expect(
-    app.container.querySelector('#section-category-tools')?.querySelector('[aria-current="page"]')
-      ?.textContent,
+    app.container
+      .querySelector('#section-category-tools')
+      ?.querySelector('[aria-current="location"] h3')?.textContent,
   ).toBe('React');
   await click(buttonWithText(tools, '展开更多'));
   expect(app.container.querySelector('#section-category-tools')?.textContent).toContain(
@@ -95,21 +103,20 @@ it('真实Router前后退恢复单一分类与追加内容，不重复锚点跳�
   await click(
     buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '阅读'),
   );
-  await click(
-    buttonWithText(app.container.querySelector('#section-category-reading') as HTMLElement, '博客'),
-  );
-  expect(router.state.location.search).toMatchObject({ category: 'blogs' });
+  expect(router.state.location.search).toMatchObject({ category: 'reading' });
+  expect(app.container.querySelector('#section-category-blogs h3')?.textContent).toBe('博客');
   Object.defineProperty(window, 'scrollY', { configurable: true, value: 1200 });
   window.dispatchEvent(new Event('scroll'));
   const requests = vi.mocked(api.getBookmarks).mock.calls.length;
   const anchors = vi.mocked(Element.prototype.scrollIntoView).mock.calls.length;
   await act(async () => {
-    router.history.go(-2);
+    router.history.go(-1);
     await router.load();
   });
   expect(
-    app.container.querySelector('#section-category-tools')?.querySelector('[aria-current="page"]')
-      ?.textContent,
+    app.container
+      .querySelector('#section-category-tools')
+      ?.querySelector('[aria-current="location"] h3')?.textContent,
   ).toBe('React');
   expect(app.container.querySelector('#section-category-tools')?.textContent).toContain(
     'react-105',
@@ -117,12 +124,10 @@ it('真实Router前后退恢复单一分类与追加内容，不重复锚点跳�
   expect(app.container.querySelector('#section-category-reading')).toBeNull();
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 720, behavior: 'instant' });
   await act(async () => {
-    router.history.go(2);
+    router.history.go(1);
     await router.load();
   });
-  expect(
-    app.container.querySelector('#section-category-reading [aria-current="page"]')?.textContent,
-  ).toBe('博客');
+  expect(app.container.querySelector('#section-category-blogs h3')?.textContent).toBe('博客');
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1200, behavior: 'instant' });
   expect(api.getBookmarks).toHaveBeenCalledTimes(requests);
   expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(anchors);

@@ -110,14 +110,23 @@ function viewCondition(view: BookmarkView): ReturnType<typeof sql> {
 
 const tagProjection = sql`COALESCE(json_group_array(CASE WHEN t.id IS NULL THEN NULL ELSE t.name END), '[]')`;
 
-/** 分类过滤：未分类走 IS NULL；真实 slug 用递归 CTE 取整棵子树，未知 slug 得空集。 */
-function categoryConditions(category: string | undefined): {
+/** 分类过滤：未分类走 IS NULL；直属用等值匹配，默认递归取子树，未知 slug 得空集。 */
+function categoryConditions(
+  category: string | undefined,
+  categoryOnly = false,
+): {
   cte: ReturnType<typeof sql>;
   condition: ReturnType<typeof sql>;
 } {
   if (!category) return { cte: sql``, condition: sql`` };
   if (category === UNCATEGORIZED_SLUG) {
     return { cte: sql``, condition: sql`AND b.category_id IS NULL` };
+  }
+  if (categoryOnly) {
+    return {
+      cte: sql``,
+      condition: sql`AND b.category_id = (SELECT id FROM categories WHERE slug = ${slugify(category)})`,
+    };
   }
   return {
     cte: sql`
@@ -133,7 +142,7 @@ function categoryConditions(category: string | undefined): {
 
 type BookmarkFilter = Pick<
   BookmarkListOptions,
-  'view' | 'category' | 'tag' | 'untagged' | 'pinned'
+  'view' | 'category' | 'categoryOnly' | 'tag' | 'untagged' | 'pinned'
 >;
 
 /** 列表与搜索共用的过滤片段：condition 以 AND 开头，可接在 WHERE 主表达式之后。 */
@@ -144,7 +153,10 @@ function buildFilter(
   cte: ReturnType<typeof sql>;
   condition: ReturnType<typeof sql>;
 } {
-  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(filter.category);
+  const { cte: categoryCte, condition: categoryCondition } = categoryConditions(
+    filter.category,
+    filter.categoryOnly,
+  );
   const tagCondition = filter.tag
     ? sql`AND EXISTS (
         SELECT 1 FROM bookmark_tags filter_bt
