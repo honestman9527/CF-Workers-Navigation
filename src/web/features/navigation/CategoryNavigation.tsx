@@ -1,6 +1,6 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
-import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -14,12 +14,14 @@ export function CategoryNavigation({
   path: CategoryNode[];
   onSelect: (slug: string) => void;
 }) {
+  const root = path[0];
   const current = path[path.length - 1];
+  const choices = [{ ...root, name: '全部' }, ...root.children];
   const list = useRef<HTMLUListElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflow, setOverflow] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(current.children.length);
-  const childrenKey = JSON.stringify(current.children.map((child) => [child.slug, child.name]));
+  const [visibleCount, setVisibleCount] = useState(choices.length);
+  const childrenKey = JSON.stringify(choices.map((child) => [child.slug, child.name]));
   useLayoutEffect(() => {
     const element = list.current;
     if (!element) return;
@@ -41,48 +43,18 @@ export function CategoryNavigation({
   }, [childrenKey]);
   return (
     <div className="mb-4 flex flex-col gap-2.5 rounded-xl bg-secondary/45 p-3">
-      <nav aria-label={`${path[0].name}分类路径`} className={cn(path.length <= 1 && 'sr-only')}>
-        <ol className="flex flex-wrap items-center gap-1 text-xs font-medium sm:text-sm">
-          {path.map((node, index) => (
-            <li key={node.id} className="flex min-w-0 items-center gap-1">
-              {index ? (
-                <ChevronRight
-                  aria-hidden="true"
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-              ) : null}
-              {index === path.length - 1 ? (
-                <span
-                  aria-current="page"
-                  tabIndex={-1}
-                  className="inline-flex min-h-8 max-w-64 items-center rounded-lg bg-card px-2.5 py-1 font-semibold break-words text-foreground"
-                >
-                  {node.name}
-                </span>
-              ) : (
-                <FrontButton
-                  onClick={() => onSelect(node.slug)}
-                  className="min-h-8 max-w-64 rounded-lg px-2.5 py-1 whitespace-normal text-primary hover:bg-card"
-                >
-                  {node.name}
-                </FrontButton>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
-      {current.children.length ? (
+      {choices.length ? (
         <div className="flex flex-wrap items-start gap-2">
           <ul
             ref={list}
-            id={`children-${current.id}`}
-            aria-label={`${current.name}子分类`}
+            id={`children-${root.id}`}
+            aria-label={`${root.name}二级分类`}
             className={cn(
               'relative flex flex-1 flex-wrap gap-2',
-              !expanded && 'max-h-24 overflow-hidden',
+              !expanded && 'max-h-28 overflow-hidden',
             )}
           >
-            {current.children.map((node, index) => (
+            {choices.map((node, index) => (
               <li
                 key={node.id}
                 className="flex max-w-full"
@@ -91,18 +63,16 @@ export function CategoryNavigation({
                 <FrontButton
                   tone="subtle"
                   onClick={() => onSelect(node.slug)}
+                  aria-current={current.slug === node.slug ? 'page' : undefined}
                   tabIndex={!expanded && index >= visibleCount ? -1 : undefined}
                   aria-hidden={!expanded && index >= visibleCount ? true : undefined}
-                  className="min-h-9 max-w-full rounded-xl px-3.5 py-1.5 text-xs sm:text-sm"
+                  className={cn(
+                    'min-h-11 max-w-full rounded-xl px-3.5 py-1.5 text-xs sm:text-sm',
+                    current.slug === node.slug && 'bg-accent font-semibold text-primary',
+                  )}
                   title={node.name}
                 >
                   <span className="truncate">{node.name}</span>
-                  {node.children.length ? (
-                    <ChevronRight
-                      aria-hidden="true"
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                    />
-                  ) : null}
                 </FrontButton>
               </li>
             ))}
@@ -110,7 +80,7 @@ export function CategoryNavigation({
           {overflow ? (
             <FrontButton
               aria-expanded={expanded}
-              aria-controls={`children-${current.id}`}
+              aria-controls={`children-${root.id}`}
               onClick={() => setExpanded((value) => !value)}
               className="min-h-9 px-3 py-1.5 text-xs text-primary sm:text-sm"
             >

@@ -51,7 +51,7 @@ it('只展示两行入口，更多展开后可聚焦所有分类，收起和尺�
   expect(fifth.closest('li')?.hasAttribute('aria-hidden')).toBe(false);
   await click(buttonWithText(app.container, '收起'));
   expect(fifth.tabIndex).toBe(-1);
-  perRow = 3;
+  perRow = 4;
   await act(() => resized());
   expect(fifth.tabIndex).toBe(0);
   expect(app.container.textContent).not.toContain('更多分类');
@@ -60,14 +60,15 @@ it('只展示两行入口，更多展开后可聚焦所有分类，收起和尺�
   expect(buttonWithText(app.container, '分类2').tabIndex).toBe(-1);
 });
 
-it('叶子只显示完整可返回路径，长名称保留完整文本和入口提示', async () => {
-  const root = node(1, '开发');
+it('选中二级仍保留全部及同级入口，长名称保留完整提示', async () => {
   const longName = '用于长名称换行检查的前端框架与开发工具分类';
   const child = node(2, longName);
+  const root = node(1, '开发', [child, node(3, '后端')]);
   const select = vi.fn();
   app = await mount(<CategoryNavigation path={[root, child]} onSelect={select} />);
-  expect(app.container.querySelector('ul')).toBeNull();
   expect(app.container.querySelector('[aria-current="page"]')?.textContent).toBe(longName);
-  await click(buttonWithText(app.container, '开发'));
+  expect(buttonWithText(app.container, longName).title).toBe(longName);
+  expect(buttonWithText(app.container, '后端')).not.toBeNull();
+  await click(buttonWithText(app.container, '全部'));
   expect(select).toHaveBeenCalledWith('node-1');
 });

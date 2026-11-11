@@ -3,9 +3,9 @@ import type { Category } from '@shared/api/types';
 import { expect, it } from 'vitest';
 
 import { buildCategoryTree } from '@nav/features/categories/tree';
-import { categoryPath, resolveSelections } from '@nav/features/navigation/categoryBrowse';
+import { categoryPath } from '@nav/features/navigation/categoryBrowse';
 
-it('树变化后保留有效路径，丢弃已移走或不可见的分类选择，不受同名分类影响', () => {
+it('按可见树解析当前分类路径，未知分类返回空，不受同名分类影响', () => {
   const roots = buildCategoryTree([
     { id: 1, name: '工具', slug: 'tools', parentId: null, sortOrder: 0 },
     { id: 2, name: '前端', slug: 'frontend', parentId: 1, sortOrder: 0 },
@@ -16,10 +16,6 @@ it('树变化后保留有效路径，丢弃已移走或不可见的分类选择�
     'reading',
     'frontend-reading',
   ]);
-  expect(
-    resolveSelections(roots, { tools: 'removed', reading: 'frontend-reading' }, 'private-hidden'),
-  ).toEqual({ tools: 'tools', reading: 'frontend-reading' });
-  expect(
-    resolveSelections(roots, { tools: 'frontend-reading', reading: 'reading' }, 'frontend'),
-  ).toEqual({ tools: 'frontend', reading: 'reading' });
+  expect(categoryPath(roots, 'private-hidden')).toEqual([]);
+  expect(categoryPath(roots, 'frontend').map((item) => item.slug)).toEqual(['tools', 'frontend']);
 });

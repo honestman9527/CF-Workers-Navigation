@@ -8,6 +8,7 @@ export type SelectOption = {
   label: string;
   path?: string;
   depth?: number;
+  parentValue?: string;
   private?: boolean;
   hint?: string;
 };
@@ -25,7 +26,7 @@ export type SearchSelectProps = {
 
 export function categoryOptions(categories: Category[], includeCounts = false): SelectOption[] {
   const options: SelectOption[] = [];
-  function visit(nodes: CategoryNode[], parents: string[]) {
+  function visit(nodes: CategoryNode[], parents: string[], parentValue?: string) {
     for (const node of nodes) {
       const path = [...parents, node.name];
       options.push({
@@ -33,10 +34,11 @@ export function categoryOptions(categories: Category[], includeCounts = false): 
         label: node.name,
         path: path.join(' / '),
         depth: parents.length,
+        parentValue,
         private: node.effectiveVisibility === 'private',
         hint: includeCounts ? `直属 ${node.bookmarkCount}` : undefined,
       });
-      visit(node.children, path);
+      visit(node.children, path, node.slug);
     }
   }
   visit(buildCategoryTree(categories), []);

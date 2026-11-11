@@ -40,7 +40,11 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 | 传输 | `GET /transfer/export/prepare`、`GET /transfer/export`              | 检查导出状态、导出备份 |
 | 传输 | `POST /transfer/import`                                             | 导入备份               |
 
+`POST /transfer/import` 成功返回 `ImportSummary`：`bookmarksCreated`、`bookmarksSkipped`、`bookmarksUpdated`、`categoriesFlattened` 和 `errors`。`categoriesFlattened` 为本次新分类中因超过两层而被提升的数量，不作为错误；完整格式与兼容规则见[导入与导出](import-export.md#导入)。
+
 旧的书签标签别名不再提供，标签列表统一使用 `GET /api/v1/tags`。
+
+分类最多两层；新建到二级下、移动到二级下，或把含子分类的一级移入其他一级，均返回 `400 validation_error`，不改变分类。数据库约束检测到并发层级冲突也返回相同错误码。
 
 分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
 

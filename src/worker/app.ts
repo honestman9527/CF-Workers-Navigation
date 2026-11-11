@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
 import { API_V1_PREFIX } from '../shared/api/endpoints';
+import { CATEGORY_DEPTH_CONSTRAINT, CATEGORY_DEPTH_MESSAGE } from '../shared/category-rules';
 import { authContext, requireAuth } from './auth';
 import { getDb } from './db';
 import { jsonError, zodErrorMessage } from './errors';
@@ -79,6 +80,15 @@ app.notFound((c) => jsonError(c, 404, 'not_found', 'Not found'));
 app.onError((error, c) => {
   if (error instanceof ZodError) {
     return jsonError(c, 400, 'validation_error', zodErrorMessage(error));
+  }
+
+  let cause: unknown = error;
+  const seen = new Set<unknown>();
+  while (cause instanceof Error && !seen.has(cause)) {
+    seen.add(cause);
+    if (cause.message.includes(CATEGORY_DEPTH_CONSTRAINT))
+      return jsonError(c, 400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
+    cause = cause.cause;
   }
 
   if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {

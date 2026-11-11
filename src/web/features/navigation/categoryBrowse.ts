@@ -1,6 +1,6 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
-/** DOM 定位与分区呈现共用同一标识，常用分区不带分类 slug。 */
+/** 当前范围使用稳定 DOM 标识，常用不带分类 slug。 */
 export function categorySectionId(rootSlug?: string): string {
   if (!rootSlug) return 'section-common';
   return rootSlug === 'uncategorized' ? 'section-uncategorized' : `section-category-${rootSlug}`;
@@ -15,22 +15,4 @@ export function categoryPath(nodes: CategoryNode[], slug?: string): CategoryNode
     if (childPath.length) return [node, ...childPath];
   }
   return [];
-}
-
-export type CategorySelections = Record<string, string>;
-
-export function resolveSelections(
-  roots: CategoryNode[],
-  previous: CategorySelections,
-  active?: string,
-): CategorySelections {
-  const selections = Object.create(null) as CategorySelections;
-  for (const root of roots) {
-    const selected = previous[root.slug];
-    selections[root.slug] =
-      selected && categoryPath([root], selected).length ? selected : root.slug;
-  }
-  const path = categoryPath(roots, active);
-  if (path.length) selections[path[0].slug] = path[path.length - 1].slug;
-  return selections;
 }

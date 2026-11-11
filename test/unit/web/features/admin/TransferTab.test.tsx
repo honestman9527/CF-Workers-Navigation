@@ -70,3 +70,23 @@ it('读取文件时离开页面，读取完成后不会继续发送导入请求'
   await act(async () => finishReading('[]'));
   expect(api.importDataAuto).not.toHaveBeenCalled();
 });
+
+it('导入完成显示分类提升数量，保持成功状态', async () => {
+  vi.mocked(api.importDataAuto).mockReturnValue({
+    promise: Promise.resolve({
+      bookmarksCreated: 1,
+      bookmarksSkipped: 0,
+      bookmarksUpdated: 0,
+      categoriesFlattened: 2,
+      errors: [],
+    }),
+    abort: vi.fn(),
+  });
+  app = await mount(<TransferTab />);
+  const file = new File(['{}'], 'deep.json');
+  Object.defineProperty(file, 'text', { value: () => Promise.resolve('{}') });
+  await selectFile(file);
+  await click(buttonWithText(app.container, '开始导入'));
+  expect(app.container.textContent).toContain('已将 2 个深层分类提升到二级');
+  expect(app.container.textContent).not.toContain('导入失败');
+});

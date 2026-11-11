@@ -12,8 +12,8 @@ import { categoryOptions } from '@nav/features/selection/options';
 import { useVisibilityDefaults } from '@nav/features/visibility/useVisibilityDefaults';
 
 import { FrontButton, FrontInput, frontInputClass } from './controls';
+import { FrontCategorySelect } from './FrontCategorySelect';
 import { FrontDialog } from './FrontDialog';
-import { FrontSearchSelect } from './FrontSearchSelect';
 
 export function FrontBookmarkEditor({
   onClose,
@@ -98,7 +98,7 @@ export function FrontBookmarkEditor({
             <label htmlFor="bookmark-category" className="mb-2 block text-sm font-semibold">
               分类
             </label>
-            <FrontSearchSelect
+            <FrontCategorySelect
               id="bookmark-category"
               options={options}
               disabled={editor.loading}

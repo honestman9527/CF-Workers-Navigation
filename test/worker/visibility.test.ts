@@ -32,9 +32,9 @@ async function page(path = '/bookmarks?offset=0', headers?: HeadersInit) {
 
 async function fixture() {
   const open = await category('Open');
-  const hidden = await category('Hidden', { visibility: 'private', parentId: open.id });
+  const hidden = await category('Hidden', { visibility: 'private' });
   const child = await category('Child', { parentId: hidden.id });
-  const grandchild = await category('Grandchild', { parentId: child.id });
+  const grandchild = await category('Grandchild', { parentId: hidden.id });
   const visible = await bookmark('visible', {
     categoryId: open.id,
     tags: ['Shared'],

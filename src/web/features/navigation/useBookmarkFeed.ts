@@ -24,7 +24,7 @@ const empty = {
   error: null,
 };
 
-/** 分区独立的游标资源；已访问分类可恢复，取消的响应不能写入缓存。 */
+/** 当前范围的游标资源；最近访问范围可恢复，取消的响应不能写入缓存。 */
 export function useBookmarkFeed({
   category,
   tag,
@@ -34,6 +34,7 @@ export function useBookmarkFeed({
   enabled = true,
   cacheVisited = false,
   version = 0,
+  pinnedVersion = 0,
   onUnauthorized,
   coordinator,
 }: {
@@ -45,10 +46,20 @@ export function useBookmarkFeed({
   enabled?: boolean;
   cacheVisited?: boolean;
   version?: number;
+  pinnedVersion?: number;
   onUnauthorized: () => void;
   coordinator?: BookmarkFeedCache;
 }) {
-  const key = JSON.stringify([category, tag, untagged, pinned, query, version]);
+  const activePinnedVersion = pinned ? pinnedVersion : 0;
+  const key = JSON.stringify([
+    category,
+    tag,
+    untagged,
+    pinned,
+    query,
+    version,
+    pinned ? pinnedVersion : 0,
+  ]);
   const [state, setState] = useState<FeedState>({ ...empty, key });
   const stateRef = useRef(state);
   const [ownCoordinator] = useState(createBookmarkFeedCache);
@@ -56,6 +67,7 @@ export function useBookmarkFeed({
   const [retry, setRetry] = useState(0);
   const cache = useRef(new Map<string, FeedState>());
   const cacheVersion = useRef(version);
+  const cachePinnedVersion = useRef(pinnedVersion);
   const controller = useRef<AbortController | null>(null);
   const busy = useRef(false);
   const unauthorized = useRef(onUnauthorized);
@@ -67,7 +79,9 @@ export function useBookmarkFeed({
     (next: FeedState) => {
       stateRef.current = next;
       if (cacheVisited && (next.loaded || next.error)) {
+        cache.current.delete(next.key);
         cache.current.set(next.key, { ...next, loading: false, loadingMore: false });
+        while (cache.current.size > 24) cache.current.delete(cache.current.keys().next().value!);
       }
       setState(next);
     },
@@ -104,6 +118,13 @@ export function useBookmarkFeed({
     },
     [category, tag, untagged, pinned, query],
   );
+
+  useEffect(() => {
+    if (cachePinnedVersion.current === pinnedVersion) return;
+    for (const cacheKey of cache.current.keys())
+      if (JSON.parse(cacheKey)[3]) cache.current.delete(cacheKey);
+    cachePinnedVersion.current = pinnedVersion;
+  }, [pinnedVersion]);
 
   useEffect(() => {
     if (cacheVersion.current !== version) {
@@ -148,7 +169,7 @@ export function useBookmarkFeed({
       current.abort();
       read.finish();
     };
-  }, [key, request, enabled, retry, version, cacheVisited, publish, changes]);
+  }, [key, request, enabled, retry, version, activePinnedVersion, cacheVisited, publish, changes]);
 
   async function loadMore() {
     const current = controller.current;

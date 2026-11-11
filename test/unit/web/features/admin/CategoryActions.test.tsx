@@ -80,6 +80,7 @@ it('移动菜单关闭后独立显示分类树，排除自身及后代，Escape 
   expect(popup.textContent).toContain('可能公开内容');
   expect(popup.textContent).not.toContain('源分类');
   expect(popup.textContent).not.toContain('后代分类');
+  expect(popup.textContent).not.toContain('目标分类');
   await act(() =>
     document.activeElement!.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
@@ -91,9 +92,9 @@ it('移动菜单关闭后独立显示分类树，排除自身及后代，Escape 
   await click(item('移动'));
   const target = [
     ...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button'),
-  ].find((button) => button.textContent?.includes('目标分类'))!;
+  ].find((button) => button.textContent?.includes('根目录'))!;
   await click(target);
-  expect(callbacks.onMove).toHaveBeenCalledWith(3);
+  expect(callbacks.onMove).toHaveBeenCalledWith(null);
   expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
   expect(document.activeElement === more).toBe(true);
 });
@@ -103,4 +104,27 @@ it('请求期间禁用行内入口', async () => {
   expect([...app.container.querySelectorAll('button')].every((button) => button.disabled)).toBe(
     true,
   );
+});
+
+it('二级没有新建子分类入口，叶子移动只列出合法一级目标', async () => {
+  const root = { ...category, id: 3, name: '目标分类', slug: 'target' };
+  const child = { ...category, id: 2, parentId: 1, name: '叶子', slug: 'leaf' };
+  app = await mount(
+    <CategoryActions
+      category={child}
+      categories={[category, child, root]}
+      excludedIds={new Set([2])}
+      busy={false}
+      {...callbacks}
+    />,
+  );
+  expect(app.container.querySelector('[title="新建子分类"]')).toBeNull();
+  await click(app.container.querySelector('[aria-label="叶子 的更多操作"]')!);
+  await click(item('移动'));
+  const popup = document.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+  const target = [...popup.querySelectorAll('button')].find((button) =>
+    button.textContent?.includes('目标分类'),
+  )!;
+  await click(target);
+  expect(callbacks.onMove).toHaveBeenCalledWith(3);
 });

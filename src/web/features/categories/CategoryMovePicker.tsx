@@ -43,7 +43,8 @@ export function CategoryMovePicker({
     onOpenChange?.(next);
   }
   const availableCategories = useMemo(
-    () => categories.filter((category) => !excludedIds.has(category.id)),
+    () =>
+      categories.filter((category) => !excludedIds.has(category.id) && category.parentId === null),
     [categories, excludedIds],
   );
   const selected =
@@ -77,7 +78,9 @@ export function CategoryMovePicker({
         className="max-h-(--available-height) w-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
       >
         <PopoverTitle>移动到</PopoverTitle>
-        <PopoverDescription>移动会重新计算权限，移出私有分类可能公开内容。</PopoverDescription>
+        <PopoverDescription>
+          最多两层。含子分类的分类只能移到根目录；移动会重新计算权限，移出私有分类可能公开内容。
+        </PopoverDescription>
         <Button
           variant="ghost"
           className="w-full justify-start"

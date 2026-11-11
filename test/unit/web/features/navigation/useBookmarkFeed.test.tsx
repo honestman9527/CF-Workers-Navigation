@@ -157,6 +157,24 @@ it('缓存首次加载错误后仍可原地重试', async () => {
   expect(app.container.querySelector('output')?.textContent).toBe('网站1');
 });
 
+it('组合范围缓存保留近期访问，超过容量后重新读取最早范围', async () => {
+  let choose!: (category: string) => void;
+  vi.mocked(api.getBookmarks).mockResolvedValue({ items: [bookmark(1)], nextCursor: null });
+  function Host() {
+    const [category, setCategory] = useState('first');
+    choose = setCategory;
+    const feed = useBookmarkFeed({ category, cacheVisited: true, onUnauthorized: vi.fn() });
+    return <output>{feed.items.length}</output>;
+  }
+  app = await mount(<Host />);
+  for (let index = 0; index < 25; index += 1) await act(() => choose(`category-${index}`));
+  const requests = vi.mocked(api.getBookmarks).mock.calls.length;
+  await act(() => choose('category-23'));
+  expect(api.getBookmarks).toHaveBeenCalledTimes(requests);
+  await act(() => choose('first'));
+  expect(api.getBookmarks).toHaveBeenCalledTimes(requests + 1);
+});
+
 it('提交期间的旧读取采用已提交变更，之后的新读取接管数据', async () => {
   const coordinator = createBookmarkFeedCache();
   let finish!: (value: BookmarkPage) => void;

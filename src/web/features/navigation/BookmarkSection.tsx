@@ -2,9 +2,9 @@ import type { CategoryNode } from '@nav/features/categories/tree';
 import type { Bookmark } from '@shared/api/types';
 
 import type { BookmarkFeedCache } from './bookmarkFeedCache';
+import type { BookmarkFeed } from './useBookmarkFeed';
 
 import { Inbox, Pencil, Star } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,6 @@ import { domainOf } from '@shared/search';
 import { categoryPath, categorySectionId } from './categoryBrowse';
 import { CategoryNavigation } from './CategoryNavigation';
 import { FrontButton } from './controls';
-import { type BookmarkFeed, useBookmarkFeed } from './useBookmarkFeed';
 
 export type BookmarkActions = {
   authed: boolean;
@@ -155,94 +154,72 @@ export function BookmarkSection({
   root,
   selectedSlug,
   actions,
-  version,
+  feed,
   pinned = false,
-  active = false,
+  searching = false,
+  highlighted,
   onSelect,
-  onUnauthorized,
+  onClear,
 }: {
   root?: CategoryNode;
   selectedSlug?: string;
   actions: BookmarkActions;
-  version: number;
+  feed: BookmarkFeed;
   pinned?: boolean;
-  active?: boolean;
+  searching?: boolean;
+  highlighted?: number;
   onSelect: (slug: string) => void;
-  onUnauthorized: () => void;
+  onClear: () => void;
 }) {
-  const section = useRef<HTMLElement>(null);
-  const [visible, setVisible] = useState(pinned);
-  const path = root ? categoryPath([root], selectedSlug) : [];
-  const selected = path[path.length - 1] ?? root;
-  const slug = pinned ? 'common' : root ? `category-${root.slug}` : 'uncategorized';
-  const category = pinned ? undefined : (selected?.slug ?? 'uncategorized');
+  const title =
+    root?.name ??
+    (selectedSlug === 'uncategorized' ? '未分类' : searching ? '全部书签' : '常用网站');
   const Icon = pinned ? Star : root ? categoryIcon(root.icon) : Inbox;
-  const feed = useBookmarkFeed({
-    coordinator: actions.cache,
-    pinned: pinned || undefined,
-    category,
-    enabled: visible || active,
-    cacheVisited: true,
-    version,
-    onUnauthorized,
-  });
-  useEffect(() => {
-    if (visible) return;
-    if (typeof IntersectionObserver === 'undefined') {
-      setVisible(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '400px' },
-    );
-    if (section.current) observer.observe(section.current);
-    return () => observer.disconnect();
-  }, [visible]);
   return (
     <section
-      ref={section}
-      id={categorySectionId(pinned ? undefined : (root?.slug ?? 'uncategorized'))}
-      aria-labelledby={`heading-${slug}`}
-      className={cn(
-        'scroll-mt-24 rounded-2xl border border-border/45 bg-card/80 p-5 sm:p-6 dark:bg-card/55',
-        active && 'border-primary/35',
+      id={categorySectionId(
+        root?.slug ?? (selectedSlug === 'uncategorized' ? selectedSlug : undefined),
       )}
+      aria-label={searching ? '站内搜索结果' : title}
+      className="rounded-2xl border border-border/45 bg-card/80 p-5 sm:p-6 dark:bg-card/55"
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-          <h2
-            id={`heading-${slug}`}
-            tabIndex={-1}
-            className="text-lg font-semibold tracking-tight sm:text-xl"
-          >
-            {pinned ? '常用网站' : (root?.name ?? '未分类')}
+          <h2 tabIndex={-1} className="text-lg font-semibold tracking-tight sm:text-xl">
+            {title}
           </h2>
         </div>
+        {searching ? (
+          <FrontButton tone="subtle" onClick={onClear}>
+            清除搜索与筛选
+          </FrontButton>
+        ) : null}
         {feed.loaded ? (
-          <span className="rounded-full bg-secondary/70 px-2.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {feed.items.length}
             {feed.nextCursor ? '+' : ''} 项
           </span>
         ) : null}
       </div>
-      {root && (root.children.length > 0 || path.length > 1) ? (
+      {root && root.children.length ? (
         <CategoryNavigation
-          key={selected?.slug}
-          path={path.length ? path : [root]}
+          key={root.slug}
+          path={categoryPath([root], selectedSlug)}
           onSelect={onSelect}
         />
       ) : null}
       <FeedContent
         feed={feed}
         actions={actions}
-        emptyMessage={pinned ? '将网站加入常用，即可在这里快速打开。' : '这个分类还没有网站。'}
+        highlighted={searching ? highlighted : undefined}
+        emptyMessage={
+          searching
+            ? '没有找到匹配的网站，请调整关键词或筛选。'
+            : pinned
+              ? '将网站加入常用，即可在这里快速打开。'
+              : '这个分类还没有网站。'
+        }
       />
     </section>
   );

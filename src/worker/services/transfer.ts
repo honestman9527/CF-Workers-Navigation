@@ -10,6 +10,7 @@ import type { Db } from '../types';
 import { eq, sql, inArray } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
+import { MAX_CATEGORY_DEPTH } from '../../shared/category-rules';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
 import { bookmarkEffectiveVisibility, categoryEffectiveVisibility } from '../visibility';
@@ -85,7 +86,7 @@ async function upsertCategoriesForImport(
   db: Db,
   data: TransferData,
   log?: TransferLog,
-): Promise<Map<string, number>> {
+): Promise<{ slugToId: Map<string, number>; categoriesFlattened: number }> {
   const slugToId = new Map<string, number>();
 
   const bySlug = new Map<
@@ -112,7 +113,13 @@ async function upsertCategoriesForImport(
   }
 
   const existing = await db
-    .select({ id: categories.id, slug: categories.slug, parentId: categories.parentId })
+    .select({
+      id: categories.id,
+      slug: categories.slug,
+      parentId: categories.parentId,
+      visibility: categories.visibility,
+      sortOrder: categories.sortOrder,
+    })
     .from(categories);
   // Existing categories retain their hierarchy and privacy when reused.
   const existingSlugs = new Set(existing.map((row) => row.slug));
@@ -152,10 +159,50 @@ async function upsertCategoriesForImport(
   // Validate the backup itself even when an existing category keeps its hierarchy.
   assertNoCycles(new Map([...bySlug.values()].map((entry) => [entry.slug, entry.parentSlug])));
   assertNoCycles(parents);
+  // Compute from the original merged tree before changing any parent or visibility.
+  const visibility = new Map(existing.map((row) => [row.slug, row.visibility]));
+  for (const entry of bySlug.values())
+    if (!existingSlugs.has(entry.slug)) visibility.set(entry.slug, entry.visibility);
+  const resolved = new Map<string, { root: string; depth: number; private: boolean }>();
+  for (const slug of parents.keys()) {
+    const chain: string[] = [];
+    let cursor: string | null = slug;
+    while (cursor && parents.has(cursor) && !resolved.has(cursor)) {
+      chain.push(cursor);
+      cursor = parents.get(cursor) ?? null;
+    }
+    let ancestor = cursor ? resolved.get(cursor) : undefined;
+    for (const node of chain.reverse()) {
+      ancestor = {
+        root: ancestor?.root ?? node,
+        depth: (ancestor?.depth ?? 0) + 1,
+        private: Boolean(ancestor?.private || visibility.get(node) === 'private'),
+      };
+      resolved.set(node, ancestor);
+    }
+  }
+  let categoriesFlattened = 0;
+  const promoted = new Set<string>();
+  for (const entry of bySlug.values()) {
+    if (existingSlugs.has(entry.slug)) continue;
+    const original = resolved.get(entry.slug)!;
+    if (original.depth > MAX_CATEGORY_DEPTH) {
+      entry.parentSlug = original.root;
+      if (original.private && visibility.get(original.root) !== 'private')
+        entry.visibility = 'private';
+      promoted.add(entry.slug);
+      categoriesFlattened += 1;
+    }
+  }
   for (const row of existing) slugToId.set(row.slug, row.id);
 
   let sortOrder = 0;
-  for (const entry of bySlug.values()) {
+  const entries = [...bySlug.values()].sort(
+    (a, b) => Number(promoted.has(a.slug)) - Number(promoted.has(b.slug)),
+  );
+  const existingMax = existing.reduce((max, row) => Math.max(max, row.sortOrder), -1);
+  sortOrder = existingMax + 1;
+  for (const entry of entries) {
     if (slugToId.has(entry.slug)) continue;
     const [created] = await db
       .insert(categories)
@@ -188,7 +235,7 @@ async function upsertCategoriesForImport(
     await db.batch(parentUpdates as [(typeof parentUpdates)[number], ...typeof parentUpdates]);
   }
 
-  return slugToId;
+  return { slugToId, categoriesFlattened };
 }
 
 export async function importTransferData(
@@ -198,6 +245,7 @@ export async function importTransferData(
   log?: TransferLog,
 ): Promise<ImportSummary> {
   const summary: ImportSummary = {
+    categoriesFlattened: 0,
     bookmarksCreated: 0,
     bookmarksSkipped: 0,
     bookmarksUpdated: 0,
@@ -253,7 +301,9 @@ export async function importTransferData(
     }
   }
   log?.phase('categories');
-  const categorySlugToId = await upsertCategoriesForImport(db, data, log);
+  const categoryImport = await upsertCategoriesForImport(db, data, log);
+  const categorySlugToId = categoryImport.slugToId;
+  summary.categoriesFlattened = categoryImport.categoriesFlattened;
   const categoryRows = await db.all<{ id: number; effectiveVisibility: Visibility }>(sql`
     SELECT c.id, ${categoryEffectiveVisibility} AS effectiveVisibility FROM categories c
   `);

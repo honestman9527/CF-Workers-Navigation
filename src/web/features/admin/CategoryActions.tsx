@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -50,19 +50,28 @@ export function CategoryActions({
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const moveRequested = useRef(false);
+  const moveExcludedIds = useMemo(
+    () =>
+      categories.some((item) => item.parentId === category.id)
+        ? new Set(categories.map((item) => item.id))
+        : excludedIds,
+    [categories, category.id, excludedIds],
+  );
 
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={busy}
-        onClick={() => onCreate()}
-        aria-label={'在 ' + category.name + ' 下新建子分类'}
-        title="新建子分类"
-      >
-        <Plus />
-      </Button>
+      {category.parentId === null ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={busy}
+          onClick={() => onCreate()}
+          aria-label={'在 ' + category.name + ' 下新建子分类'}
+          title="新建子分类"
+        >
+          <Plus />
+        </Button>
+      ) : null}
       <Button
         variant="ghost"
         size="icon-sm"
@@ -132,7 +141,7 @@ export function CategoryActions({
       </DropdownMenu>
       <CategoryMovePicker
         categories={categories}
-        excludedIds={excludedIds}
+        excludedIds={moveExcludedIds}
         value={category.parentId}
         disabled={busy}
         onChange={onMove}

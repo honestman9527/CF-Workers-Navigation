@@ -46,7 +46,7 @@ it('选择分类或全部分类后关闭浮层并恢复触发按钮焦点', asyn
   try {
     const trigger = app.container.querySelector('button')!;
     await click(trigger);
-    const target = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((button) =>
+    const target = [...document.querySelectorAll<HTMLElement>('[role="treeitem"]')].find((button) =>
       button.textContent?.includes('工具'),
     )!;
     await click(target);
@@ -54,7 +54,7 @@ it('选择分类或全部分类后关闭浮层并恢复触发按钮焦点', asyn
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement === trigger).toBe(true);
     await click(trigger);
-    await click(document.querySelector<HTMLElement>('[role="option"]')!);
+    await click(document.querySelector<HTMLElement>('[role="treeitem"]')!);
     expect(onSelect).toHaveBeenLastCalledWith(undefined);
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   } finally {
@@ -62,7 +62,7 @@ it('选择分类或全部分类后关闭浮层并恢复触发按钮焦点', asyn
   }
 });
 
-it('深层分类直接可见，显示路径与级别，并可按父级搜索', async () => {
+it('选中二级自动展开父级，显示路径与级别并可按父级搜索', async () => {
   const root = {
     id: 1,
     name: '开发',
@@ -77,30 +77,26 @@ it('深层分类直接可见，显示路径与级别，并可按父级搜索', a
   const onSelect = vi.fn();
   const app = await mount(
     <CategoryFilter
-      categories={[
-        root,
-        { ...root, id: 2, parentId: 1, name: '前端', slug: 'front' },
-        { ...root, id: 3, parentId: 2, name: 'React', slug: 'react' },
-      ]}
+      categories={[root, { ...root, id: 2, parentId: 1, name: 'React', slug: 'react' }]}
       selectedSlug="react"
       onSelect={onSelect}
     />,
   );
   try {
     const trigger = app.container.querySelector('button')!;
-    expect(trigger.textContent).toContain('开发 / 前端 / React');
+    expect(trigger.textContent).toContain('开发 / React');
     await click(trigger);
-    const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+    const input = document.querySelector<HTMLInputElement>('input')!;
     await fill(input, '开发 React');
-    const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')];
-    expect(options).toHaveLength(1);
-    expect(options[0].textContent).toContain('开发 / 前端 / React');
-    expect(options[0].textContent).toContain('3 级');
-    await click(options[0]);
+    const options = [...document.querySelectorAll<HTMLElement>('[role="treeitem"]')];
+    expect(options).toHaveLength(2);
+    expect(options[1].textContent).toContain('开发 / React');
+    expect(options[1].textContent).toContain('2 级');
+    await click(options[1]);
     expect(onSelect).toHaveBeenLastCalledWith('react');
     expect(document.activeElement).toBe(trigger);
     await click(trigger);
-    expect(document.querySelectorAll('[role="option"]')).toHaveLength(5);
+    expect(document.querySelectorAll('[role="treeitem"]')).toHaveLength(4);
   } finally {
     await app.cleanup();
   }

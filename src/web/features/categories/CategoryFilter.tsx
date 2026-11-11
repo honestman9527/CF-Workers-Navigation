@@ -2,7 +2,7 @@ import type { Category } from '@shared/api/types';
 
 import { useMemo } from 'react';
 
-import { SearchSelect } from '@/components/ui/search-select';
+import { CategorySelect } from '@/components/ui/category-select';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
 import { categoryOptions, retainSelectedOption } from '../selection/options';
@@ -32,7 +32,7 @@ export function CategoryFilter({
     [categories, selectedSlug],
   );
   return (
-    <SearchSelect
+    <CategorySelect
       options={options}
       value={selectedSlug ?? ''}
       onChange={(slug) => onSelect(slug || undefined)}

@@ -42,7 +42,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('真实Router前后退恢复多分区快照与追加内容，深层链接正确高亮且不重复锚点跳转', async () => {
+it('真实Router前后退恢复单一分类与追加内容，不重复锚点跳转', async () => {
   vi.stubGlobal('IntersectionObserver', undefined);
   vi.spyOn(window, 'scrollTo').mockImplementation((options: number | ScrollToOptions) => {
     if (typeof options === 'object')
@@ -53,7 +53,7 @@ it('真实Router前后退恢复多分区快照与追加内容，深层链接正�
   vi.mocked(api.getCategories).mockResolvedValue([
     { id: 1, slug: 'tools', name: '工具', parentId: null, sortOrder: 0 },
     { id: 2, slug: 'frontend', name: '前端', parentId: 1, sortOrder: 0 },
-    { id: 3, slug: 'react', name: 'React', parentId: 2, sortOrder: 0 },
+    { id: 3, slug: 'react', name: 'React', parentId: 1, sortOrder: 0 },
     { id: 4, slug: 'reading', name: '阅读', parentId: null, sortOrder: 1 },
     { id: 5, slug: 'blogs', name: '博客', parentId: 4, sortOrder: 0 },
   ] as Category[]);
@@ -81,31 +81,48 @@ it('真实Router前后退恢复多分区快照与追加内容，深层链接正�
   app = await mount(<RouterProvider router={router} />);
   await act(() => router.load());
   const tools = app.container.querySelector('#section-category-tools') as HTMLElement;
-  const reading = app.container.querySelector('#section-category-reading') as HTMLElement;
-  expect(tools.querySelector('[aria-current="page"]')?.textContent).toBe('React');
+
+  expect(
+    app.container.querySelector('#section-category-tools')?.querySelector('[aria-current="page"]')
+      ?.textContent,
+  ).toBe('React');
   await click(buttonWithText(tools, '展开更多'));
-  expect(tools.textContent).toContain('react-105');
+  expect(app.container.querySelector('#section-category-tools')?.textContent).toContain(
+    'react-105',
+  );
   Object.defineProperty(window, 'scrollY', { configurable: true, value: 720 });
   window.dispatchEvent(new Event('scroll'));
-  await click(buttonWithText(reading, '博客'));
+  await click(
+    buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '阅读'),
+  );
+  await click(
+    buttonWithText(app.container.querySelector('#section-category-reading') as HTMLElement, '博客'),
+  );
   expect(router.state.location.search).toMatchObject({ category: 'blogs' });
   Object.defineProperty(window, 'scrollY', { configurable: true, value: 1200 });
   window.dispatchEvent(new Event('scroll'));
   const requests = vi.mocked(api.getBookmarks).mock.calls.length;
   const anchors = vi.mocked(Element.prototype.scrollIntoView).mock.calls.length;
   await act(async () => {
-    router.history.back();
+    router.history.go(-2);
     await router.load();
   });
-  expect(tools.querySelector('[aria-current="page"]')?.textContent).toBe('React');
-  expect(tools.textContent).toContain('react-105');
-  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('阅读');
+  expect(
+    app.container.querySelector('#section-category-tools')?.querySelector('[aria-current="page"]')
+      ?.textContent,
+  ).toBe('React');
+  expect(app.container.querySelector('#section-category-tools')?.textContent).toContain(
+    'react-105',
+  );
+  expect(app.container.querySelector('#section-category-reading')).toBeNull();
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 720, behavior: 'instant' });
   await act(async () => {
-    router.history.forward();
+    router.history.go(2);
     await router.load();
   });
-  expect(reading.querySelector('[aria-current="page"]')?.textContent).toBe('博客');
+  expect(
+    app.container.querySelector('#section-category-reading [aria-current="page"]')?.textContent,
+  ).toBe('博客');
   expect(window.scrollTo).toHaveBeenLastCalledWith({ top: 1200, behavior: 'instant' });
   expect(api.getBookmarks).toHaveBeenCalledTimes(requests);
   expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(anchors);

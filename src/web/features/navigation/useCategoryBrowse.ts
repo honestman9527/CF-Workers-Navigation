@@ -1,14 +1,9 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import {
-  categoryPath,
-  categorySectionId,
-  type CategorySelections,
-  resolveSelections,
-} from './categoryBrowse';
+import { categoryPath } from './categoryBrowse';
 import {
   parseNavigationSearch,
   readSearchMode,
@@ -16,77 +11,47 @@ import {
   type NavigationSearch,
 } from './search';
 
-type Snapshot = { selections: CategorySelections; top: number; browseTop: number };
-
-/** URL、模式偏好与历史快照在此协作；调用者不编排记忆、导航和 DOM 恢复。 */
+/** URL 是当前分类与筛选的唯一来源；历史只保存滚动，不记忆各一级的二级选择。 */
 export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
   const location = useLocation();
   const navigate = useNavigate();
   const search = parseNavigationSearch(location.search);
   const entryKey = location.state.__TSR_key ?? location.href;
-  const category = search.category;
   const [preferredMode, setPreferredMode] = useState(readSearchMode);
+  const [missingCategory, setMissingCategory] = useState(false);
   const mode = search.mode ?? preferredMode;
   const searching = mode === 'site' && Boolean(search.q || search.tag || search.untagged);
+  const path = categoryPath(roots, search.category);
+  const [snapshots] = useState(() => new Map<string, number>());
+  const lastEntry = useRef<string | undefined>(undefined);
+  const browseTops = useRef(new Map<string, number>());
+  const previousView = useRef({ searching, category: search.category });
+  const remember = useCallback(() => {
+    if (ready) {
+      snapshots.set(entryKey, window.scrollY);
+      if (!searching) browseTops.current.set(search.category ?? '', window.scrollY);
+    }
+  }, [entryKey, ready, snapshots, searching, search.category]);
   useEffect(() => {
     saveSearchMode(mode);
     setPreferredMode(mode);
   }, [mode]);
-  const [snapshots] = useState(() => new Map<string, Snapshot>());
-  const [frame, setFrame] = useState<{ key: string; selections: CategorySelections }>({
-    key: entryKey,
-    selections: {},
-  });
-  const prior = frame.key === entryKey ? frame.selections : snapshots.get(entryKey)?.selections;
-  const selections = useMemo(
-    () => (ready ? resolveSelections(roots, prior ?? frame.selections, category) : {}),
-    [ready, roots, prior, frame.selections, category],
-  );
-  const signature = JSON.stringify(selections);
-  // 在子组件发起请求前同步历史选择，避免短暂请求上一历史条目的分类。
-  if (ready && (frame.key !== entryKey || JSON.stringify(frame.selections) !== signature)) {
-    setFrame({ key: entryKey, selections });
-  }
-  const lastEntry = useRef<string | undefined>(undefined);
-  const wasSearching = useRef(false);
-  const browseTop = useRef(0);
-  const remember = useCallback(() => {
-    if (!ready) return;
-    if (!searching) browseTop.current = window.scrollY;
-    snapshots.set(entryKey, { selections, top: window.scrollY, browseTop: browseTop.current });
-  }, [entryKey, selections, searching, ready, snapshots]);
-
   useLayoutEffect(() => {
     if (!ready) return;
-    const snapshot = snapshots.get(entryKey);
-    const changedEntry = lastEntry.current !== entryKey;
-    if (changedEntry && snapshot) {
-      browseTop.current = snapshot.browseTop;
-      window.scrollTo({ top: snapshot.top, behavior: 'instant' });
-    } else if (!searching && wasSearching.current) {
-      window.scrollTo({ top: browseTop.current, behavior: 'instant' });
-    } else if (lastEntry.current === undefined) {
-      if (!searching && category) {
-        const root = categoryPath(roots, category)[0];
-        document
-          .getElementById(categorySectionId(root?.slug ?? category))
-          ?.scrollIntoView({ block: 'start', behavior: 'instant' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      }
+    if (lastEntry.current !== entryKey) {
+      const restored =
+        previousView.current.searching &&
+        !searching &&
+        previousView.current.category === search.category
+          ? browseTops.current.get(search.category ?? '')
+          : undefined;
+      window.scrollTo({ top: snapshots.get(entryKey) ?? restored ?? 0, behavior: 'instant' });
+      lastEntry.current = entryKey;
     }
-    if (!searching) browseTop.current = window.scrollY;
-    wasSearching.current = searching;
-    lastEntry.current = entryKey;
-    remember();
+    previousView.current = { searching, category: search.category };
     window.addEventListener('scroll', remember, { passive: true });
-    window.addEventListener('popstate', remember);
-    return () => {
-      window.removeEventListener('scroll', remember);
-      window.removeEventListener('popstate', remember);
-    };
-  }, [entryKey, category, roots, searching, ready, snapshots, remember]);
-
+    return () => window.removeEventListener('scroll', remember);
+  }, [entryKey, ready, snapshots, remember, searching, search.category]);
   const update = useCallback(
     (
       next: NavigationSearch | ((previous: NavigationSearch) => NavigationSearch),
@@ -105,51 +70,31 @@ export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
     },
     [navigate, remember],
   );
-
-  async function selectCategory(slug: string) {
-    await update((previous) => ({
+  const invalidCategory =
+    ready && Boolean(search.category && search.category !== 'uncategorized' && !path.length);
+  useEffect(() => {
+    if (!invalidCategory) return;
+    setMissingCategory(true);
+    void update((previous) => ({ ...previous, category: undefined }), true);
+  }, [invalidCategory, update]);
+  function selectCategory(slug?: string, query = search.q ?? '') {
+    setMissingCategory(false);
+    return update((previous) => ({
       ...previous,
       mode,
       category: slug,
-      q: undefined,
-      tag: undefined,
-      untagged: undefined,
+      q: query.trim() || undefined,
     }));
-    const root = categoryPath(roots, slug)[0];
-    document
-      .getElementById(categorySectionId(root?.slug ?? slug))
-      ?.querySelector<HTMLElement>('[aria-current="page"]')
-      ?.focus({ preventScroll: true });
   }
-
-  async function locateSection(rootSlug?: string) {
-    const selected =
-      rootSlug === 'uncategorized'
-        ? rootSlug
-        : rootSlug
-          ? (selections[rootSlug] ?? rootSlug)
-          : undefined;
-    await update((previous) => ({
-      ...previous,
-      mode,
-      category: selected,
-      q: undefined,
-      tag: undefined,
-      untagged: undefined,
-    }));
-    document
-      .getElementById(categorySectionId(rootSlug))
-      ?.scrollIntoView({ block: 'start', behavior: 'instant' });
-  }
-
   return {
     search,
     mode,
     searching,
-    selections,
-    activeRoot: categoryPath(roots, category)[0]?.slug,
     update,
     selectCategory,
-    locateSection,
+    root: path[0],
+    activeRoot: path[0]?.slug,
+    missingCategory,
+    invalidCategory,
   };
 }

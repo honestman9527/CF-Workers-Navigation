@@ -44,7 +44,7 @@ type ImportState = {
 const INITIAL_IMPORT: ImportState = { stage: 'idle', progress: 0, summary: null, error: null };
 
 function summaryText(summary: ImportSummary) {
-  return `新建 ${summary.bookmarksCreated} 个书签，跳过 ${summary.bookmarksSkipped} 个重复，更新 ${summary.bookmarksUpdated} 个书签。`;
+  return `新建 ${summary.bookmarksCreated} 个书签，跳过 ${summary.bookmarksSkipped} 个重复，更新 ${summary.bookmarksUpdated} 个书签。${summary.categoriesFlattened ? `已将 ${summary.categoriesFlattened} 个深层分类提升到二级。` : ''}`;
 }
 
 function formatBytes(bytes: number): string {

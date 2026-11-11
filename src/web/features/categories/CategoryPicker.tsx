@@ -2,7 +2,7 @@ import type { Category } from '@shared/api/types';
 
 import { useMemo } from 'react';
 
-import { SearchSelect } from '@/components/ui/search-select';
+import { CategorySelect } from '@/components/ui/category-select';
 
 import { categoryOptions } from '../selection/options';
 
@@ -26,7 +26,7 @@ export function CategoryPicker({
   );
   const selected = categories.find((category) => category.id === value);
   return (
-    <SearchSelect
+    <CategorySelect
       id={id}
       disabled={disabled}
       options={options}

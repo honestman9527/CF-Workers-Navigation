@@ -127,7 +127,7 @@ describe('categories api', () => {
   it('renames and prevents moving a category into its own subtree', async () => {
     const root = await createCategory({ name: 'Root' });
     const child = await createCategory({ name: 'Child', parentId: root.id });
-    const grandchild = await createCategory({ name: 'Grandchild', parentId: child.id });
+    const grandchild = await createCategory({ name: 'Grandchild' });
 
     const renamed = await exports.default.fetch(`${API}/categories/${child.id}`, {
       method: 'PUT',
@@ -166,8 +166,7 @@ describe('categories api', () => {
   });
 
   it('reparents children and unassigns bookmarks when deleting a category', async () => {
-    const grandparent = await createCategory({ name: '祖父' });
-    const parent = await createCategory({ name: '父', parentId: grandparent.id });
+    const parent = await createCategory({ name: '父' });
     const borrowed = await createCategory({ name: '子', parentId: parent.id });
     const bookmark = await createBookmark({
       title: 'In category',
@@ -183,7 +182,7 @@ describe('categories api', () => {
 
     const categories = await listCategories();
     expect(categories.find((item) => item.id === parent.id)).toBeUndefined();
-    expect(categories.find((item) => item.id === borrowed.id)?.parentId).toBe(grandparent.id);
+    expect(categories.find((item) => item.id === borrowed.id)?.parentId).toBeNull();
 
     const detail = await exports.default.fetch(`${API}/bookmarks/${bookmark.id}`, {
       headers: adminHeaders,

@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+// parent_id 的两层约束由 0003_category_depth.sql 的触发器维护。
 export const categories = sqliteTable(
   'categories',
   {

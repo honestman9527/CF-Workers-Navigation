@@ -5,6 +5,7 @@ import type { Db } from '../types';
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
+import { CATEGORY_DEPTH_MESSAGE } from '../../shared/category-rules';
 import { bookmarks, categories } from '../schema';
 import { getSettings } from '../settings';
 import { slugify } from '../slug';
@@ -101,11 +102,30 @@ export async function assertCategoryExists(db: Db, id: number): Promise<void> {
   if (!row) throw new ServiceError(404, 'not_found', '分类不存在');
 }
 
+async function assertRootParent(db: Db, parentId: number, movingId?: number): Promise<void> {
+  const [parent] = await db
+    .select({ parentId: categories.parentId })
+    .from(categories)
+    .where(eq(categories.id, parentId));
+  if (!parent) throw new ServiceError(404, 'not_found', '分类不存在');
+  const children =
+    movingId === undefined
+      ? []
+      : await db
+          .select({ id: categories.id })
+          .from(categories)
+          .where(eq(categories.parentId, movingId))
+          .limit(1);
+  if (parent.parentId !== null || children.length) {
+    throw new ServiceError(400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
+  }
+}
+
 export async function createCategory(db: Db, input: CategoryInput): Promise<CategoryDto> {
   const name = normalizeName(input.name, '分类名称');
   const slug = slugify(name);
   if (input.parentId !== undefined && input.parentId !== null) {
-    await assertCategoryExists(db, input.parentId);
+    await assertRootParent(db, input.parentId);
   }
   const parentId = input.parentId ?? null;
 
@@ -189,6 +209,7 @@ export async function updateCategory(
       if (await isSelfOrAncestor(db, id, targetParent)) {
         throw new ServiceError(400, 'validation_error', '不能移动到自己的子分类内部');
       }
+      await assertRootParent(db, targetParent, id);
     }
     updates.parentId = targetParent;
   }

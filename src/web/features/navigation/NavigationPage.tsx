@@ -41,7 +41,7 @@ import {
 } from '@shared/search';
 
 import { createBookmarkFeedCache } from './bookmarkFeedCache';
-import { BookmarkSection, FeedContent, type BookmarkActions } from './BookmarkSection';
+import { BookmarkSection, type BookmarkActions } from './BookmarkSection';
 import { FrontButton } from './controls';
 import { NavigationMenu } from './NavigationMenu';
 import { type SearchMode } from './search';
@@ -131,10 +131,16 @@ function NavigationSurface() {
   const engine = engines.find((item) => item.id === (bang.engineId ?? engineId));
   const results = useBookmarkFeed({
     coordinator: feedCache,
-    query: search.q,
-    tag: search.tag,
-    untagged: search.untagged,
-    enabled: searching,
+    query: searching ? search.q : undefined,
+    tag: searching ? search.tag : undefined,
+    untagged: searching ? search.untagged : undefined,
+    category: search.category,
+    pinned: !searching && !search.category ? true : undefined,
+    cacheVisited: true,
+    pinnedVersion,
+    enabled:
+      (!search.category || search.category === 'uncategorized' || Boolean(categories.data)) &&
+      !browse.invalidCategory,
     version,
     onUnauthorized: unauthorized,
   });
@@ -145,7 +151,7 @@ function NavigationSurface() {
   useEffect(() => {
     setDraft(search.q ?? '');
     setHighlighted(-1);
-  }, [search.q, search.tag, search.untagged, mode]);
+  }, [search.q, search.tag, search.untagged, search.category, mode]);
   useEffect(() => {
     if (composing || draft.trim() === (search.q ?? '')) return;
     const timer = window.setTimeout(() => {
@@ -163,13 +169,8 @@ function NavigationSurface() {
     window.addEventListener('keydown', focus);
     return () => window.removeEventListener('keydown', focus);
   }, []);
-  function selectCategory(category: string) {
-    setDraft('');
-    void browse.selectCategory(category);
-  }
-  function locateSection(rootSlug?: string) {
-    setDraft('');
-    void browse.locateSection(rootSlug);
+  function selectCategory(category?: string) {
+    void browse.selectCategory(category, draft);
   }
   function selectMode(next: SearchMode) {
     update({ ...search, mode: next, q: draft.trim() || undefined });
@@ -222,7 +223,12 @@ function NavigationSurface() {
   function submitSearch() {
     if (composing) return;
     if (mode === 'site') {
-      if (draft.trim() === (search.q ?? '') && highlighted >= 0 && results.items[highlighted]) {
+      if (
+        searching &&
+        draft.trim() === (search.q ?? '') &&
+        highlighted >= 0 &&
+        results.items[highlighted]
+      ) {
         openLink(results.items[highlighted].url);
         return;
       }
@@ -291,7 +297,7 @@ function NavigationSurface() {
             </div>
             <div className="flex gap-1.5 overflow-x-auto lg:flex-col lg:gap-1 lg:overflow-x-visible">
               <FrontButton
-                onClick={() => locateSection()}
+                onClick={() => selectCategory()}
                 className={cn(
                   'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full',
                   !search.category && !searching
@@ -310,7 +316,7 @@ function NavigationSurface() {
                   <FrontButton
                     key={root.id}
                     aria-current={isActive ? 'location' : undefined}
-                    onClick={() => locateSection(root.slug)}
+                    onClick={() => selectCategory(root.slug)}
                     data-count={count > 0 ? count : undefined}
                     className={cn(
                       'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full lg:after:ml-auto lg:after:text-xs lg:after:font-normal lg:after:text-muted-foreground lg:after:tabular-nums lg:after:content-[attr(data-count)]',
@@ -325,7 +331,7 @@ function NavigationSurface() {
                 );
               })}
               <FrontButton
-                onClick={() => locateSection('uncategorized')}
+                onClick={() => selectCategory('uncategorized')}
                 aria-current={search.category === 'uncategorized' ? 'location' : undefined}
                 className={cn(
                   'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full',
@@ -416,7 +422,7 @@ function NavigationSurface() {
                 书签柜网站导航
               </h1>
               <p className="mt-1 text-xs text-muted-foreground tabular-nums sm:text-sm">
-                常用直达与多级分类工作台 · {roots.length} 个一级分类 · {tags.data?.length ?? 0}{' '}
+                常用直达与两层分类工作台 · {roots.length} 个一级分类 · {tags.data?.length ?? 0}{' '}
                 个标签
               </p>
             </div>
@@ -520,7 +526,7 @@ function NavigationSurface() {
                     return;
                   }
                   if (
-                    mode === 'site' &&
+                    searching &&
                     results.items.length &&
                     (event.key === 'ArrowDown' || event.key === 'ArrowUp')
                   ) {
@@ -639,71 +645,39 @@ function NavigationSurface() {
               )}
             </div>
           </section>
-          {searching ? (
-            <section
-              aria-label="站内搜索结果"
-              className="mb-6 rounded-2xl border border-border/45 bg-card/80 p-5 sm:p-6 dark:bg-card/55"
+          {categories.error ? (
+            <div
+              role="alert"
+              className="mb-4 flex flex-wrap items-center gap-2 text-sm text-destructive"
             >
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
-                  {search.q ? `搜索“${search.q}”` : search.untagged ? '无标签书签' : '标签筛选'}
-                </h2>
-                <FrontButton tone="subtle" onClick={clearSearch}>
-                  清除搜索与筛选
-                </FrontButton>
-              </div>
-              <FeedContent
-                feed={results}
-                actions={actions}
-                highlighted={highlighted}
-                emptyMessage="没有找到匹配的网站，请调整关键词或筛选。"
-              />
-            </section>
+              {categories.error}
+              <FrontButton onClick={categories.refresh}>重试分类</FrontButton>
+            </div>
           ) : null}
-          <div hidden={searching} className="space-y-5">
-            {categories.error ? (
-              <div
-                role="alert"
-                className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-              >
-                {categories.error}
-                <FrontButton onClick={categories.refresh}>重试分类</FrontButton>
-              </div>
-            ) : null}
+          {browse.missingCategory ? (
+            <p role="status" className="mb-4 text-sm text-muted-foreground">
+              分类不存在或无权访问，已返回默认入口。
+            </p>
+          ) : null}
+          {categories.loading && !categories.data ? (
+            <p role="status" className="py-6 text-center text-sm text-muted-foreground">
+              正在加载分类…
+            </p>
+          ) : null}
+          {(!search.category || search.category === 'uncategorized' || categories.data) &&
+          !browse.invalidCategory ? (
             <BookmarkSection
-              pinned
+              root={browse.root}
               selectedSlug={search.category}
+              pinned={!searching && !search.category}
+              searching={searching}
               actions={actions}
-              version={version + pinnedVersion}
+              feed={results}
+              highlighted={highlighted}
               onSelect={selectCategory}
-              onUnauthorized={unauthorized}
+              onClear={clearSearch}
             />
-            {roots.map((root) => (
-              <BookmarkSection
-                key={root.id}
-                root={root}
-                selectedSlug={browse.selections[root.slug]}
-                active={browse.activeRoot === root.slug}
-                actions={actions}
-                version={version}
-                onSelect={selectCategory}
-                onUnauthorized={unauthorized}
-              />
-            ))}
-            {categories.loading && !categories.data ? (
-              <p role="status" className="py-6 text-center text-sm text-muted-foreground">
-                正在加载分类…
-              </p>
-            ) : null}
-            <BookmarkSection
-              active={search.category === 'uncategorized'}
-              selectedSlug={search.category}
-              actions={actions}
-              version={version}
-              onSelect={selectCategory}
-              onUnauthorized={unauthorized}
-            />
-          </div>
+          ) : null}
         </main>
         <footer className="mt-8 border-t border-border/40 pt-4 text-xs text-muted-foreground">
           书签柜

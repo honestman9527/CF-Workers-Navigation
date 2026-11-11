@@ -135,6 +135,7 @@ export type TransferFormat = 'html' | 'json';
 export type ImportStrategy = 'skip' | 'create' | 'update';
 
 export type ImportSummary = {
+  categoriesFlattened: number;
   bookmarksCreated: number;
   bookmarksSkipped: number;
   bookmarksUpdated: number;
