@@ -14,6 +14,11 @@ function staticHeaders(): Plugin {
   return {
     name: 'navigation-static-headers',
     enforce: 'post',
+    config(config) {
+      // pnpm dev starts Wrangler alongside the watch build. Keep the initial
+      // build available while Wrangler discovers assets and while rebuilding.
+      if (config.build?.watch) return { build: { emptyOutDir: false } };
+    },
     generateBundle(_options, bundle) {
       const html = bundle['index.html'];
       if (!html || html.type !== 'asset') throw new Error('Missing built index.html');

@@ -73,7 +73,7 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-打开 `http://localhost:8787`。`pnpm dev` 会先构建 Web，确保 Worker 的静态资源目录已就绪，再并行启动 `dev:worker` 和 `dev:web`；任一进程退出时结束另一进程。`dev:web` 通过 `pnpm run build --watch` 复用构建配置，修改 Web 源码后重新构建。
+打开 `http://localhost:8787`。`pnpm dev` 会先构建 Web，确保 Worker 的静态资源目录已就绪，再并行启动 `dev:worker` 和 `dev:web`；任一进程退出时结束另一进程。`dev:web` 通过 `pnpm run build --watch` 复用构建配置，修改 Web 源码后重新构建。监听模式保留已有产物，避免与 Wrangler 并行启动时清空目录而使首页持续返回 404；普通构建仍清理旧产物。若已有开发进程遇到该问题，停止后重新运行 `pnpm dev`。
 
 ## 常用命令
 
