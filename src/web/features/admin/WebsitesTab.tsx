@@ -27,6 +27,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import { SearchSelect } from '@/components/ui/search-select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -48,6 +49,7 @@ import {
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
 import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
+import { retainSelectedOption, tagOptions } from '@nav/features/selection/options';
 import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
 import { UNCATEGORIZED_SLUG } from '@shared/api/types';
@@ -166,12 +168,13 @@ export function WebsitesTab() {
     },
   });
 
-  const tagOptions = useMemo(
-    () => [
-      { value: '', label: '全部标签' },
-      ...(tags ?? []).map((item) => ({ value: item.slug, label: item.name })),
-    ],
-    [tags],
+  const tagsForSelect = useMemo(
+    () =>
+      retainSelectedOption(
+        [{ value: '', label: '全部标签' }, ...tagOptions(tags ?? [])],
+        tagSlug ?? '',
+      ),
+    [tags, tagSlug],
   );
 
   function selectView(next: BookmarkView) {
@@ -263,19 +266,15 @@ export function WebsitesTab() {
           disabled={categoriesLoading && categories === null}
         />
 
-        <select
+        <SearchSelect
           value={tagSlug ?? ''}
-          onChange={(event) => setTagSlug(event.target.value || undefined)}
-          aria-label="按标签筛选"
+          onChange={(value) => setTagSlug(value || undefined)}
+          label="按标签筛选"
+          placeholder="搜索标签"
+          options={tagsForSelect}
           disabled={tagsLoading && tags === null}
-          className="h-11 max-w-full rounded-lg border border-border/70 bg-card px-2.5 text-xs outline-none focus-visible:border-primary/50"
-        >
-          {tagOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          className="max-w-full sm:max-w-52"
+        />
 
         {view === 'active' ? (
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">

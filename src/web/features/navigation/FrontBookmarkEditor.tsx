@@ -1,17 +1,19 @@
 import type { Category, Tag } from '@shared/api/types';
 
 import { ChevronDown, RefreshCw, Sparkles, X } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { isComposingKey } from '@/lib/keyboard';
 import {
   useBookmarkEditor,
   type BookmarkEditorProps,
 } from '@nav/features/bookmarks/useBookmarkEditor';
-import { buildCategoryTree, flattenCategoryTree } from '@nav/features/categories/tree';
+import { categoryOptions } from '@nav/features/selection/options';
 import { useVisibilityDefaults } from '@nav/features/visibility/useVisibilityDefaults';
 
 import { FrontButton, FrontInput, frontInputClass } from './controls';
 import { FrontDialog } from './FrontDialog';
+import { FrontSearchSelect } from './FrontSearchSelect';
 
 export function FrontBookmarkEditor({
   onClose,
@@ -23,6 +25,10 @@ export function FrontBookmarkEditor({
   const defaults = useVisibilityDefaults();
   const { form, setForm } = editor;
   const category = categories.find((item) => item.id === form.categoryId);
+  const options = useMemo(
+    () => [{ value: '', label: '未分类' }, ...categoryOptions(categories)],
+    [categories],
+  );
   return (
     <FrontDialog
       open={props.open}
@@ -92,22 +98,21 @@ export function FrontBookmarkEditor({
             <label htmlFor="bookmark-category" className="mb-2 block text-sm font-semibold">
               分类
             </label>
-            <select
+            <FrontSearchSelect
               id="bookmark-category"
-              className={frontInputClass}
-              value={form.categoryId ?? ''}
-              onChange={(e) =>
-                setForm({ ...form, categoryId: e.target.value ? Number(e.target.value) : null })
+              options={options}
+              disabled={editor.loading}
+              label="选择分类"
+              placeholder="搜索分类或上级名称"
+              className="w-full"
+              value={category?.slug ?? ''}
+              onChange={(slug) =>
+                setForm({
+                  ...form,
+                  categoryId: categories.find((item) => item.slug === slug)?.id ?? null,
+                })
               }
-            >
-              <option value="">未分类</option>
-              {flattenCategoryTree(buildCategoryTree(categories)).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {'　'.repeat(item.depth)}
-                  {item.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           <div>
             <label htmlFor="bookmark-tags" className="mb-2 block text-sm font-semibold">

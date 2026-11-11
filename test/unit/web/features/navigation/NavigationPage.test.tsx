@@ -257,6 +257,37 @@ it('显式站内模式优先于浏览器记忆，标签与关键词组合查询'
   expect(buttonWithText(app.container, '站内').getAttribute('aria-pressed')).toBe('true');
 });
 
+it('展开筛选后可搜索标签，在标签、无标签和全部之间切换并保留关键词', async () => {
+  vi.useRealTimers();
+  app = await mount(<Host initial={{ mode: 'site', q: 'React' }} />);
+  expect(app.container.querySelector('[aria-label="标签筛选"]')).toBeNull();
+  const details = app.container.querySelector('details')!;
+  await act(async () => {
+    details.open = true;
+    details.dispatchEvent(new Event('toggle', { bubbles: true }));
+    await import('@nav/features/navigation/FrontSearchSelect');
+  });
+  const trigger = app.container.querySelector<HTMLElement>('[aria-label="标签筛选"]')!;
+  await click(trigger);
+  await click(
+    [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+      (option) => option.textContent === '无标签',
+    )!,
+  );
+  expect(route.search).toMatchObject({ q: 'React', untagged: true });
+  expect(route.search.tag).toBeUndefined();
+  await click(trigger);
+  await fill(document.querySelector<HTMLInputElement>('input[role="combobox"]')!, 'rea');
+  await click(document.querySelector<HTMLElement>('[role="option"]')!);
+  expect(route.search).toMatchObject({ q: 'React', tag: 'react' });
+  expect(route.search.untagged).toBeUndefined();
+  await click(trigger);
+  await click(document.querySelector<HTMLElement>('[role="option"]')!);
+  expect(route.search.q).toBe('React');
+  expect(route.search.tag).toBeUndefined();
+  expect(route.search.untagged).toBeUndefined();
+});
+
 it('网页 bang 正常打开引擎，只有前缀时禁用提交；输入法确认不触发搜索', async () => {
   app = await mount(<Host initial={{ mode: 'web' }} />);
   await fill(app.container.querySelector('input')!, '!g React');

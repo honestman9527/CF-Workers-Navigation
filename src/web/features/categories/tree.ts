@@ -15,6 +15,7 @@ export function siblingIds(categories: Category[], node: Category): number[] {
 
 /** Total direct and descendant bookmark counts for each category. */
 export function descendantTotals(categories: Category[]): Map<number, number> {
+  const byId = new Map(categories.map((category) => [category.id, category]));
   const byParent = new Map<number | null, Category[]>();
   for (const category of categories) {
     const key = category.parentId ?? null;
@@ -26,7 +27,7 @@ export function descendantTotals(categories: Category[]): Map<number, number> {
   function sum(id: number): number {
     const cached = totals.get(id);
     if (cached !== undefined) return cached;
-    const node = categories.find((item) => item.id === id);
+    const node = byId.get(id);
     let result = node?.bookmarkCount ?? 0;
     for (const child of byParent.get(id) ?? []) result += sum(child.id);
     totals.set(id, result);

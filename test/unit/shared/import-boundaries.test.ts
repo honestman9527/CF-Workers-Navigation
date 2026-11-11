@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
+const oxlint = path.join(
+  path.dirname(fileURLToPath(import.meta.resolve('oxlint/package.json'))),
+  'bin/oxlint',
+);
 
 it.each([
   ['src/shared/probe.ts', '../worker/types', false],
@@ -27,7 +31,7 @@ it.each([
     const target = path.join(directory, file);
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, `import '${dependency}';\n`);
-    const result = spawnSync(path.join(root, 'node_modules/.bin/oxlint'), [file], {
+    const result = spawnSync(process.execPath, [oxlint, file], {
       cwd: directory,
       encoding: 'utf8',
     });

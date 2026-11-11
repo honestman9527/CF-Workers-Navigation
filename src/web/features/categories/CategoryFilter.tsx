@@ -1,16 +1,13 @@
 import type { Category } from '@shared/api/types';
 
-import { ChevronDown, FolderTree, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
+import { SearchSelect } from '@/components/ui/search-select';
+import { UNCATEGORIZED_SLUG } from '@shared/api/types';
 
-import { CategoryTree } from './CategoryTree';
+import { categoryOptions, retainSelectedOption } from '../selection/options';
 
-/** 后台分类筛选：浮层内保留可折叠分类树。 */
+/** 后台分类筛选：搜索完整路径，按深度优先顺序展示层级。 */
 export function CategoryFilter({
   categories,
   selectedSlug,
@@ -22,53 +19,27 @@ export function CategoryFilter({
   onSelect: (slug: string | undefined) => void;
   disabled?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const selectedName = useMemo(
+  const options = useMemo(
     () =>
-      selectedSlug
-        ? (categories.find((item) => item.slug === selectedSlug)?.name ?? selectedSlug)
-        : null,
+      retainSelectedOption(
+        [
+          { value: '', label: '全部分类' },
+          { value: UNCATEGORIZED_SLUG, label: '未分类' },
+          ...categoryOptions(categories, true),
+        ],
+        selectedSlug ?? '',
+      ),
     [categories, selectedSlug],
   );
-  function select(slug: string | undefined) {
-    onSelect(slug);
-    setOpen(false);
-  }
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        render={<Button variant={selectedSlug ? 'default' : 'outline'} size="lg" />}
-      >
-        <FolderTree data-icon="inline-start" />
-        <span className="max-w-32 truncate">{selectedName ?? '全部分类'}</span>
-        <ChevronDown
-          data-icon="inline-end"
-          className={cn('transition-transform', open && 'rotate-180')}
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="max-h-(--available-height) w-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
-      >
-        <PopoverTitle className="sr-only">筛选分类</PopoverTitle>
-        <Button variant="ghost" className="w-full justify-start" onClick={() => select(undefined)}>
-          <span className="min-w-0 flex-1 truncate">全部分类</span>
-          {selectedSlug ? <X data-icon="inline-end" /> : null}
-        </Button>
-        <Separator />
-        <div className="scrollbar-safe max-h-72 overflow-y-auto">
-          <CategoryTree
-            categories={categories}
-            selectedSlug={selectedSlug}
-            showLevel
-            showCount
-            includeUncategorized
-            onSelect={select}
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
+    <SearchSelect
+      options={options}
+      value={selectedSlug ?? ''}
+      onChange={(slug) => onSelect(slug || undefined)}
+      disabled={disabled}
+      label="筛选分类"
+      placeholder="搜索分类或上级名称"
+      className="max-w-full sm:max-w-64"
+    />
   );
 }

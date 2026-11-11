@@ -119,9 +119,14 @@ it('保存后的标签刷新失败保留原筛选项，重试期间不重复提�
     await click(buttonWithText(app.container, '添加书签'));
     await click(buttonWithText(app.container, '提交测试草稿'));
     expect(app.container.textContent).toContain('标签加载失败：刷新断网');
-    expect(app.container.querySelector('select[aria-label="按标签筛选"]')?.textContent).toContain(
-      '保留标签',
+    await click(app.container.querySelector<HTMLElement>('[aria-label="按标签筛选"]')!);
+    expect(document.querySelector('[role="listbox"]')?.textContent).toContain('保留标签');
+    await click(
+      [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) =>
+        option.textContent?.includes('保留标签'),
+      )!,
     );
+    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ tag: 'kept' });
     let finish!: (value: []) => void;
     vi.mocked(api.getTags).mockImplementationOnce(
       () =>

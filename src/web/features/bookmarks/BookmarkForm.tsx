@@ -197,8 +197,10 @@ export function BookmarkForm({
           </div>
           <div>
             <Label htmlFor="bookmark-category">分类</Label>
-            <div id="bookmark-category">
+            <div>
               <CategoryPicker
+                id="bookmark-category"
+                disabled={loading}
                 categories={availableCategories}
                 value={form.categoryId}
                 onChange={(categoryId) => setForm((current) => ({ ...current, categoryId }))}

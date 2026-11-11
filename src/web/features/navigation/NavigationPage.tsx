@@ -27,6 +27,7 @@ import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutatio
 import { categoryIcon } from '@nav/features/categories/icons';
 import { buildCategoryTree, descendantTotals } from '@nav/features/categories/tree';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
+import { retainSelectedOption, tagOptions } from '@nav/features/selection/options';
 import { useApiData } from '@nav/hooks/useApiData';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
@@ -50,6 +51,9 @@ import { useCategoryBrowse } from './useCategoryBrowse';
 const FrontBookmarkEditor = lazy(() =>
   import('./FrontBookmarkEditor').then((module) => ({ default: module.FrontBookmarkEditor })),
 );
+const FrontSearchSelect = lazy(() =>
+  import('./FrontSearchSelect').then((module) => ({ default: module.FrontSearchSelect })),
+);
 const openLink = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
 
 /** 认证身份变化时立即卸载全部列表、索引与编辑草稿。 */
@@ -63,6 +67,7 @@ function NavigationSurface() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [composing, setComposing] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
   const [feedCache] = useState(createBookmarkFeedCache);
@@ -107,6 +112,14 @@ function NavigationSurface() {
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
   const tags = useApiData(loadTags, { onUnauthorized: unauthorized });
+  const tagsForSelect = useMemo(
+    () => [
+      { value: '', label: '全部标签' },
+      { value: '__untagged__', label: '无标签' },
+      ...tagOptions(tags.data ?? []),
+    ],
+    [tags.data],
+  );
   const roots = useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
   const totals = useMemo(() => descendantTotals(categories.data ?? []), [categories.data]);
   const browse = useCategoryBrowse(roots, Boolean(categories.data));
@@ -581,7 +594,10 @@ function NavigationSurface() {
                   ) : null}
                 </div>
               ) : (
-                <details className="w-full">
+                <details
+                  className="w-full"
+                  onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+                >
                   <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/70 hover:text-foreground sm:text-sm">
                     <SlidersHorizontal className="size-3.5" />
                     筛选{search.tag || search.untagged ? ' · 已启用' : ''}
@@ -590,35 +606,28 @@ function NavigationSurface() {
                     <label htmlFor="search-tag" className="text-xs font-medium">
                       标签
                     </label>
-                    <select
-                      id="search-tag"
-                      aria-label="标签筛选"
-                      value={search.untagged ? '__untagged__' : (search.tag ?? '')}
-                      onChange={(event) =>
-                        update({
-                          ...search,
-                          mode,
-                          q: draft.trim() || undefined,
-                          tag:
-                            event.target.value && event.target.value !== '__untagged__'
-                              ? event.target.value
-                              : undefined,
-                          untagged: event.target.value === '__untagged__' ? true : undefined,
-                        })
-                      }
-                      className="min-h-9 max-w-full rounded-lg border border-border/50 bg-background px-3 text-xs font-medium text-foreground outline-none focus:border-primary sm:text-sm"
-                    >
-                      <option value="">全部标签</option>
-                      <option value="__untagged__">无标签</option>
-                      {search.tag && !tags.data?.some((item) => item.slug === search.tag) ? (
-                        <option value={search.tag}>当前标签：{search.tag}</option>
-                      ) : null}
-                      {tags.data?.map((item) => (
-                        <option key={item.id} value={item.slug}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                    {filtersOpen ? (
+                      <Suspense fallback={<FrontButton disabled>加载标签筛选…</FrontButton>}>
+                        <FrontSearchSelect
+                          id="search-tag"
+                          label="标签筛选"
+                          placeholder="搜索标签"
+                          options={retainSelectedOption(tagsForSelect, search.tag ?? '')}
+                          disabled={tags.loading && !tags.data}
+                          value={search.untagged ? '__untagged__' : (search.tag ?? '')}
+                          onChange={(value) =>
+                            update({
+                              ...search,
+                              mode,
+                              q: draft.trim() || undefined,
+                              tag: value && value !== '__untagged__' ? value : undefined,
+                              untagged: value === '__untagged__' ? true : undefined,
+                            })
+                          }
+                          className="max-w-full sm:max-w-64"
+                        />
+                      </Suspense>
+                    ) : null}
                     {tags.error ? (
                       <span role="alert" className="text-xs text-destructive">
                         {tags.error}
