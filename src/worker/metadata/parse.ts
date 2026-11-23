@@ -1,5 +1,6 @@
 import type { FaviconOpts, MetadataResult, MetadataShape } from './types';
 
+import { isHttpUrl, isSafePublicHttpUrl } from '../validation';
 import { normalizeLanguage, selectCleanText, splitKeywords } from './clean';
 import {
   createCollectedMeta,
@@ -11,11 +12,14 @@ import {
   TitleHandler,
 } from './collect';
 
-/** 抓取与结果组装：有界 HTTP 读取、fallback 与公开入口。 */
+/** 抓取与结果组装：安全重定向校验、有界 HTTP 读取、fallback 与公开入口。 */
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+const FETCH_TIMEOUT_MS = 8_000;
 const MAX_TITLE_LENGTH = 140;
 const MAX_DESCRIPTION_LENGTH = 320;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 function parseContentLength(value: string | null): number | null {
   if (!value) {
@@ -26,28 +30,72 @@ function parseContentLength(value: string | null): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-function resolveUrl(href: string, baseUrl: string): string {
+function resolveSafeHttpUrl(href: string, baseUrl: string): string {
   try {
-    return new URL(href, baseUrl).toString();
+    const resolved = new URL(href, baseUrl).toString();
+    return isHttpUrl(resolved) ? resolved : '';
   } catch {
-    return href;
+    return '';
   }
 }
 
+async function fetchWithSafeRedirects(
+  initialUrl: string,
+): Promise<{ response: Response; finalUrl: string } | null> {
+  let currentUrl = initialUrl;
+  const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    if (!isSafePublicHttpUrl(currentUrl)) {
+      return null;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(currentUrl, {
+        signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NavBookmarkBot/1.0)',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        redirect: 'manual',
+      });
+    } catch {
+      return null;
+    }
+
+    if (REDIRECT_STATUSES.has(response.status)) {
+      const location = response.headers.get('Location');
+      await response.body?.cancel().catch(() => undefined);
+      if (!location || hop === MAX_REDIRECTS) {
+        return null;
+      }
+      try {
+        currentUrl = new URL(location, currentUrl).toString();
+      } catch {
+        return null;
+      }
+      continue;
+    }
+
+    const finalUrl = response.url || currentUrl;
+    if (!isSafePublicHttpUrl(finalUrl)) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+
+    return { response, finalUrl };
+  }
+
+  return null;
+}
+
 async function parseHtmlMetadata(url: string): Promise<MetadataShape | null> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      signal: AbortSignal.timeout(8_000),
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; NavBot/1.0; +https://nav.7s.nz)',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      redirect: 'follow',
-    });
-  } catch {
+  const fetched = await fetchWithSafeRedirects(url);
+  if (!fetched) {
     return null;
   }
+  const { response, finalUrl } = fetched;
 
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
@@ -109,9 +157,10 @@ async function parseHtmlMetadata(url: string): Promise<MetadataShape | null> {
   );
   const keywords = splitKeywords(collected.keywords);
   const language = normalizeLanguage(collected.language);
-  const baseUrl = response.url || url;
-  const faviconUrl = collected.faviconUrl ? resolveUrl(collected.faviconUrl, baseUrl) : '';
-  const canonicalUrl = collected.canonicalUrl ? resolveUrl(collected.canonicalUrl, baseUrl) : '';
+  const faviconUrl = collected.faviconUrl ? resolveSafeHttpUrl(collected.faviconUrl, finalUrl) : '';
+  const canonicalUrl = collected.canonicalUrl
+    ? resolveSafeHttpUrl(collected.canonicalUrl, finalUrl)
+    : '';
 
   return {
     url,
@@ -162,11 +211,14 @@ export function faviconUrlFor(url: string, opts: FaviconOpts): string {
   if (!opts.faviconProxyEnabled) return '';
   let hostname: string;
   try {
-    hostname = new URL(url).hostname;
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    hostname = parsed.hostname;
   } catch {
-    hostname = url;
+    return '';
   }
-  return opts.faviconProxyUrl.replaceAll('{domain}', hostname);
+  if (!hostname) return '';
+  return opts.faviconProxyUrl.replaceAll('{domain}', encodeURIComponent(hostname));
 }
 
 export async function fetchBookmarkMetadata(

@@ -6,16 +6,17 @@ import { z } from 'zod';
 import {
   clearSessionCookie,
   createSessionToken,
+  getAdminPassword,
   isSecureRequest,
+  limitAuthAttempts,
   sessionCookie,
   timingSafeEqual,
-  limitAuthAttempts,
 } from '../auth';
 import { jsonError } from '../errors';
 import { parseJson } from '../http';
 
 const loginSchema = z.object({
-  password: z.string().min(1),
+  password: z.string().min(1).max(256),
 });
 
 const authRoutes = new Hono<AppEnv>();
@@ -23,13 +24,18 @@ const authRoutes = new Hono<AppEnv>();
 authRoutes.post('/login', async (c) => {
   const limited = await limitAuthAttempts(c);
   if (limited) return limited;
+  const adminPassword = getAdminPassword(c.env);
+  if (!adminPassword) {
+    console.error({ event: 'auth-misconfigured', requestId: c.get('requestId') });
+    return jsonError(c, 500, 'internal_error', 'Authentication is not configured');
+  }
   const body = await parseJson(c);
   if (!body.ok) {
     return body.response;
   }
 
   const input = loginSchema.parse(body.body);
-  if (!(await timingSafeEqual(input.password, c.env.ADMIN_PASSWORD))) {
+  if (!(await timingSafeEqual(input.password, adminPassword))) {
     return jsonError(c, 401, 'unauthorized', 'Invalid password');
   }
 

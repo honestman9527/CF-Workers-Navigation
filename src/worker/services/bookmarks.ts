@@ -17,7 +17,7 @@ import {
   encodeSearchCursor,
 } from '../cursor';
 import { bookmarks } from '../schema';
-import { getSettings } from '../settings';
+import { getDefaultVisibility } from '../settings';
 import { slugify } from '../slug';
 import { publicBookmarkCondition, bookmarkEffectiveVisibility } from '../visibility';
 import { bookmarkTagStatements } from './bookmark-tags';
@@ -249,22 +249,24 @@ export async function listBookmarks(
 ): Promise<BookmarkPage> {
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
 
-  // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
+  // 分页模式（携带 offset）：并行执行列表与计数查询，减少一次 RTT，游标置空。
   if (options.offset !== undefined) {
     const { cte, condition } = buildFilter(options, authed);
-    const rows = await db.all<BookmarkRow>(sql`
-      WITH bookmark_page AS MATERIALIZED (
-        ${cte}
-        SELECT b.id FROM bookmarks b
-        WHERE 1 = 1 ${condition}
+    const [rows, total] = await Promise.all([
+      db.all<BookmarkRow>(sql`
+        WITH bookmark_page AS MATERIALIZED (
+          ${cte}
+          SELECT b.id FROM bookmarks b
+          WHERE 1 = 1 ${condition}
+          ORDER BY b.created_at DESC, b.id DESC
+          LIMIT ${limit} OFFSET ${options.offset}
+        )
+        ${listSelect}
+        GROUP BY b.id
         ORDER BY b.created_at DESC, b.id DESC
-        LIMIT ${limit} OFFSET ${options.offset}
-      )
-      ${listSelect}
-      GROUP BY b.id
-      ORDER BY b.created_at DESC, b.id DESC
-    `);
-    const total = await countByFilter(db, { cte, condition }, listCountFrom);
+      `),
+      countByFilter(db, { cte, condition }, listCountFrom),
+    ]);
     return { items: rows.map(toDto), nextCursor: null, total };
   }
 
@@ -279,11 +281,14 @@ export async function listBookmarks(
   };
 }
 
+const MAX_FTS_TOKENS = 10;
+
 function buildFtsQuery(raw: string): string {
   return raw
     .split(/\s+/)
     .map((token) => token.trim())
-    .filter(Boolean)
+    .filter((token) => /[\p{L}\p{N}]/u.test(token))
+    .slice(0, MAX_FTS_TOKENS)
     .map((token) => `"${token.replace(/"/g, '""')}"*`)
     .join(' OR ');
 }
@@ -295,30 +300,36 @@ export async function searchBookmarks(
   authed: boolean,
 ): Promise<BookmarkPage> {
   const ftsQuery = buildFtsQuery(query);
-  if (!ftsQuery) return { items: [], nextCursor: null };
+  if (!ftsQuery) {
+    return options.offset !== undefined
+      ? { items: [], nextCursor: null, total: 0 }
+      : { items: [], nextCursor: null };
+  }
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const { cte, condition } = buildFilter(options, authed);
 
-  // 分页模式（携带 offset）：返回总数 + 指定页，游标置空。
+  // 分页模式（携带 offset）：并行执行搜索与计数查询，游标置空。
   if (options.offset !== undefined) {
-    const rows = await db.all<SearchRow>(sql`
-      WITH bookmark_page AS MATERIALIZED (
-        ${cte}
-        SELECT b.id, bookmarks_fts.rank AS rank
-        ${searchCountFrom}
-        WHERE bookmarks_fts MATCH ${ftsQuery} ${condition}
-        ORDER BY bookmarks_fts.rank ASC, b.id DESC
-        LIMIT ${limit} OFFSET ${options.offset}
-      )
-      ${searchSelect}
-      GROUP BY b.id
-      ORDER BY page.rank ASC, b.id DESC
-    `);
-    const total = await countByFilter(
-      db,
-      { cte, condition: sql`AND bookmarks_fts MATCH ${ftsQuery} ${condition}` },
-      searchCountFrom,
-    );
+    const [rows, total] = await Promise.all([
+      db.all<SearchRow>(sql`
+        WITH bookmark_page AS MATERIALIZED (
+          ${cte}
+          SELECT b.id, bookmarks_fts.rank AS rank
+          ${searchCountFrom}
+          WHERE bookmarks_fts MATCH ${ftsQuery} ${condition}
+          ORDER BY bookmarks_fts.rank ASC, b.id DESC
+          LIMIT ${limit} OFFSET ${options.offset}
+        )
+        ${searchSelect}
+        GROUP BY b.id
+        ORDER BY page.rank ASC, b.id DESC
+      `),
+      countByFilter(
+        db,
+        { cte, condition: sql`AND bookmarks_fts MATCH ${ftsQuery} ${condition}` },
+        searchCountFrom,
+      ),
+    ]);
     return { items: rows.map(toDto), nextCursor: null, total };
   }
 
@@ -379,7 +390,8 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       iconUrl: input.iconUrl,
       isPinned: input.isPinned,
       categoryId: input.categoryId ?? null,
-      visibility: input.visibility ?? (await getSettings(db)).defaultBookmarkVisibility,
+      visibility:
+        input.visibility ?? (await getDefaultVisibility(db, 'default_bookmark_visibility')),
       urlNormalized: normalizeUrl(input.url),
     })
     .returning();
@@ -399,7 +411,14 @@ export async function updateBookmark(
   id: number,
   input: Partial<BookmarkWrite>,
 ): Promise<BookmarkDto> {
-  const [current] = await db.select().from(bookmarks).where(eq(bookmarks.id, id));
+  const [current] = await db
+    .select({
+      id: bookmarks.id,
+      archivedAt: bookmarks.archivedAt,
+      deletedAt: bookmarks.deletedAt,
+    })
+    .from(bookmarks)
+    .where(eq(bookmarks.id, id));
   if (!current) throw new ServiceError(404, 'not_found', 'Bookmark not found');
   if (current.deletedAt || current.archivedAt) {
     throw new ServiceError(400, 'validation_error', '归档或回收站中的书签不可编辑');
@@ -408,6 +427,11 @@ export async function updateBookmark(
   if (input.categoryId !== undefined && input.categoryId !== null) {
     await assertCategoryExists(db, input.categoryId);
   }
+  const activeCondition = and(
+    eq(bookmarks.id, id),
+    isNull(bookmarks.deletedAt),
+    isNull(bookmarks.archivedAt),
+  )!;
   const write = db
     .update(bookmarks)
     .set({
@@ -422,12 +446,20 @@ export async function updateBookmark(
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(eq(bookmarks.id, id))
+    .where(activeCondition)
     .returning();
   const [[bookmark]] = await db.batch([
     write,
-    ...bookmarkTagStatements(db, eq(bookmarks.id, id), input.tags),
+    ...bookmarkTagStatements(db, activeCondition, input.tags),
   ]);
+  if (!bookmark) {
+    const [latest] = await db
+      .select({ id: bookmarks.id })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, id));
+    if (!latest) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+    throw new ServiceError(400, 'validation_error', '归档或回收站中的书签不可编辑');
+  }
   return getBookmark(db, bookmark.id, true);
 }
 

@@ -2,6 +2,7 @@ import type { TransferBookmark, TransferCategory, TransferData } from './types';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import { slugify } from '../slug';
+import { isHttpUrl } from '../validation';
 
 const HTML_ENTITIES: Record<string, string> = {
   '&': '&amp;',
@@ -10,6 +11,18 @@ const HTML_ENTITIES: Record<string, string> = {
   '"': '&quot;',
   "'": '&#39;',
 };
+
+const MAX_TITLE_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 2000;
+const MAX_CATEGORY_NAME_LENGTH = 40;
+const MAX_URL_LENGTH = 2048;
+
+const ATTR_PATTERNS = {
+  HREF: /\bHREF\s*=\s*(?:"([^"]*)"|'([^']*)')/i,
+  ICON: /\bICON\s*=\s*(?:"([^"]*)"|'([^']*)')/i,
+  ICON_URI: /\bICON_URI\s*=\s*(?:"([^"]*)"|'([^']*)')/i,
+  ADD_DATE: /\bADD_DATE\s*=\s*(?:"([^"]*)"|'([^']*)')/i,
+} as const;
 
 /** 未分类书签在 HTML 导出/导入中使用的文件夹名称。 */
 const UNCATEGORIZED_NAME = '未分类';
@@ -27,22 +40,23 @@ function unescapeHtml(value: string): string {
     .replace(/&amp;/g, '&');
 }
 
-function extractAttr(tag: string, name: string): string | null {
-  const match = tag.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, 'i'));
-  return match ? unescapeHtml(match[1]) : null;
+function extractAttr(tag: string, name: keyof typeof ATTR_PATTERNS): string | null {
+  const match = tag.match(ATTR_PATTERNS[name]);
+  const raw = match?.[1] ?? match?.[2];
+  return raw !== undefined ? unescapeHtml(raw) : null;
 }
 
 function parseIcon(icon: string | null, iconUri: string | null): string | null {
-  const value = iconUri ?? icon;
-  return value && /^https?:\/\//i.test(value) ? value : null;
+  const value = (iconUri ?? icon)?.trim();
+  return value && value.length <= MAX_URL_LENGTH && isHttpUrl(value) ? value : null;
 }
 
 function parseAddedAt(addDate: string | null): string | null {
   if (!addDate) return null;
   const timestamp = Number(addDate);
-  return Number.isFinite(timestamp) && timestamp > 0
-    ? new Date(timestamp * 1000).toISOString()
-    : null;
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  const date = new Date(timestamp * 1000);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 type FolderEntry = { name: string; slug: string };
@@ -74,7 +88,9 @@ export function parseHtml(input: string): TransferData {
 
     const folderMatch = line.match(/^<DT>\s*<H3[^>]*>([^<]*)<\/H3>/i);
     if (folderMatch) {
-      const name = unescapeHtml(folderMatch[1]).trim() || '未命名分类';
+      const name =
+        unescapeHtml(folderMatch[1]).trim().slice(0, MAX_CATEGORY_NAME_LENGTH).trim() ||
+        '未命名分类';
       const baseSlug = (slugify(name) || 'folder').slice(0, 64);
       const uncategorized = baseSlug === UNCATEGORIZED_SLUG || name === UNCATEGORIZED_NAME;
       let slug = baseSlug;
@@ -95,10 +111,14 @@ export function parseHtml(input: string): TransferData {
     const bookmarkMatch = line.match(/^<DT>\s*<A\s+([^>]*)>([^<]*)<\/A>/i);
     if (bookmarkMatch) {
       const attrs = bookmarkMatch[1];
-      const url = extractAttr(attrs, 'HREF');
-      if (!url) continue;
+      const url = extractAttr(attrs, 'HREF')?.trim();
+      if (!url || url.length > MAX_URL_LENGTH || !isHttpUrl(url)) {
+        lastBookmark = null;
+        continue;
+      }
       const bookmark: TransferBookmark = {
-        title: unescapeHtml(bookmarkMatch[2]).trim() || '未命名书签',
+        title:
+          unescapeHtml(bookmarkMatch[2]).trim().slice(0, MAX_TITLE_LENGTH).trim() || '未命名书签',
         url,
         iconUrl: parseIcon(extractAttr(attrs, 'ICON'), extractAttr(attrs, 'ICON_URI')),
         addedAt: parseAddedAt(extractAttr(attrs, 'ADD_DATE')),
@@ -111,8 +131,11 @@ export function parseHtml(input: string): TransferData {
     }
 
     const descriptionMatch = line.match(/^<DD>(.*)$/i);
-    if (descriptionMatch && lastBookmark)
-      lastBookmark.description = unescapeHtml(descriptionMatch[1]).trim();
+    if (descriptionMatch && lastBookmark) {
+      lastBookmark.description = unescapeHtml(descriptionMatch[1])
+        .trim()
+        .slice(0, MAX_DESCRIPTION_LENGTH);
+    }
   }
 
   if (bookmarks.length === 0) throw new Error('未找到任何有效书签');

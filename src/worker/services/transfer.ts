@@ -20,8 +20,9 @@ import { ServiceError } from './errors';
 
 // D1 limits the number of bound parameters per statement. Each bookmark insert
 // currently binds eleven values (including category_id and visibility), so nine rows stay below
-// the limit with headroom.
+// the limit with headroom. Category inserts bind six values per row, so fifteen rows = 90 params.
 const INSERT_CHUNK_SIZE = 9;
+const CATEGORY_INSERT_CHUNK_SIZE = 15;
 const UPDATE_CHUNK_SIZE = 25;
 const MATCH_CHUNK_SIZE = 90;
 
@@ -196,43 +197,42 @@ async function upsertCategoriesForImport(
   }
   for (const row of existing) slugToId.set(row.slug, row.id);
 
-  let sortOrder = 0;
-  const entries = [...bySlug.values()].sort(
-    (a, b) => Number(promoted.has(a.slug)) - Number(promoted.has(b.slug)),
-  );
   const existingMax = existing.reduce((max, row) => Math.max(max, row.sortOrder), -1);
-  sortOrder = existingMax + 1;
-  for (const entry of entries) {
-    if (slugToId.has(entry.slug)) continue;
-    const [created] = await db
-      .insert(categories)
-      .values({
-        name: entry.name,
-        slug: entry.slug,
-        icon: entry.icon,
-        sortOrder,
-        visibility: entry.visibility,
-      })
-      .returning({ id: categories.id });
-    slugToId.set(entry.slug, created.id);
-    log?.count('categoriesCreated', 1);
-    sortOrder += 1;
-  }
+  const toCreate = [...bySlug.values()]
+    .filter((entry) => !slugToId.has(entry.slug))
+    .sort((a, b) => Number(promoted.has(a.slug)) - Number(promoted.has(b.slug)))
+    .map((entry, index) => ({ ...entry, sortOrder: existingMax + 1 + index }));
 
-  const parentUpdates = [...bySlug.values()].flatMap((entry) => {
-    if (!entry.parentSlug || existingSlugs.has(entry.slug)) return [];
-    const id = slugToId.get(entry.slug);
-    if (id === undefined) return [];
-    const parentId = slugToId.get(entry.parentSlug) ?? null;
-    return [
-      db
-        .update(categories)
-        .set({ parentId, updatedAt: sql`CURRENT_TIMESTAMP` })
-        .where(eq(categories.id, id)),
-    ];
-  });
-  if (parentUpdates.length > 0) {
-    await db.batch(parentUpdates as [(typeof parentUpdates)[number], ...typeof parentUpdates]);
+  // 分两轮（先根/依赖已有父级，再依赖新建根的子分类）按块批量 INSERT，消除 2N 条逐条读写。
+  let remaining = toCreate;
+  while (remaining.length > 0) {
+    const ready: typeof remaining = [];
+    const deferred: typeof remaining = [];
+    for (const entry of remaining) {
+      const parentKnown =
+        !entry.parentSlug || slugToId.has(entry.parentSlug) || !bySlug.has(entry.parentSlug);
+      if (parentKnown) ready.push(entry);
+      else deferred.push(entry);
+    }
+    const wave = ready.length > 0 ? ready : deferred;
+    for (const batch of chunks(wave, CATEGORY_INSERT_CHUNK_SIZE)) {
+      const created = await db
+        .insert(categories)
+        .values(
+          batch.map((entry) => ({
+            name: entry.name,
+            slug: entry.slug,
+            parentId: entry.parentSlug ? (slugToId.get(entry.parentSlug) ?? null) : null,
+            icon: entry.icon,
+            sortOrder: entry.sortOrder,
+            visibility: entry.visibility,
+          })),
+        )
+        .returning({ id: categories.id, slug: categories.slug });
+      for (const row of created) slugToId.set(row.slug, row.id);
+      log?.count('categoriesCreated', created.length);
+    }
+    remaining = ready.length > 0 ? deferred : [];
   }
 
   return { slugToId, categoriesFlattened };

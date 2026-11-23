@@ -64,9 +64,9 @@ transferRoutes.get('/export/prepare', async (c) => {
 
 function timestampForFilename(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
   return `${year}${month}${day}`;
 }
 
@@ -89,12 +89,18 @@ transferRoutes.get('/export', async (c) => {
       return jsonError(c, 400, 'validation_error', '导出不支持自动识别，请指定 html 或 json');
     }
     const body = await exportTransferStream(c.get('db'), format, log);
-    return new Response(body, {
-      headers: {
-        'Content-Type': `${format === 'json' ? 'application/json' : 'text/html'}; charset=utf-8`,
-        'Content-Disposition': `attachment; filename="nav-export-${timestampForFilename()}.${format}"`,
-      },
-    });
+    c.header(
+      'Content-Type',
+      `${format === 'json' ? 'application/json' : 'text/html'}; charset=utf-8`,
+    );
+    c.header(
+      'Content-Disposition',
+      `attachment; filename="nav-export-${timestampForFilename()}.${format}"`,
+    );
+    c.header('Cache-Control', 'private, no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('Content-Security-Policy', 'sandbox');
+    return c.body(body);
   } catch (error) {
     log.finish(error instanceof ZodError ? 'rejected' : 'failed', error);
     throw error;

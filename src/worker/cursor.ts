@@ -3,15 +3,26 @@ import { ServiceError } from './services/errors';
 type ListCursor = { createdAt: string; id: number };
 type SearchCursor = { rank: number; id: number };
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false });
+
 function encode(value: object): string {
-  return btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  const bytes = textEncoder.encode(JSON.stringify(value));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
 function decode(raw: string): Record<string, unknown> {
   try {
     const padded =
       raw.replaceAll('-', '+').replaceAll('_', '/') + '==='.slice((raw.length + 3) % 4);
-    const value: unknown = JSON.parse(atob(padded));
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    const value: unknown = JSON.parse(textDecoder.decode(bytes));
     if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     return value as Record<string, unknown>;
   } catch {

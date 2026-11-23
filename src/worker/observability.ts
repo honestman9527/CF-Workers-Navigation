@@ -15,12 +15,17 @@ export function safeFailure(
     'AggregateError',
   ];
   const code = [
-    'D1_ERROR',
     'SQLITE_CONSTRAINT',
     'SQLITE_BUSY',
     'SQLITE_ERROR',
     'SQLITE_TOOBIG',
-  ].find((value) => error.message.startsWith(`${value}:`));
+    'D1_ERROR',
+  ].find(
+    (value) =>
+      error.message.startsWith(`${value}:`) ||
+      error.message.endsWith(`: ${value}`) ||
+      error.message === value,
+  );
   return {
     type: allowed.includes(error.name) ? error.name : 'Error',
     ...(code ? { code } : {}),

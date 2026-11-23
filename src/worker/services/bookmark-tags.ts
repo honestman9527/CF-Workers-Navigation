@@ -16,10 +16,12 @@ const TAG_ROWS_PER_STATEMENT = 40;
 type BookmarkTagWrite = { bookmarkId: number; names: readonly string[] | undefined };
 type ReplaceBookmarkTags = (entries: readonly BookmarkTagWrite[]) => Promise<void>;
 
+const MAX_TAG_NAME_LENGTH = 40;
+
 function cleanTagNames(names: readonly string[]): Array<{ name: string; slug: string }> {
   const unique = new Map<string, string>();
   for (const raw of names) {
-    const name = raw.trim();
+    const name = raw.trim().slice(0, MAX_TAG_NAME_LENGTH).trim();
     const slug = slugify(name);
     if (name && slug && !unique.has(slug)) unique.set(slug, name);
   }

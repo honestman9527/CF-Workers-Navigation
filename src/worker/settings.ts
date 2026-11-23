@@ -1,12 +1,13 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 
-import type { Settings } from '../shared/api/types';
+import type { Settings, Visibility } from '../shared/api/types';
 import type { SearchEngine } from '../shared/search';
 
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { DEFAULT_SEARCH_ENGINES } from '../shared/search';
 import { settings } from './schema';
+import { ServiceError } from './services/errors';
 
 const DEFAULTS = {
   default_category_visibility: 'public',
@@ -45,6 +46,8 @@ const REVERSE_MAP: Record<SettingKey, keyof SettingsConfig> = {
   background_image_enabled: 'backgroundImageEnabled',
 };
 
+const BUILTIN_ENGINE_IDS = new Set(DEFAULT_SEARCH_ENGINES.map((engine) => engine.id));
+
 type SettingValue = string | boolean | SearchEngine[];
 
 function parseSearchEngines(raw: string): SearchEngine[] {
@@ -52,6 +55,7 @@ function parseSearchEngines(raw: string): SearchEngine[] {
     const parsed = JSON.parse(raw) as unknown;
     if (
       Array.isArray(parsed) &&
+      parsed.length > 0 &&
       parsed.every(
         (item) =>
           typeof item === 'object' &&
@@ -70,9 +74,11 @@ function parseSearchEngines(raw: string): SearchEngine[] {
   return DEFAULT_SEARCH_ENGINES;
 }
 
-/** 内置引擎不可删除：写入前把被删的内置项补回。 */
+/** 内置引擎不可删除且 builtin 标记不可被篡改：写入前补回缺失的内置项。 */
 function withBuiltinEngines(engines: SearchEngine[]): SearchEngine[] {
-  const merged = [...engines];
+  const merged = engines.map((engine) =>
+    BUILTIN_ENGINE_IDS.has(engine.id) ? { ...engine, builtin: true } : engine,
+  );
   for (const builtin of DEFAULT_SEARCH_ENGINES) {
     if (!merged.some((engine) => engine.id === builtin.id)) {
       merged.push(builtin);
@@ -97,6 +103,20 @@ function toDbValue(key: SettingKey, value: SettingValue): string {
   return value as string;
 }
 
+/** 轻量读取单个默认权限键，避免新建书签/分类时扫描并反序列化整张设置表。 */
+export async function getDefaultVisibility(
+  db: DrizzleD1Database,
+  key: 'default_category_visibility' | 'default_bookmark_visibility',
+): Promise<Visibility> {
+  const [row] = await db
+    .select({ value: settings.value })
+    .from(settings)
+    .where(eq(settings.key, key))
+    .limit(1);
+  const raw = row?.value ?? DEFAULTS[key];
+  return raw === 'public' ? 'public' : 'private';
+}
+
 export async function getSettings(db: DrizzleD1Database): Promise<SettingsConfig> {
   const rows = await db.select().from(settings);
 
@@ -118,10 +138,23 @@ export async function updateSettings(
   db: DrizzleD1Database,
   partial: Partial<SettingsConfig>,
 ): Promise<SettingsConfig> {
-  const input =
+  const input: Partial<SettingsConfig> =
     partial.searchEngines !== undefined
       ? { ...partial, searchEngines: withBuiltinEngines(partial.searchEngines) }
-      : partial;
+      : { ...partial };
+
+  if (input.searchEngines !== undefined || input.defaultEngineId !== undefined) {
+    const current = await getSettings(db);
+    const nextEngines = input.searchEngines ?? current.searchEngines;
+    const nextDefaultId = input.defaultEngineId ?? current.defaultEngineId;
+    if (!nextEngines.some((engine) => engine.id === nextDefaultId)) {
+      throw new ServiceError(
+        400,
+        'validation_error',
+        'defaultEngineId must exist in searchEngines',
+      );
+    }
+  }
 
   const entries = Object.entries(input) as [keyof SettingsConfig, SettingValue][];
 

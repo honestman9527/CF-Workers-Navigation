@@ -1,5 +1,15 @@
 import type { TransferBookmark, TransferCategory, TransferData } from './types';
 
+import { isHttpUrl } from '../validation';
+
+const MAX_TITLE_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 2000;
+const MAX_CATEGORY_NAME_LENGTH = 40;
+const MAX_TAG_NAME_LENGTH = 40;
+const MAX_URL_LENGTH = 2048;
+const TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
 function visibility(value: unknown): 'public' | 'private' | undefined {
   if (value === undefined) return undefined;
   if (value === 'public' || value === 'private') return value;
@@ -17,12 +27,27 @@ function syntaxError(input: string, error: SyntaxError): never {
   throw new Error(`JSON 格式有误：第 ${line} 行 第 ${column} 列（${error.message}）`);
 }
 
-function normalizeUrl(value: unknown): string | null {
+function normalizeHttpUrl(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || /^[a-z]+:/i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
+  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return isHttpUrl(candidate) ? candidate : null;
+}
+
+function normalizeIconUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return null;
+  return isHttpUrl(trimmed) ? trimmed : null;
+}
+
+function normalizeTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || !TIMESTAMP_PATTERN.test(trimmed)) return null;
+  const parsed = Date.parse(trimmed.includes('T') ? trimmed : `${trimmed.replace(' ', 'T')}Z`);
+  return Number.isFinite(parsed) ? trimmed : null;
 }
 
 function normalizeTags(value: unknown): string[] {
@@ -30,7 +55,7 @@ function normalizeTags(value: unknown): string[] {
   const tags = new Map<string, string>();
   for (const raw of value) {
     if (typeof raw !== 'string') continue;
-    const name = raw.trim();
+    const name = raw.trim().slice(0, MAX_TAG_NAME_LENGTH).trim();
     const key = name.toLocaleLowerCase();
     if (name && !tags.has(key)) tags.set(key, name);
   }
@@ -48,17 +73,24 @@ function normalizeCategory(raw: unknown, index: number, errors: string[]): Trans
     return null;
   }
   const record = raw as Record<string, unknown>;
-  const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : '';
+  const name =
+    typeof record.name === 'string' && record.name.trim()
+      ? record.name.trim().slice(0, MAX_CATEGORY_NAME_LENGTH).trim()
+      : '';
   if (!name) {
     errors.push(`第 ${index + 1} 个分类缺少名称，已跳过`);
     return null;
   }
-  const slug = typeof record.slug === 'string' && record.slug.trim() ? record.slug.trim() : '';
+  const slug =
+    typeof record.slug === 'string' && record.slug.trim() ? record.slug.trim().slice(0, 64) : '';
   return {
     name,
     slug,
     visibility: visibility(record.visibility),
-    icon: typeof record.icon === 'string' && record.icon.trim() ? record.icon.trim() : null,
+    icon:
+      typeof record.icon === 'string' && record.icon.trim()
+        ? record.icon.trim().slice(0, 40)
+        : null,
     parentSlug: normalizeCategorySlug(record.parentSlug),
   };
 }
@@ -69,27 +101,26 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
     return null;
   }
   const record = raw as Record<string, unknown>;
-  const url = normalizeUrl(record.url);
+  const url = normalizeHttpUrl(record.url);
   if (!url) {
-    errors.push(`第 ${index + 1} 个书签缺少 url，已跳过`);
+    errors.push(`第 ${index + 1} 个书签缺少有效的 http(s) 网址，已跳过`);
     return null;
   }
   const title =
     typeof record.title === 'string' && record.title.trim()
-      ? record.title.trim()
+      ? record.title.trim().slice(0, MAX_TITLE_LENGTH).trim()
       : UNNAMED_BOOKMARK;
   const description =
     typeof record.description === 'string'
-      ? record.description
+      ? record.description.slice(0, MAX_DESCRIPTION_LENGTH)
       : record.description === null
         ? null
         : undefined;
-  const iconUrl =
-    typeof record.iconUrl === 'string' && record.iconUrl.trim() ? record.iconUrl.trim() : null;
+  const iconUrl = normalizeIconUrl(record.iconUrl);
   const isPinned = typeof record.isPinned === 'boolean' ? record.isPinned : undefined;
-  const addedAt = typeof record.addedAt === 'string' ? record.addedAt : null;
-  const archivedAt = typeof record.archivedAt === 'string' ? record.archivedAt : null;
-  const deletedAt = typeof record.deletedAt === 'string' ? record.deletedAt : null;
+  const addedAt = normalizeTimestamp(record.addedAt);
+  const archivedAt = normalizeTimestamp(record.archivedAt);
+  const deletedAt = normalizeTimestamp(record.deletedAt);
 
   return {
     title,

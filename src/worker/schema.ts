@@ -61,6 +61,13 @@ export const bookmarks = sqliteTable(
   },
   (table) => [
     index('bookmarks_category_idx').on(table.categoryId),
+    index('bookmarks_category_status_created_idx').on(
+      table.categoryId,
+      table.deletedAt,
+      table.archivedAt,
+      table.createdAt,
+      table.id,
+    ),
     index('bookmarks_status_created_idx').on(
       table.deletedAt,
       table.archivedAt,
@@ -77,6 +84,9 @@ export const bookmarks = sqliteTable(
     uniqueIndex('bookmarks_url_normalized_idx')
       .on(table.urlNormalized)
       .where(sql`${table.deletedAt} IS NULL`),
+    index('bookmarks_url_normalized_deleted_idx')
+      .on(table.urlNormalized)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   ],
 );
 

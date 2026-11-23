@@ -4,13 +4,13 @@
 
 业务接口前缀为 `/api/v1`。未版本化的 `/api/*` 不提供业务路由，未知 API 路径返回 JSON 404。`GET /health` 位于版本化 API 之外，返回 `{ "ok": true }`。`/api/v1/*` 响应统一设置 `Cache-Control: private, no-store`。
 
-除公开读取和登录/登出外，接口均需管理员认证。Web 使用 HttpOnly session cookie；会话最长 30 天，HTTPS 请求会带 `Secure` 属性。自动化客户端可用 `Authorization: Bearer <ADMIN_PASSWORD>`。`SESSION_SECRET` 用于签名会话，若未设置则代码回退使用 `ADMIN_PASSWORD`；部署时应分别设置这两个密钥。
+除公开读取和登录/登出外，接口均需管理员认证。Web 使用 HttpOnly session cookie；会话最长 30 天，HTTPS 请求会带 `Secure` 属性。自动化客户端可用 `Authorization: Bearer <ADMIN_PASSWORD>`（认证方案不区分大小写）。`SESSION_SECRET` 用于签名会话，若未设置则代码回退使用 `ADMIN_PASSWORD`；部署时应分别设置这两个密钥。若 `ADMIN_PASSWORD` 未配置或为空，登录与 Bearer 校验将拒绝请求并返回 500，不会放行空凭据。
 
 密码登录和错误 Bearer 猜测共享 `AUTH_RATE_LIMITER`：默认每个站点、每个 `CF-Connecting-IP`、每个 Cloudflare 位置 60 秒允许 10 次尝试，超限返回 429、`rate_limited` 与 `Retry-After: 60`。有效 Bearer 请求不占用失败预算。没有 Cloudflare IP 头的本地请求共享 `local` 预算；共享出口的客户端也共享预算。该绑定采用最终一致的位置级计数，不承诺跨位置的精确全局配额。
 
-API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和 `Referrer-Policy: no-referrer`。前端页面的 CSP 与资源缓存通过构建生成的静态 `_headers` 单独配置。
+API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和 `Referrer-Policy: no-referrer`；备份导出下载响应额外设置 `Content-Security-Policy: sandbox` 与 `Cache-Control: private, no-store`。前端页面的 CSP 与资源缓存通过构建生成的静态 `_headers` 单独配置。
 
-普通书签新增、编辑及标签合并、删除的数据库写入以操作为单位原子提交；数据库中途失败不保留该操作的部分变更。非法游标（包括可解码但非对象或字段不合法的 JSON）返回 `400 validation_error`。导入的部分写入语义见[导入与导出](import-export.md#导入)。
+普通书签新增、编辑及标签合并、删除的数据库写入以操作为单位原子提交；数据库中途失败不保留该操作的部分变更。所有写入接口的网址字段（书签 `url`/`iconUrl`、搜索引擎 `url`/`iconUrl`、图标代理 `faviconProxyUrl`、背景图 `backgroundImageUrl`）仅接受 `http:` 或 `https:` 协议并限制长度（最多 2048 字符；书签标题最多 200 字符，描述最多 2000 字符）。非法游标（包括可解码但非对象或字段不合法的 JSON）返回 `400 validation_error`。导入的部分写入语义见[导入与导出](import-export.md#导入)。
 
 共享 TypeScript 客户端在 `createApiClient({ getToken, fetch, baseUrl })` 初始化时配置认证；各方法不再接受 token 参数。Web 使用 Cookie，Bearer 调用者通过 `getToken` 提供凭据，例如 `getBookmarks(options, signal)`、`updateBookmark(id, input)`。HTTP 认证协议与响应保持不变。
 
@@ -48,7 +48,7 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 
 分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
 
-元数据仅接受 HTTP/HTTPS URL。抓取超时为 8 秒，声明正文超过 5 MiB 时直接拒收，实际最多读取前 512 KiB 后解析，以限制内存并隔离远端流错误。远端连接失败、正文中断或超时会返回 `partial: true` 的主机名及可用图标降级结果；重定向页面的相对图标与 canonical 地址按最终 URL 解析。
+元数据仅接受 HTTP/HTTPS URL。抓取超时为 8 秒，手动跟踪最多 5 次重定向并在每一跳拦截环回、私网、链路本地与云元数据主机；声明正文超过 5 MiB 时直接拒收，实际最多读取前 512 KiB 后解析，以限制内存并隔离远端流错误。命中私网保护、重定向超限、远端连接失败、正文中断或超时会返回 `partial: true` 的主机名及可用图标降级结果；重定向页面的相对图标与 canonical 地址按最终 URL 解析且仅保留 `http:`/`https:` 链接。
 
 ## 公开访问
 
@@ -71,7 +71,7 @@ API 响应包含 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` 和
 | `pinned`       | `true`/`1` 只匹配置顶书签                                                                                    |
 | `limit`        | 每页 1–100 条，默认 24                                                                                       |
 | `cursor`       | 不透明游标；省略 `offset` 时用于连续翻页                                                                     |
-| `offset`       | 非负偏移量；提供后切换为页码模式并返回 `total`                                                               |
+| `offset`       | 非负偏移量（上限 100000）；提供后切换为页码模式并返回 `total`                                                |
 
 列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 

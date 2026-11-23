@@ -3,18 +3,18 @@ import type { AppEnv } from '../types';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { parseJson } from '../http';
+import { handleServiceError, parseJson } from '../http';
 import { getSettings, updateSettings } from '../settings';
+import { httpUrlSchema, isHttpUrl } from '../validation';
 
 const engineSchema = z.object({
   id: z.string().trim().min(1).max(32),
   name: z.string().trim().min(1).max(40),
-  url: z
-    .string()
-    .trim()
-    .url()
-    .refine((value) => value.includes('{query}'), 'URL must contain {query} placeholder'),
-  iconUrl: z.string().trim().url().optional(),
+  url: httpUrlSchema(2048).refine(
+    (value) => value.includes('{query}'),
+    'URL must contain {query} placeholder',
+  ),
+  iconUrl: httpUrlSchema(2048).optional(),
   builtin: z.boolean(),
 });
 
@@ -22,10 +22,7 @@ const settingsUpdateSchema = z
   .object({
     defaultCategoryVisibility: z.enum(['public', 'private']).optional(),
     defaultBookmarkVisibility: z.enum(['public', 'private']).optional(),
-    faviconProxyUrl: z
-      .string()
-      .trim()
-      .url()
+    faviconProxyUrl: httpUrlSchema(2048)
       .refine((value) => value.includes('{domain}'), 'URL must contain {domain} placeholder')
       .optional(),
     faviconProxyEnabled: z.boolean().optional(),
@@ -38,12 +35,7 @@ const settingsUpdateSchema = z
       .optional()
       .superRefine((value, ctx) => {
         if (value === undefined || value === '') return;
-        try {
-          const url = new URL(value);
-          if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-            throw new Error('unsupported protocol');
-          }
-        } catch {
+        if (!isHttpUrl(value)) {
           ctx.addIssue({
             code: 'custom',
             path: ['backgroundImageUrl'],
@@ -95,10 +87,13 @@ settingsRoutes.put('/', async (c) => {
     return body.response;
   }
 
-  const input = settingsUpdateSchema.parse(body.body);
-  const updated = await updateSettings(c.get('db'), input);
-
-  return c.json(updated);
+  try {
+    const input = settingsUpdateSchema.parse(body.body);
+    const updated = await updateSettings(c.get('db'), input);
+    return c.json(updated);
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
 });
 
 export default settingsRoutes;

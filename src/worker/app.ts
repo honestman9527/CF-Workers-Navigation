@@ -28,8 +28,21 @@ api.route('/settings', settingsRoutes);
 api.route('/tags', tagsRoutes);
 api.route('/transfer', transferRoutes);
 
+function matchErrorChain(error: unknown, needle: string): boolean {
+  let cause: unknown = error;
+  const seen = new Set<unknown>();
+  while (cause instanceof Error && !seen.has(cause)) {
+    seen.add(cause);
+    if (cause.message.includes(needle)) return true;
+    cause = cause.cause;
+  }
+  return false;
+}
+
 app.use('*', async (c, next) => {
-  c.set('requestId', crypto.randomUUID());
+  const requestId = crypto.randomUUID();
+  c.set('requestId', requestId);
+  c.header('X-Request-Id', requestId);
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'no-referrer');
@@ -82,16 +95,11 @@ app.onError((error, c) => {
     return jsonError(c, 400, 'validation_error', zodErrorMessage(error));
   }
 
-  let cause: unknown = error;
-  const seen = new Set<unknown>();
-  while (cause instanceof Error && !seen.has(cause)) {
-    seen.add(cause);
-    if (cause.message.includes(CATEGORY_DEPTH_CONSTRAINT))
-      return jsonError(c, 400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
-    cause = cause.cause;
+  if (matchErrorChain(error, CATEGORY_DEPTH_CONSTRAINT)) {
+    return jsonError(c, 400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
   }
 
-  if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+  if (matchErrorChain(error, 'UNIQUE constraint failed')) {
     return jsonError(c, 409, 'conflict', 'Unique constraint failed');
   }
 

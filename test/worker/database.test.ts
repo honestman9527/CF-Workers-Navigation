@@ -4,18 +4,22 @@ import { describe, expect, it } from 'vitest';
 describe('database schema', () => {
   it('creates the reduced bookmark and tag schema with query indexes', async () => {
     const result = await env.DB.prepare(
-      `SELECT name FROM sqlite_schema WHERE type = 'index' AND name IN (?, ?, ?) ORDER BY name`,
+      `SELECT name FROM sqlite_schema WHERE type = 'index' AND name IN (?, ?, ?, ?, ?) ORDER BY name`,
     )
       .bind(
+        'bookmarks_category_status_created_idx',
         'bookmarks_pinned_created_idx',
         'bookmarks_status_created_idx',
+        'bookmarks_url_normalized_deleted_idx',
         'bookmarks_url_normalized_idx',
       )
       .all<{ name: string }>();
 
     expect(result.results.map((row) => row.name)).toEqual([
+      'bookmarks_category_status_created_idx',
       'bookmarks_pinned_created_idx',
       'bookmarks_status_created_idx',
+      'bookmarks_url_normalized_deleted_idx',
       'bookmarks_url_normalized_idx',
     ]);
   });

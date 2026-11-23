@@ -2,12 +2,12 @@ import type { Visibility } from '../../shared/api/types';
 import type { Category as CategoryDto, CategoryInput } from '../../shared/api/types';
 import type { Db } from '../types';
 
-import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import { CATEGORY_DEPTH_MESSAGE } from '../../shared/category-rules';
 import { bookmarks, categories } from '../schema';
-import { getSettings } from '../settings';
+import { getDefaultVisibility } from '../settings';
 import { slugify } from '../slug';
 import {
   publicBookmarkCondition,
@@ -15,6 +15,9 @@ import {
   categoryEffectiveVisibility,
 } from '../visibility';
 import { ServiceError } from './errors';
+
+// 每条 CASE WHEN 批量排序语句绑定 30 * 3 = 90 个参数（低于 D1 100 参数硬上限）。
+const REORDER_CHUNK_SIZE = 30;
 
 type CategoryRow = {
   visibility: Visibility;
@@ -108,16 +111,24 @@ async function assertRootParent(db: Db, parentId: number, movingId?: number): Pr
     .from(categories)
     .where(eq(categories.id, parentId));
   if (!parent) throw new ServiceError(404, 'not_found', '分类不存在');
-  const children =
-    movingId === undefined
-      ? []
-      : await db
-          .select({ id: categories.id })
-          .from(categories)
-          .where(eq(categories.parentId, movingId))
-          .limit(1);
-  if (parent.parentId !== null || children.length) {
+  if (movingId !== undefined && parent.parentId === movingId) {
+    throw new ServiceError(400, 'validation_error', '不能移动到自己的子分类内部');
+  }
+  if (parent.parentId !== null) {
+    if (movingId !== undefined && (await isSelfOrAncestor(db, movingId, parent.parentId))) {
+      throw new ServiceError(400, 'validation_error', '不能移动到自己的子分类内部');
+    }
     throw new ServiceError(400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
+  }
+  if (movingId !== undefined) {
+    const children = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.parentId, movingId))
+      .limit(1);
+    if (children.length) {
+      throw new ServiceError(400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
+    }
   }
 }
 
@@ -135,12 +146,12 @@ export async function createCategory(db: Db, input: CategoryInput): Promise<Cate
     .where(eq(categories.slug, slug));
   if (duplicate) throw new ServiceError(409, 'conflict', '同名分类已存在');
 
-  const siblings = await db
-    .select({ sortOrder: categories.sortOrder })
-    .from(categories)
-    .where(parentId === null ? isNull(categories.parentId) : eq(categories.parentId, parentId));
-  const sortOrder =
-    siblings.length === 0 ? 0 : Math.max(...siblings.map((row) => row.sortOrder)) + 1;
+  const [orderRow] = await db.all<{ next_order: number }>(sql`
+    SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
+    FROM categories
+    WHERE ${parentId === null ? sql`parent_id IS NULL` : sql`parent_id = ${parentId}`}
+  `);
+  const sortOrder = Number(orderRow?.next_order ?? 0);
 
   const [created] = await db
     .insert(categories)
@@ -150,7 +161,8 @@ export async function createCategory(db: Db, input: CategoryInput): Promise<Cate
       parentId,
       icon: input.icon ?? null,
       sortOrder,
-      visibility: input.visibility ?? (await getSettings(db)).defaultCategoryVisibility,
+      visibility:
+        input.visibility ?? (await getDefaultVisibility(db, 'default_category_visibility')),
     })
     .returning({ id: categories.id });
   return getCategoryDto(db, created.id);
@@ -205,10 +217,6 @@ export async function updateCategory(
       if (targetParent === id) {
         throw new ServiceError(400, 'validation_error', '不能移动到自身内部');
       }
-      await assertCategoryExists(db, targetParent);
-      if (await isSelfOrAncestor(db, id, targetParent)) {
-        throw new ServiceError(400, 'validation_error', '不能移动到自己的子分类内部');
-      }
       await assertRootParent(db, targetParent, id);
     }
     updates.parentId = targetParent;
@@ -232,17 +240,17 @@ export async function updateCategory(
 
 export async function deleteCategory(db: Db, id: number): Promise<void> {
   const [current] = await db
-    .select({ id: categories.id, parentId: categories.parentId })
+    .select({ id: categories.id })
     .from(categories)
     .where(eq(categories.id, id));
   if (!current) throw new ServiceError(404, 'not_found', '分类不存在');
 
-  // Protect inherited privacy before detaching children, in one atomic batch.
+  // Protect inherited privacy and read parent_id atomically inside one batch before deleting.
   await db.batch([
     db
       .update(categories)
       .set({
-        parentId: current.parentId,
+        parentId: sql`(SELECT parent_id FROM categories WHERE id = ${id})`,
         visibility: sql`CASE WHEN ${categories.id} IN ${privateCategoryIds} THEN 'private' ELSE ${categories.visibility} END`,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
@@ -281,11 +289,19 @@ export async function reorderCategories(db: Db, ids: number[]): Promise<void> {
   const parents = new Set(rows.map((row) => row.parentId ?? null));
   if (parents.size > 1) throw new ServiceError(400, 'validation_error', '只能对同一层级分类排序');
 
-  const statements = unique.map((id, index) =>
-    db
-      .update(categories)
-      .set({ sortOrder: index, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(eq(categories.id, id)),
-  );
+  const statements = [];
+  for (let start = 0; start < unique.length; start += REORDER_CHUNK_SIZE) {
+    const chunk = unique.slice(start, start + REORDER_CHUNK_SIZE);
+    const cases = chunk.map((id, offset) => sql`WHEN ${id} THEN ${start + offset}`);
+    statements.push(
+      db
+        .update(categories)
+        .set({
+          sortOrder: sql`CASE ${categories.id} ${sql.join(cases, sql` `)} END`,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(inArray(categories.id, chunk)),
+    );
+  }
   await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 }

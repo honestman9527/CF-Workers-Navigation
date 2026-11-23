@@ -26,13 +26,14 @@ import {
   updateBookmark,
 } from '../services/bookmarks';
 import { getSettings } from '../settings';
+import { httpUrlSchema } from '../validation';
 
 const bookmarkInputSchema = z.object({
   visibility: z.enum(['public', 'private']).optional(),
-  title: z.string().trim().min(1),
-  url: z.string().trim().url(),
-  description: z.string().nullable().optional(),
-  iconUrl: z.string().trim().url().nullable().optional(),
+  title: z.string().trim().min(1).max(200),
+  url: httpUrlSchema(2048),
+  description: z.string().max(2000).nullable().optional(),
+  iconUrl: httpUrlSchema(2048).nullable().optional(),
   isPinned: z.boolean().optional(),
   categoryId: z.number().int().positive().nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
@@ -42,14 +43,7 @@ const bookmarkUpdateSchema = bookmarkInputSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required' });
 
-const metadataQuerySchema = z
-  .string()
-  .trim()
-  .url()
-  .refine((value) => {
-    const protocol = new URL(value).protocol;
-    return protocol === 'http:' || protocol === 'https:';
-  }, 'URL must use http or https');
+const metadataQuerySchema = httpUrlSchema(2048);
 
 const viewSchema = z.enum(['active', 'archive', 'trash', 'all']).default('active');
 const slugQuerySchema = z.string().trim().min(1).max(64).optional();

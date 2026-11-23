@@ -8,8 +8,16 @@ import { jsonError } from './errors';
 
 const SESSION_COOKIE = 'nav_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const SESSION_PAYLOAD_PATTERN = /^v1\.(\d+)$/;
+
+export function getAdminPassword(env: AppEnv['Bindings']): string | undefined {
+  return typeof env.ADMIN_PASSWORD === 'string' && env.ADMIN_PASSWORD.length > 0
+    ? env.ADMIN_PASSWORD
+    : undefined;
+}
 
 export async function timingSafeEqual(left: string, right: string) {
+  if (!left || !right) return false;
   const encoder = new TextEncoder();
   const [leftHash, rightHash] = await Promise.all([
     crypto.subtle.digest('SHA-256', encoder.encode(left)),
@@ -27,15 +35,16 @@ export async function timingSafeEqual(left: string, right: string) {
 }
 
 function bearerToken(header: string | undefined) {
-  if (!header?.startsWith('Bearer ')) {
-    return undefined;
-  }
-
-  return header.slice('Bearer '.length);
+  if (!header) return undefined;
+  const match = header.match(/^Bearer(?:\s+(.*))?$/i);
+  return match ? (match[1] ?? '') : undefined;
 }
 
-function sessionSecret(env: AppEnv['Bindings']) {
-  return env.SESSION_SECRET || env.ADMIN_PASSWORD;
+function sessionSecret(env: AppEnv['Bindings']): string | undefined {
+  if (typeof env.SESSION_SECRET === 'string' && env.SESSION_SECRET.length > 0) {
+    return env.SESSION_SECRET;
+  }
+  return getAdminPassword(env);
 }
 
 function cookieValue(header: string | undefined, name: string) {
@@ -74,13 +83,18 @@ async function hmacSign(secret: string, payload: string) {
 }
 
 export async function createSessionToken(env: AppEnv['Bindings']) {
+  const secret = sessionSecret(env);
+  if (!secret) throw new Error('Missing session secret configuration');
   const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
   const payload = `v1.${expiresAt}`;
-  const signature = await hmacSign(sessionSecret(env), payload);
+  const signature = await hmacSign(secret, payload);
   return `${payload}.${signature}`;
 }
 
 export async function verifySessionToken(env: AppEnv['Bindings'], token: string) {
+  const secret = sessionSecret(env);
+  if (!secret) return false;
+
   const lastDot = token.lastIndexOf('.');
   if (lastDot <= 0) {
     return false;
@@ -88,14 +102,18 @@ export async function verifySessionToken(env: AppEnv['Bindings'], token: string)
 
   const payload = token.slice(0, lastDot);
   const signature = token.slice(lastDot + 1);
-  const expected = await hmacSign(sessionSecret(env), payload);
+  const payloadMatch = payload.match(SESSION_PAYLOAD_PATTERN);
+  if (!payloadMatch || !signature) {
+    return false;
+  }
+
+  const expected = await hmacSign(secret, payload);
   if (signature.length !== expected.length || !(await timingSafeEqual(signature, expected))) {
     return false;
   }
 
-  const [, expiresRaw] = payload.split('.');
-  const expiresAt = Number(expiresRaw);
-  return Number.isFinite(expiresAt) && expiresAt > Math.floor(Date.now() / 1000);
+  const expiresAt = Number(payloadMatch[1]);
+  return Number.isSafeInteger(expiresAt) && expiresAt > Math.floor(Date.now() / 1000);
 }
 
 export function sessionCookie(token: string, secure: boolean) {
@@ -140,7 +158,12 @@ export const authContext = createMiddleware<AppEnv>(async (c, next) => {
 
   const token = bearerToken(c.req.header('Authorization'));
   if (token !== undefined) {
-    if (!(await timingSafeEqual(token, c.env.ADMIN_PASSWORD))) {
+    const adminPassword = getAdminPassword(c.env);
+    if (!adminPassword) {
+      console.error({ event: 'auth-misconfigured', requestId: c.get('requestId') });
+      return jsonError(c, 500, 'internal_error', 'Authentication is not configured');
+    }
+    if (!(await timingSafeEqual(token, adminPassword))) {
       const limited = await limitAuthAttempts(c);
       if (limited) return limited;
       return jsonError(c, 401, 'unauthorized', 'Invalid bearer token');
