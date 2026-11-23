@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" class="light">
+<html lang="zh-CN" class="light" data-palette="indigo">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -8,8 +8,8 @@
       name="description"
       content="浏览公开网站收藏，按分类与标签查找链接，快速搜索站内书签或网页。"
     />
-    <meta name="theme-color" content="#1d1d1f" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f19" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
     <meta property="og:title" content="书签柜 · 网站导航" />
     <meta
       property="og:description"
@@ -36,10 +36,26 @@
               : preference === 'dark'
                 ? 'dark'
                 : 'light';
+          const storedPalette = localStorage.getItem('nav-palette');
+          const palette =
+            storedPalette === 'indigo' ||
+            storedPalette === 'emerald' ||
+            storedPalette === 'amber' ||
+            storedPalette === 'rose'
+              ? storedPalette
+              : 'indigo';
+          const rawOpacity = localStorage.getItem('nav-bg-overlay-opacity');
+          const parsedOpacity =
+            rawOpacity !== null && rawOpacity.trim() !== '' ? Number(rawOpacity) : NaN;
+          const opacity = Number.isFinite(parsedOpacity)
+            ? Math.round(Math.min(0.95, Math.max(0.25, parsedOpacity)) * 100) / 100
+            : 0.72;
           const root = document.documentElement;
           root.classList.remove('dark', 'light');
           root.classList.add(theme);
+          root.dataset.palette = palette;
           root.style.colorScheme = theme;
+          root.style.setProperty('--bg-overlay-opacity', String(opacity));
           document.getElementById('site-favicon').href = '/hm-' + theme + '.svg?v=1';
         } catch {
           /* ignore */

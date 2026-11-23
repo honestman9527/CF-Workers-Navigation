@@ -3,32 +3,34 @@ import type { Bookmark, BookmarkInput } from '@shared/api/types';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowRight,
+  Command,
   Globe,
-  Inbox,
   LayoutDashboard,
+  LayoutGrid,
+  List,
   LogIn,
   LogOut,
+  Menu as MenuIcon,
+  Monitor,
   Moon,
   Plus,
   Search,
-  Settings2,
   SlidersHorizontal,
-  Star,
   Sun,
   X,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { canFocusSearch, isComposingKey } from '@/lib/keyboard';
+import { canFocusSearch, isCommandPaletteShortcut, isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
-import { categoryIcon } from '@nav/features/categories/icons';
 import { buildCategoryTree, descendantTotals } from '@nav/features/categories/tree';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 import { retainSelectedOption, tagOptions } from '@nav/features/selection/options';
 import { useApiData } from '@nav/hooks/useApiData';
+import { useAppearance } from '@nav/hooks/useAppearance';
 import { useBackground } from '@nav/hooks/useBackground';
 import { useSettings } from '@nav/hooks/useSettings';
 import { useTheme } from '@nav/hooks/useTheme';
@@ -40,10 +42,15 @@ import {
   parseBangQuery,
 } from '@shared/search';
 
+import { AppearancePopover } from './AppearancePopover';
 import { createBookmarkFeedCache } from './bookmarkFeedCache';
 import { BookmarkSection, type BookmarkActions } from './BookmarkSection';
 import { CategoryGroups } from './CategoryGroups';
+import { CategoryNavTree } from './CategoryNavTree';
+import { CommandPalette } from './CommandPalette';
 import { FrontButton } from './controls';
+import { FrontCategoryDrawer } from './FrontCategoryDrawer';
+import { FrontDialog } from './FrontDialog';
 import { NavigationMenu } from './NavigationMenu';
 import { type SearchMode } from './search';
 import { useBookmarkFeed } from './useBookmarkFeed';
@@ -65,14 +72,19 @@ export function NavigationPage() {
 
 function NavigationSurface() {
   const auth = useAuthContext();
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { palette, setPalette, density, setDensity, bgOverlayOpacity, setBgOverlayOpacity } =
+    useAppearance();
   const navigate = useNavigate();
   const [composing, setComposing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [pinnedVersion, setPinnedVersion] = useState(0);
   const [feedCache] = useState(createBookmarkFeedCache);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
+  const [pendingTrash, setPendingTrash] = useState<Bookmark | null>(null);
   const [notice, setNotice] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
   const logoutPending = useRef(false);
@@ -108,7 +120,10 @@ function NavigationSurface() {
     error: settingsError,
     retry: retrySettings,
   } = useSettings(unauthorized);
-  useBackground(settings);
+  const hasBackground = Boolean(
+    settings?.backgroundImageEnabled && settings.backgroundImageUrl.trim(),
+  );
+  useBackground(settings, bgOverlayOpacity);
   const loadCategories = useCallback((signal: AbortSignal) => api.getCategories(signal), []);
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
@@ -147,6 +162,20 @@ function NavigationSurface() {
     onUnauthorized: unauthorized,
   });
 
+  // 汇总当前已加载/缓存的书签，供命令面板默认展示。
+  const recentBookmarks = useMemo(() => {
+    const map = new Map<number, Bookmark>();
+    for (const item of results.items) map.set(item.id, item);
+    for (const snapshot of feedCache.snapshots.values()) {
+      for (const item of snapshot.items) {
+        if (!map.has(item.id)) map.set(item.id, item);
+      }
+    }
+    return [...map.values()];
+  }, [results.items, feedCache.snapshots]);
+
+  const effectiveResolvedTheme = resolvedTheme ?? (theme === 'dark' ? 'dark' : 'light');
+
   useEffect(() => {
     document.title = '书签柜';
   }, []);
@@ -162,15 +191,22 @@ function NavigationSurface() {
     return () => window.clearTimeout(timer);
   }, [draft, search.q, mode, update, composing]);
   useEffect(() => {
-    const focus = (event: KeyboardEvent) => {
-      if (canFocusSearch(event)) {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isCommandPaletteShortcut(event)) {
+        if (editor !== null || pendingTrash !== null) return;
+        event.preventDefault();
+        setCommandOpen((prev) => !prev);
+        return;
+      }
+      if (!commandOpen && !drawerOpen && canFocusSearch(event)) {
         event.preventDefault();
         input.current?.focus();
       }
     };
-    window.addEventListener('keydown', focus);
-    return () => window.removeEventListener('keydown', focus);
-  }, []);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editor, pendingTrash, commandOpen, drawerOpen]);
+
   function selectCategory(category?: string) {
     void browse.selectCategory(category, draft);
   }
@@ -181,6 +217,21 @@ function NavigationSurface() {
     setDraft('');
     update({ ...search, mode, q: undefined, tag: undefined, untagged: undefined }, true);
   }
+  function selectTagByName(tagName: string) {
+    const matched = tags.data?.find(
+      (item) =>
+        item.slug.toLocaleLowerCase() === tagName.toLocaleLowerCase() ||
+        item.name.toLocaleLowerCase() === tagName.toLocaleLowerCase(),
+    );
+    const nextTag = matched?.slug ?? tagName;
+    void update({
+      ...search,
+      mode: 'site',
+      q: draft.trim() || undefined,
+      tag: nextTag,
+      untagged: undefined,
+    });
+  }
 
   const mutations = useBookmarkMutations({
     onContentChange(change) {
@@ -189,6 +240,8 @@ function NavigationSurface() {
         feedCache.apply(saved);
         if (change.kind === 'pinned') setPinnedVersion((value) => value + 1);
         else setVersion((value) => value + 1);
+      } else if (change.kind === 'trashed' || change.kind === 'deleted') {
+        setVersion((value) => value + 1);
       }
     },
     invalidateTags: tags.refresh,
@@ -200,6 +253,9 @@ function NavigationSurface() {
       } else if (change.kind === 'created' || change.kind === 'updated') {
         setEditor(null);
         setNotice('书签已保存');
+      } else if (change.kind === 'trashed') {
+        setPendingTrash(null);
+        setNotice('已移入回收站，可在后台恢复');
       }
     },
     onError(message) {
@@ -209,14 +265,22 @@ function NavigationSurface() {
   async function saveBookmark(value: BookmarkInput) {
     await mutations.save(value, editor && editor !== 'new' ? editor.id : undefined);
   }
+  async function confirmTrashBookmark() {
+    if (!pendingTrash) return;
+    await mutations.changeState(pendingTrash.id, 'trash');
+  }
   const actions: BookmarkActions = {
     authed: auth.authed,
+    density,
     pendingIds: mutations.pendingIds,
     cache: feedCache,
     onEdit: setEditor,
     onPin: (bookmark) => {
       void mutations.togglePin(bookmark);
     },
+    onDelete: (bookmark) => setPendingTrash(bookmark),
+    onSelectTag: selectTagByName,
+    onSelectCategory: (slug) => selectCategory(slug),
   };
   const targetAvailable =
     mode === 'site'
@@ -244,121 +308,149 @@ function NavigationSurface() {
     if (bang.query && engine) openLink(buildSearchUrl(engine, bang.query));
   }
 
+  const goLogin = useCallback(() => {
+    void navigate({
+      to: '/login',
+      search: { redirect: window.location.pathname + window.location.search },
+    });
+  }, [navigate]);
+  const goAdmin = useCallback(() => {
+    void navigate({ to: '/admin' });
+  }, [navigate]);
+
+  const currentScopeLabel =
+    browse.root?.name ?? (search.category === 'uncategorized' ? '未分类' : '常用');
+
   return (
-    <div className="front-surface min-h-dvh pb-[max(2rem,env(safe-area-inset-bottom))] text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:pb-0">
-      <aside className="border-b border-border/45 bg-card/65 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[248px] lg:flex-col lg:justify-between lg:border-r lg:border-b-0 lg:px-4 lg:py-5 dark:bg-card/45">
-        <div className="flex min-h-0 flex-col lg:flex-1">
-          <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6 lg:h-auto lg:px-2 lg:pb-5">
-            <Link
-              to="/"
-              search={{}}
-              className="flex min-w-0 items-center gap-3 rounded-xl text-foreground"
-            >
-              <BrandIcon className="size-9 shrink-0" />
-              <div className="min-w-0">
-                <strong className="block truncate font-display text-base font-semibold">
-                  书签柜
-                </strong>
-                <span className="block truncate text-xs text-muted-foreground">网站导航与整理</span>
-              </div>
-            </Link>
-            <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
-              {auth.authed ? (
-                <FrontButton
-                  tone="subtle"
-                  onClick={() => setEditor('new')}
-                  className="min-h-10 px-3 text-primary"
-                >
-                  <Plus className="size-4" />
-                  <span className="hidden sm:inline">添加书签</span>
-                  <span className="sr-only sm:hidden">添加书签</span>
-                </FrontButton>
-              ) : null}
-              <NavigationMenu
-                theme={theme}
-                setTheme={setTheme}
-                authed={auth.authed}
-                loggingOut={loggingOut}
-                onLogout={() => void logout()}
-                onAdmin={() => void navigate({ to: '/admin' })}
-                onLogin={() =>
-                  void navigate({
-                    to: '/login',
-                    search: { redirect: window.location.pathname + window.location.search },
-                  })
-                }
-              />
-            </div>
-          </div>
-          <nav
-            aria-label="分类导航"
-            className="border-t border-border/40 px-3 py-2 sm:px-6 lg:flex-1 lg:overflow-y-auto lg:border-t-0 lg:px-0 lg:py-0"
+    <div className="front-surface min-h-dvh pb-[max(2rem,env(safe-area-inset-bottom))] text-foreground lg:grid lg:grid-cols-[264px_minmax(0,1fr)] lg:pb-0">
+      {/* 移动端 / 平板端吸顶顶栏（< lg）：左侧打开分类抽屉，替代原横向滚动分类条 */}
+      <header className="glass-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-5 lg:hidden">
+        <div className="flex min-w-0 items-center gap-2">
+          <FrontButton
+            aria-label="打开分类导航"
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen(true)}
+            className="size-11 p-0"
           >
-            <div className="mb-2 hidden px-2.5 text-xs font-medium text-muted-foreground lg:block">
-              分类工作台
+            <MenuIcon className="size-5" />
+          </FrontButton>
+          <Link
+            to="/"
+            search={{}}
+            className="flex min-w-0 items-center gap-2.5 rounded-xl text-foreground"
+          >
+            <BrandIcon className="size-8 shrink-0" />
+            <div className="min-w-0">
+              <strong className="block truncate font-display text-sm font-semibold">书签柜</strong>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {currentScopeLabel}
+              </span>
             </div>
-            <div className="flex gap-1.5 overflow-x-auto lg:flex-col lg:gap-1 lg:overflow-x-visible">
-              <FrontButton
-                onClick={() => selectCategory()}
-                className={cn(
-                  'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full',
-                  !search.category && !searching
-                    ? 'bg-primary/12 font-semibold text-primary hover:bg-primary/15'
-                    : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                )}
-              >
-                <Star aria-hidden="true" className="size-4 shrink-0" />
-                常用
-              </FrontButton>
-              {roots.map((root) => {
-                const Icon = categoryIcon(root.icon);
-                const isActive = browse.activeRoot === root.slug;
-                const count = totals.get(root.id) ?? root.bookmarkCount ?? 0;
-                return (
-                  <FrontButton
-                    key={root.id}
-                    aria-current={isActive ? 'location' : undefined}
-                    onClick={() => selectCategory(root.slug)}
-                    data-count={count > 0 ? count : undefined}
-                    className={cn(
-                      'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full lg:after:ml-auto lg:after:text-xs lg:after:font-normal lg:after:text-muted-foreground lg:after:tabular-nums lg:after:content-[attr(data-count)]',
-                      isActive
-                        ? 'bg-primary/12 font-semibold text-primary hover:bg-primary/15'
-                        : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-4 shrink-0" />
-                    <span className="truncate">{root.name}</span>
-                  </FrontButton>
-                );
-              })}
-              <FrontButton
-                onClick={() => selectCategory('uncategorized')}
-                aria-current={search.category === 'uncategorized' ? 'location' : undefined}
-                className={cn(
-                  'min-h-10 justify-start gap-2.5 px-3 whitespace-nowrap lg:w-full',
-                  search.category === 'uncategorized'
-                    ? 'bg-primary/12 font-semibold text-primary hover:bg-primary/15'
-                    : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
-                )}
-              >
-                <Inbox aria-hidden="true" className="size-4 shrink-0" />
-                未分类
-              </FrontButton>
-            </div>
-          </nav>
+          </Link>
         </div>
-        <div className="hidden lg:flex lg:flex-col lg:gap-2 lg:border-t lg:border-border/45 lg:pt-3.5">
+        <div className="flex shrink-0 items-center gap-1">
+          <FrontButton
+            aria-label="打开命令面板"
+            title="命令面板 (Cmd/Ctrl + K)"
+            onClick={() => setCommandOpen(true)}
+            className="size-10 p-0"
+          >
+            <Command className="size-4" />
+          </FrontButton>
+          <AppearancePopover
+            theme={theme}
+            resolvedTheme={effectiveResolvedTheme}
+            setTheme={setTheme}
+            palette={palette}
+            setPalette={setPalette}
+            density={density}
+            setDensity={setDensity}
+            bgOverlayOpacity={bgOverlayOpacity}
+            setBgOverlayOpacity={setBgOverlayOpacity}
+            hasBackground={hasBackground}
+            side="bottom"
+            align="end"
+            compactTrigger
+          />
+          {auth.authed ? (
+            <FrontButton
+              tone="subtle"
+              onClick={() => setEditor('new')}
+              className="size-10 min-h-10 p-0 text-primary sm:w-auto sm:px-3"
+            >
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">添加书签</span>
+              <span className="sr-only sm:hidden">添加书签</span>
+            </FrontButton>
+          ) : null}
+          <NavigationMenu
+            theme={theme}
+            resolvedTheme={effectiveResolvedTheme}
+            setTheme={setTheme}
+            palette={palette}
+            setPalette={setPalette}
+            authed={auth.authed}
+            loggingOut={loggingOut}
+            onLogout={() => void logout()}
+            onAdmin={goAdmin}
+            onLogin={goLogin}
+          />
+        </div>
+      </header>
+
+      {/* 桌面端固定左侧边栏（>= lg） */}
+      <aside className="glass-surface hidden border-r border-border bg-sidebar lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[264px] lg:flex-col lg:justify-between lg:px-4 lg:py-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <Link
+            to="/"
+            search={{}}
+            className="flex min-w-0 items-center gap-3 rounded-xl px-2 text-foreground"
+          >
+            <BrandIcon className="size-9 shrink-0" />
+            <div className="min-w-0">
+              <strong className="block truncate font-display text-base font-semibold">
+                书签柜
+              </strong>
+              <span className="block truncate text-xs text-muted-foreground">网站导航与整理</span>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            aria-label="打开命令面板"
+            className="flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 text-xs text-muted-foreground shadow-2xs transition-colors hover:border-border-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45"
+          >
+            <span className="flex items-center gap-2">
+              <Search className="size-3.5" />
+              <span>快速跳转或命令…</span>
+            </span>
+            <kbd className="rounded-md border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              ⌘K
+            </kbd>
+          </button>
+
+          <CategoryNavTree
+            roots={roots}
+            totals={totals}
+            activeRoot={browse.activeRoot}
+            selectedCategory={search.category}
+            searching={searching}
+            onSelectCategory={selectCategory}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-border pt-3.5">
           <div
             role="group"
             aria-label="主题设置"
-            className="grid grid-cols-3 gap-1 rounded-xl bg-secondary/75 p-1"
+            className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1"
           >
             {(
               [
                 { value: 'light', label: '亮色', shortLabel: '亮色', icon: Sun },
                 { value: 'dark', label: '暗色', shortLabel: '暗色', icon: Moon },
-                { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Settings2 },
+                { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Monitor },
               ] as const
             ).map(({ value, label, shortLabel, icon: Icon }) => (
               <FrontButton
@@ -370,7 +462,7 @@ function NavigationSurface() {
                 className={cn(
                   'min-h-8 gap-1.5 rounded-lg px-2 py-1 text-xs',
                   theme === value
-                    ? 'bg-card font-semibold text-foreground'
+                    ? 'bg-card font-semibold text-foreground shadow-2xs'
                     : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
                 )}
               >
@@ -379,11 +471,27 @@ function NavigationSurface() {
               </FrontButton>
             ))}
           </div>
+
+          <AppearancePopover
+            theme={theme}
+            resolvedTheme={effectiveResolvedTheme}
+            setTheme={setTheme}
+            palette={palette}
+            setPalette={setPalette}
+            density={density}
+            setDensity={setDensity}
+            bgOverlayOpacity={bgOverlayOpacity}
+            setBgOverlayOpacity={setBgOverlayOpacity}
+            hasBackground={hasBackground}
+            side="top"
+            align="start"
+          />
+
           {auth.authed ? (
             <div className="grid grid-cols-2 gap-1.5">
               <FrontButton
                 tone="subtle"
-                onClick={() => void navigate({ to: '/admin' })}
+                onClick={goAdmin}
                 className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
               >
                 <LayoutDashboard className="size-3.5 shrink-0" />
@@ -402,12 +510,7 @@ function NavigationSurface() {
           ) : (
             <FrontButton
               tone="subtle"
-              onClick={() =>
-                void navigate({
-                  to: '/login',
-                  search: { redirect: window.location.pathname + window.location.search },
-                })
-              }
+              onClick={goLogin}
               className="min-h-9 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
             >
               <LogIn className="size-3.5 shrink-0" />
@@ -416,10 +519,11 @@ function NavigationSurface() {
           )}
         </div>
       </aside>
+
       <div className="flex min-w-0 flex-1 flex-col justify-between px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <main className="min-w-0 flex-1">
+        <main className="mx-auto w-full max-w-[90rem] min-w-0 flex-1">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 书签柜网站导航
               </h1>
@@ -428,24 +532,63 @@ function NavigationSurface() {
                 个标签
               </p>
             </div>
-            {auth.authed ? (
-              <FrontButton
-                tone="primary"
-                onClick={() => setEditor('new')}
-                className="hidden min-h-10 px-4 lg:inline-flex"
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div
+                role="group"
+                aria-label="书签视图密度"
+                className="inline-flex rounded-xl border border-border bg-secondary/80 p-0.5"
               >
-                <Plus className="size-4" />
-                添加书签
-              </FrontButton>
-            ) : null}
+                <FrontButton
+                  aria-label="舒适卡片视图"
+                  aria-pressed={density === 'comfortable'}
+                  title="舒适卡片"
+                  onClick={() => setDensity('comfortable')}
+                  className={cn(
+                    'min-h-9 gap-1.5 rounded-lg px-2.5 text-xs',
+                    density === 'comfortable'
+                      ? 'bg-card font-semibold text-foreground shadow-2xs'
+                      : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
+                  )}
+                >
+                  <LayoutGrid className="size-3.5" />
+                  <span className="hidden sm:inline">舒适</span>
+                </FrontButton>
+                <FrontButton
+                  aria-label="紧凑网格视图"
+                  aria-pressed={density === 'compact'}
+                  title="紧凑网格"
+                  onClick={() => setDensity('compact')}
+                  className={cn(
+                    'min-h-9 gap-1.5 rounded-lg px-2.5 text-xs',
+                    density === 'compact'
+                      ? 'bg-card font-semibold text-foreground shadow-2xs'
+                      : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
+                  )}
+                >
+                  <List className="size-3.5" />
+                  <span className="hidden sm:inline">紧凑</span>
+                </FrontButton>
+              </div>
+              {auth.authed ? (
+                <FrontButton
+                  tone="primary"
+                  onClick={() => setEditor('new')}
+                  className="hidden min-h-10 px-4 lg:inline-flex"
+                >
+                  <Plus className="size-4" />
+                  添加书签
+                </FrontButton>
+              ) : null}
+            </div>
           </div>
+
           {settingsError ? (
             <div
               role="alert"
-              className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm"
+              className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/8 px-4 py-3 text-sm"
             >
               <span className="text-destructive">设置加载失败：{settingsError}</span>
-              <FrontButton disabled={settingsLoading} onClick={retrySettings}>
+              <FrontButton tone="subtle" disabled={settingsLoading} onClick={retrySettings}>
                 {settingsLoading ? '正在重试…' : '重试设置'}
               </FrontButton>
             </div>
@@ -454,15 +597,16 @@ function NavigationSurface() {
               正在加载设置…
             </p>
           ) : null}
+
           <section
             aria-label="搜索"
-            className="mb-6 rounded-2xl border border-border/45 bg-card/80 p-4 sm:p-6 dark:bg-card/55"
+            className="glass-surface mb-6 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-6"
           >
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
               <div
                 role="group"
                 aria-label="搜索模式"
-                className="inline-flex rounded-xl bg-secondary/75 p-1"
+                className="inline-flex rounded-xl bg-secondary p-1"
               >
                 {(
                   [
@@ -476,7 +620,9 @@ function NavigationSurface() {
                     onClick={() => selectMode(value)}
                     className={cn(
                       'min-h-9 rounded-lg px-4 text-xs sm:text-sm',
-                      mode === value && 'bg-card font-semibold text-foreground',
+                      mode === value
+                        ? 'bg-card font-semibold text-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
                     )}
                   >
                     <Icon className="size-4" />
@@ -486,13 +632,13 @@ function NavigationSurface() {
               </div>
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
                 <span>按</span>
-                <kbd className="rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                <kbd className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                   /
                 </kbd>
                 <span>
                   {mode === 'site'
-                    ? '快速检索标题、网址、描述与标签'
-                    : '输入关键词搜索网页或直达网址'}
+                    ? '检索书签，或按 ⌘K 唤起全局命令面板'
+                    : '搜索网页、!bang 或直达网址'}
                 </span>
               </span>
             </div>
@@ -501,7 +647,7 @@ function NavigationSurface() {
                 event.preventDefault();
                 submitSearch();
               }}
-              className="flex min-h-13 items-center gap-2 rounded-xl border border-border/60 bg-background px-3.5 py-1.5 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 sm:min-h-14 sm:px-4"
+              className="flex min-h-13 items-center gap-2 rounded-xl border border-input bg-background/85 px-3.5 py-1.5 shadow-2xs transition-[border-color,box-shadow,background-color] focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/25 sm:min-h-14 sm:px-4"
             >
               <Search className="size-5 shrink-0 text-muted-foreground" />
               <input
@@ -584,7 +730,7 @@ function NavigationSurface() {
                         q: draft.trim() || undefined,
                       })
                     }
-                    className="min-h-9 max-w-48 rounded-lg border border-border/50 bg-background px-3 text-xs font-medium text-foreground outline-none focus:border-primary sm:text-sm"
+                    className="min-h-9 max-w-48 rounded-xl border border-input bg-background px-3 text-xs font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/25 sm:text-sm"
                   >
                     {!engines.some((item) => item.id === engineId) ? (
                       <option value={engineId}>原引擎已不可用，请重新选择</option>
@@ -596,7 +742,7 @@ function NavigationSurface() {
                     ))}
                   </select>
                   {bang.engineId ? (
-                    <span className="rounded-lg bg-primary/12 px-2.5 py-1 text-xs font-medium text-primary">
+                    <span className="rounded-lg border border-primary/25 bg-accent px-2.5 py-1 text-xs font-medium text-primary">
                       本次使用 {engine?.name}
                     </span>
                   ) : null}
@@ -606,11 +752,11 @@ function NavigationSurface() {
                   className="w-full"
                   onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
                 >
-                  <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary/70 hover:text-foreground sm:text-sm">
+                  <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary hover:text-foreground sm:text-sm">
                     <SlidersHorizontal className="size-3.5" />
                     筛选{search.tag || search.untagged ? ' · 已启用' : ''}
                   </summary>
-                  <div className="mt-2.5 flex flex-wrap items-center gap-3 rounded-xl bg-secondary/45 p-3">
+                  <div className="mt-2.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/55 p-3">
                     <label htmlFor="search-tag" className="text-xs font-medium">
                       标签
                     </label>
@@ -647,13 +793,16 @@ function NavigationSurface() {
               )}
             </div>
           </section>
+
           {categories.error ? (
             <div
               role="alert"
               className="mb-4 flex flex-wrap items-center gap-2 text-sm text-destructive"
             >
               {categories.error}
-              <FrontButton onClick={categories.refresh}>重试分类</FrontButton>
+              <FrontButton tone="subtle" onClick={categories.refresh}>
+                重试分类
+              </FrontButton>
             </div>
           ) : null}
           {browse.missingCategory ? (
@@ -691,25 +840,73 @@ function NavigationSurface() {
             )
           ) : null}
         </main>
-        <footer className="mt-8 border-t border-border/40 pt-4 text-xs text-muted-foreground">
-          书签柜
+        <footer className="mx-auto mt-8 flex w-full max-w-[90rem] items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+          <span>书签柜</span>
+          <span>按 ⌘K / Ctrl+K 快速跳转</span>
         </footer>
       </div>
+
+      {/* 移动端 / 平板端左侧分类抽屉 */}
+      <FrontCategoryDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        roots={roots}
+        totals={totals}
+        activeRoot={browse.activeRoot}
+        selectedCategory={search.category}
+        searching={searching}
+        onSelectCategory={selectCategory}
+        theme={theme}
+        setTheme={setTheme}
+        authed={auth.authed}
+        loggingOut={loggingOut}
+        onAdmin={goAdmin}
+        onLogin={goLogin}
+        onLogout={() => void logout()}
+      />
+
+      {/* 全局命令面板（Cmd/Ctrl + K） */}
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        roots={roots}
+        totals={totals}
+        recentBookmarks={recentBookmarks}
+        theme={theme}
+        resolvedTheme={effectiveResolvedTheme}
+        setTheme={setTheme}
+        palette={palette}
+        setPalette={setPalette}
+        density={density}
+        setDensity={setDensity}
+        authed={auth.authed}
+        onSelectCategory={selectCategory}
+        onOpenBookmark={openLink}
+        onCreateBookmark={() => setEditor('new')}
+        onAdmin={goAdmin}
+        onLogin={goLogin}
+        onUnauthorized={unauthorized}
+      />
+
       {notice ? (
         <div
           role="status"
-          className="fixed right-4 bottom-4 left-4 z-40 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-4 rounded-2xl border border-border/60 bg-popover py-2 pr-1 pl-5 text-sm text-popover-foreground"
+          className="glass-surface animate-panel-enter fixed right-4 bottom-4 left-4 z-40 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-4 rounded-2xl border border-border bg-popover py-2 pr-1.5 pl-5 text-sm text-popover-foreground shadow-xl"
         >
           <span>{notice}</span>
-          <FrontButton aria-label="关闭提示" onClick={() => setNotice('')} className="size-11 p-0">
+          <FrontButton aria-label="关闭提示" onClick={() => setNotice('')} className="size-10 p-0">
             <X className="size-4" />
           </FrontButton>
         </div>
       ) : null}
+
       {auth.authed && editor ? (
         <Suspense
           fallback={
-            <p role="status" className="fixed right-4 bottom-4 z-50 rounded-xl bg-card p-4 text-sm">
+            <p
+              role="status"
+              className="glass-surface fixed right-4 bottom-4 z-50 rounded-xl border border-border bg-popover p-4 text-sm shadow-lg"
+            >
               正在打开编辑器…
             </p>
           }
@@ -723,6 +920,34 @@ function NavigationSurface() {
             tags={tags.data ?? []}
           />
         </Suspense>
+      ) : null}
+
+      {auth.authed && pendingTrash ? (
+        <FrontDialog
+          open
+          onClose={() => setPendingTrash(null)}
+          title={`移入回收站「${pendingTrash.title}」？`}
+          description="书签将移入回收站，后续仍可在管理后台恢复或永久删除。"
+          dismissible={!mutations.pendingIds.has(pendingTrash.id)}
+          maxWidthClass="max-w-md"
+        >
+          <div className="flex justify-end gap-2 pt-2">
+            <FrontButton
+              tone="subtle"
+              disabled={mutations.pendingIds.has(pendingTrash.id)}
+              onClick={() => setPendingTrash(null)}
+            >
+              取消
+            </FrontButton>
+            <FrontButton
+              tone="danger"
+              disabled={mutations.pendingIds.has(pendingTrash.id)}
+              onClick={() => void confirmTrashBookmark()}
+            >
+              {mutations.pendingIds.has(pendingTrash.id) ? '处理中…' : '确认移入回收站'}
+            </FrontButton>
+          </div>
+        </FrontDialog>
       ) : null}
     </div>
   );

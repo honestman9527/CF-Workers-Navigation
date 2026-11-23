@@ -2,6 +2,8 @@ import type { CategoryNode } from '@nav/features/categories/tree';
 
 import type { BookmarkActions } from './BookmarkSection';
 
+import { LockKeyhole } from 'lucide-react';
+
 import { categoryIcon } from '@nav/features/categories/icons';
 
 import { FeedContent } from './BookmarkSection';
@@ -29,13 +31,19 @@ export function CategoryGroups({
     <section
       id={categorySectionId(root.slug)}
       aria-label={root.name}
-      className="rounded-2xl border border-border/45 bg-card/80 p-5 sm:p-6 dark:bg-card/55"
+      className="glass-surface rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-6"
     >
-      <div className="mb-6 flex min-w-0 items-center gap-2.5">
+      <div className="mb-6 flex min-w-0 flex-wrap items-center gap-2.5">
         <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
         <h2 className="min-w-0 text-lg font-semibold tracking-tight break-words sm:text-xl">
           {root.name}
         </h2>
+        {root.effectiveVisibility === 'private' ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/25 bg-accent px-2 py-0.5 text-xs font-medium text-primary">
+            <LockKeyhole aria-hidden="true" className="size-3" />
+            私有
+          </span>
+        ) : null}
       </div>
       <div className="space-y-7 sm:space-y-8">
         {[root, ...root.children].map((category) => (
@@ -92,20 +100,33 @@ function CategoryGroup({
       id={direct ? `${categorySectionId(category.slug)}-direct` : categorySectionId(category.slug)}
       aria-label={title}
       aria-current={selected ? 'location' : undefined}
-      className="scroll-mt-6"
+      className="scroll-mt-20"
     >
-      <div className="mb-3 flex min-w-0 items-baseline justify-between gap-3">
-        <h3 className="min-w-0 text-sm font-semibold break-words text-foreground sm:text-base">
-          {title}
-        </h3>
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="min-w-0 text-sm font-semibold break-words text-foreground sm:text-base">
+            {title}
+          </h3>
+          {!direct && category.effectiveVisibility === 'private' ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/25 bg-accent px-1.5 py-0.5 text-[11px] font-medium text-primary">
+              <LockKeyhole aria-hidden="true" className="size-3" />
+              私有
+            </span>
+          ) : null}
+        </div>
         {feed.loaded ? (
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          <span className="shrink-0 rounded-md bg-secondary/80 px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
             {feed.items.length}
             {feed.nextCursor ? '+' : ''} 项
           </span>
         ) : null}
       </div>
-      <FeedContent feed={feed} actions={actions} emptyMessage="这个分类还没有网站。" />
+      <FeedContent
+        feed={feed}
+        actions={actions}
+        showCategoryBadge={false}
+        emptyMessage="这个分类还没有网站。"
+      />
     </section>
   );
 }

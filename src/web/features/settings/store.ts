@@ -1,6 +1,23 @@
 import type { PublicSettings } from '@shared/api/types';
 
-import { DEFAULT_THEME, isTheme, THEME_STORAGE_KEY, type Theme } from '@shared';
+import {
+  BG_OVERLAY_OPACITY_STORAGE_KEY,
+  clampBgOverlayOpacity,
+  DEFAULT_BG_OVERLAY_OPACITY,
+  DEFAULT_PALETTE,
+  DEFAULT_THEME,
+  DEFAULT_VIEW_DENSITY,
+  isPalette,
+  isTheme,
+  isViewDensity,
+  PALETTE_STORAGE_KEY,
+  parseBgOverlayOpacity,
+  THEME_STORAGE_KEY,
+  VIEW_DENSITY_STORAGE_KEY,
+  type Palette,
+  type Theme,
+  type ViewDensity,
+} from '@shared';
 import { atom } from 'jotai';
 import { atomWithStorage } from 'jotai/utils';
 
@@ -49,10 +66,84 @@ const themeStorage = {
   },
 };
 
+function createResilientStorage<T>(
+  fallback: T,
+  parse: (raw: string | null) => T,
+  serialize: (value: T) => string,
+) {
+  let memory = fallback;
+  let failed = false;
+  return {
+    getItem: (key: string): T => {
+      if (failed) return memory;
+      try {
+        memory = parse(window.localStorage.getItem(key));
+      } catch {
+        failed = true;
+      }
+      return memory;
+    },
+    setItem: (key: string, value: T) => {
+      memory = value;
+      try {
+        window.localStorage.setItem(key, serialize(value));
+        failed = false;
+      } catch {
+        failed = true;
+      }
+    },
+    removeItem: (key: string) => {
+      memory = fallback;
+      try {
+        window.localStorage.removeItem(key);
+        failed = false;
+      } catch {
+        failed = true;
+      }
+    },
+  };
+}
+
 /** 主题偏好：持久化到 localStorage（读不到新值时回退旧 key 自动迁移）。 */
 export const themeAtom = atomWithStorage<Theme>(THEME_STORAGE_KEY, DEFAULT_THEME, themeStorage, {
   getOnInit: true,
 });
+
+/** 主题色偏好：indigo | emerald | amber | rose。 */
+export const paletteAtom = atomWithStorage<Palette>(
+  PALETTE_STORAGE_KEY,
+  DEFAULT_PALETTE,
+  createResilientStorage<Palette>(
+    DEFAULT_PALETTE,
+    (raw) => (isPalette(raw) ? raw : DEFAULT_PALETTE),
+    (value) => value,
+  ),
+  { getOnInit: true },
+);
+
+/** 前台书签卡片视图密度偏好：comfortable | compact。 */
+export const viewDensityAtom = atomWithStorage<ViewDensity>(
+  VIEW_DENSITY_STORAGE_KEY,
+  DEFAULT_VIEW_DENSITY,
+  createResilientStorage<ViewDensity>(
+    DEFAULT_VIEW_DENSITY,
+    (raw) => (isViewDensity(raw) ? raw : DEFAULT_VIEW_DENSITY),
+    (value) => value,
+  ),
+  { getOnInit: true },
+);
+
+/** 自定义壁纸遮罩浓度偏好：0.25–0.95（默认 0.72）。 */
+export const bgOverlayOpacityAtom = atomWithStorage<number>(
+  BG_OVERLAY_OPACITY_STORAGE_KEY,
+  DEFAULT_BG_OVERLAY_OPACITY,
+  createResilientStorage<number>(
+    DEFAULT_BG_OVERLAY_OPACITY,
+    (raw) => parseBgOverlayOpacity(raw),
+    (value) => String(clampBgOverlayOpacity(value)),
+  ),
+  { getOnInit: true },
+);
 
 const settingsDataAtom = atom<PublicSettings | null>(null);
 const settingsErrorAtom = atom<string | null>(null);

@@ -1,4 +1,11 @@
-import { isTheme, type Theme } from '@shared';
+import {
+  isPalette,
+  isTheme,
+  PALETTE_OPTIONS,
+  type Palette,
+  type ResolvedTheme,
+  type Theme,
+} from '@shared';
 import { Monitor, Moon, Sun } from 'lucide-react';
 
 import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
@@ -30,6 +37,38 @@ export function ThemeMenuOptions({
         <Monitor />
         跟随系统
       </DropdownMenuRadioItem>
+    </DropdownMenuRadioGroup>
+  );
+}
+
+export function PaletteMenuOptions({
+  palette,
+  resolvedTheme,
+  onPaletteChange,
+}: {
+  palette: Palette;
+  resolvedTheme?: ResolvedTheme;
+  onPaletteChange: (palette: Palette) => void;
+}) {
+  const isDark = resolvedTheme === 'dark';
+  return (
+    <DropdownMenuRadioGroup
+      aria-label="主题色"
+      value={palette}
+      onValueChange={(value) => {
+        if (isPalette(value)) onPaletteChange(value);
+      }}
+    >
+      {PALETTE_OPTIONS.map((option) => (
+        <DropdownMenuRadioItem key={option.id} value={option.id}>
+          <span
+            aria-hidden="true"
+            className="size-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+            style={{ backgroundColor: isDark ? option.dark : option.light }}
+          />
+          {option.label}
+        </DropdownMenuRadioItem>
+      ))}
     </DropdownMenuRadioGroup>
   );
 }

@@ -11,7 +11,7 @@ import {
 
 import { FrontButton, FrontInput } from './controls';
 
-/** 前台可搜索单选：自持呈现，与后台仅共享选项和匹配规则。 */
+/** 前台可搜索单选：自持呈现，与后台共用统一视觉 token 与选项匹配规则。 */
 export function FrontSearchSelect({
   options,
   value,
@@ -49,7 +49,7 @@ export function FrontSearchSelect({
         <Combobox.Positioner align="start" sideOffset={6} className="z-50 max-w-[calc(100vw-2rem)]">
           <Combobox.Popup
             aria-label={label}
-            className="front-surface flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border/60 bg-card p-2 text-foreground shadow-lg outline-none"
+            className="front-surface glass-surface animate-panel-enter flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none"
           >
             <div className="relative mb-2">
               <Search
@@ -60,7 +60,7 @@ export function FrontSearchSelect({
                 render={<FrontInput />}
                 aria-label={placeholder}
                 placeholder={placeholder}
-                className="h-10 pl-9"
+                className="min-h-10 pl-9 text-sm"
               />
             </div>
             <Combobox.Empty className="p-4 text-center text-sm text-muted-foreground">
@@ -71,7 +71,7 @@ export function FrontSearchSelect({
                 <Combobox.Item
                   key={option.value}
                   value={option}
-                  className="flex min-h-11 cursor-default items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none data-highlighted:bg-secondary data-highlighted:text-foreground data-selected:font-medium"
+                  className="flex min-h-11 cursor-default items-center gap-2 rounded-xl px-2.5 py-2 text-sm transition-colors outline-none data-highlighted:bg-accent data-highlighted:text-foreground data-selected:font-medium"
                 >
                   <span
                     aria-hidden="true"
@@ -109,7 +109,7 @@ export function FrontSearchSelect({
                   ) : null}
                   <span className="grid size-4 shrink-0 place-items-center">
                     <Combobox.ItemIndicator>
-                      <Check className="size-4" />
+                      <Check className="size-4 text-primary" />
                     </Combobox.ItemIndicator>
                   </span>
                 </Combobox.Item>

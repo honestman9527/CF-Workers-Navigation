@@ -1,8 +1,14 @@
-import type { Settings } from '@shared/api/types';
 import type { SearchEngine } from '@shared/search';
 
+import {
+  DEFAULT_BG_OVERLAY_OPACITY,
+  MAX_BG_OVERLAY_OPACITY,
+  MIN_BG_OVERLAY_OPACITY,
+  PALETTE_OPTIONS,
+  type Settings,
+} from '@shared';
 import { useSetAtom } from 'jotai';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Check, LayoutGrid, List, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
@@ -24,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { DialogPanel } from '@nav/components/DialogPanel';
 import { pushToast } from '@nav/components/Toast';
@@ -31,6 +38,8 @@ import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { updateSettingsCacheAtom } from '@nav/features/settings/store';
 import { VisibilityField } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
+import { useAppearance } from '@nav/hooks/useAppearance';
+import { useTheme } from '@nav/hooks/useTheme';
 import { domainOf, faviconFor } from '@shared/search';
 
 import { validateSettingsDraft } from './settingsValidation';
@@ -202,6 +211,9 @@ function EngineFormDialog({
 
 export function SettingsTab() {
   const auth = useAuthContext();
+  const { resolvedTheme } = useTheme();
+  const { palette, setPalette, density, setDensity, bgOverlayOpacity, setBgOverlayOpacity } =
+    useAppearance();
   const cacheSettings = useSetAtom(updateSettingsCacheAtom);
   const loadSettings = useCallback((signal: AbortSignal) => api.getSettings(signal), []);
   const {
@@ -322,53 +334,177 @@ export function SettingsTab() {
                 </Card>
               </TabsContent>
               <TabsContent value="appearance">
-                <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
-                  <CardHeader>
-                    <CardTitle>
-                      <h2>背景图片</h2>
-                    </CardTitle>
-                    <CardDescription>导航首页使用此背景图片，关闭后使用纯色背景。</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <FieldGroup>
-                      <Field orientation="horizontal">
-                        <FieldLabel htmlFor="background-enabled">启用背景图片</FieldLabel>
-                        <Switch
-                          id="background-enabled"
-                          checked={draft.backgroundImageEnabled}
-                          onCheckedChange={(checked) => update({ backgroundImageEnabled: checked })}
-                        />
-                      </Field>
-                      <Field data-invalid={invalid === 'background-url'}>
-                        <FieldLabel htmlFor="background-url">图片网址</FieldLabel>
-                        <Input
-                          id="background-url"
-                          aria-invalid={invalid === 'background-url'}
-                          value={draft.backgroundImageUrl}
-                          onChange={(event) => update({ backgroundImageUrl: event.target.value })}
-                          placeholder="https://example.com/wallpaper.jpg"
-                        />
-                        <FieldDescription>使用 HTTPS 图片网址，建议选择宽幅图片。</FieldDescription>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="self-start"
-                          disabled={!draft.backgroundImageUrl}
-                          onClick={() => update({ backgroundImageUrl: '' })}
-                        >
-                          清除网址
-                        </Button>
-                      </Field>
-                      {draft.backgroundImageUrl ? (
-                        <img
-                          src={draft.backgroundImageUrl}
-                          alt="背景预览"
-                          className="h-48 w-full rounded-lg object-cover"
-                        />
-                      ) : null}
-                    </FieldGroup>
-                  </CardContent>
-                </Card>
+                <div className="flex flex-col gap-6">
+                  <Card className="[--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
+                    <CardHeader>
+                      <CardTitle>
+                        <h2>背景图片</h2>
+                      </CardTitle>
+                      <CardDescription>
+                        导航首页使用此背景图片，关闭后使用纯色背景。
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <FieldGroup>
+                        <Field orientation="horizontal">
+                          <FieldLabel htmlFor="background-enabled">启用背景图片</FieldLabel>
+                          <Switch
+                            id="background-enabled"
+                            checked={draft.backgroundImageEnabled}
+                            onCheckedChange={(checked) =>
+                              update({ backgroundImageEnabled: checked })
+                            }
+                          />
+                        </Field>
+                        <Field data-invalid={invalid === 'background-url'}>
+                          <FieldLabel htmlFor="background-url">图片网址</FieldLabel>
+                          <Input
+                            id="background-url"
+                            aria-invalid={invalid === 'background-url'}
+                            value={draft.backgroundImageUrl}
+                            onChange={(event) => update({ backgroundImageUrl: event.target.value })}
+                            placeholder="https://example.com/wallpaper.jpg"
+                          />
+                          <FieldDescription>
+                            使用 HTTPS 图片网址，建议选择宽幅图片。
+                          </FieldDescription>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="self-start"
+                            disabled={!draft.backgroundImageUrl}
+                            onClick={() => update({ backgroundImageUrl: '' })}
+                          >
+                            清除网址
+                          </Button>
+                        </Field>
+                        {draft.backgroundImageUrl ? (
+                          <img
+                            src={draft.backgroundImageUrl}
+                            alt="背景预览"
+                            className="h-48 w-full rounded-xl object-cover"
+                          />
+                        ) : null}
+                      </FieldGroup>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="[--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
+                    <CardHeader>
+                      <CardTitle>
+                        <h2>本机外观偏好</h2>
+                      </CardTitle>
+                      <CardDescription>
+                        主题色、卡片密度与壁纸遮罩浓度保存在当前浏览器并即时生效，无需点击保存设置。
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel>主题色</FieldLabel>
+                          <div
+                            role="radiogroup"
+                            aria-label="本机主题色"
+                            className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                          >
+                            {PALETTE_OPTIONS.map((option) => {
+                              const selected = palette === option.id;
+                              const swatch = resolvedTheme === 'dark' ? option.dark : option.light;
+                              return (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  onClick={() => setPalette(option.id)}
+                                  className={cn(
+                                    'flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
+                                    selected
+                                      ? 'border-primary/50 bg-accent text-foreground'
+                                      : 'border-border bg-background/60 text-muted-foreground hover:border-border-strong hover:text-foreground',
+                                  )}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                                    style={{ backgroundColor: swatch }}
+                                  />
+                                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                                  {selected ? (
+                                    <Check className="size-4 shrink-0 text-primary" />
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </Field>
+                        <Field>
+                          <FieldLabel>前台书签视图密度</FieldLabel>
+                          <div className="inline-flex w-fit rounded-xl border border-border bg-secondary p-1">
+                            {(
+                              [
+                                { value: 'comfortable', label: '舒适卡片', icon: LayoutGrid },
+                                { value: 'compact', label: '紧凑网格', icon: List },
+                              ] as const
+                            ).map(({ value, label, icon: Icon }) => (
+                              <button
+                                key={value}
+                                type="button"
+                                aria-pressed={density === value}
+                                onClick={() => setDensity(value)}
+                                className={cn(
+                                  'inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors',
+                                  density === value
+                                    ? 'bg-card text-foreground shadow-2xs'
+                                    : 'text-muted-foreground hover:text-foreground',
+                                )}
+                              >
+                                <Icon className="size-3.5" />
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </Field>
+                        <Field>
+                          <div className="flex items-center justify-between gap-2">
+                            <FieldLabel htmlFor="local-bg-overlay-opacity">壁纸遮罩浓度</FieldLabel>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+                                {Math.round(bgOverlayOpacity * 100)}%
+                              </span>
+                              {bgOverlayOpacity !== DEFAULT_BG_OVERLAY_OPACITY ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label="重置壁纸遮罩浓度"
+                                  onClick={() => setBgOverlayOpacity(DEFAULT_BG_OVERLAY_OPACITY)}
+                                >
+                                  <RotateCcw />
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <input
+                            id="local-bg-overlay-opacity"
+                            type="range"
+                            min={Math.round(MIN_BG_OVERLAY_OPACITY * 100)}
+                            max={Math.round(MAX_BG_OVERLAY_OPACITY * 100)}
+                            step={5}
+                            value={Math.round(bgOverlayOpacity * 100)}
+                            onChange={(event) =>
+                              setBgOverlayOpacity(Number(event.target.value) / 100)
+                            }
+                            className="h-2 w-full cursor-pointer accent-primary"
+                          />
+                          <FieldDescription>
+                            调节背景图上方的半透明磨砂遮罩（25%–95%，默认 72%），保障文字清晰易读。
+                          </FieldDescription>
+                        </Field>
+                      </FieldGroup>
+                    </CardContent>
+                  </Card>
+                </div>
               </TabsContent>
               <TabsContent value="icons">
                 <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
@@ -511,7 +647,7 @@ export function SettingsTab() {
               </TabsContent>
             </Tabs>
           </fieldset>
-          <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/95 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+          <div className="glass-surface sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-soft">
             <span role="status" className="text-sm text-muted-foreground">
               {dirty ? '有未保存修改' : '所有修改已保存'}
             </span>

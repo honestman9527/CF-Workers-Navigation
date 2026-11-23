@@ -17,3 +17,15 @@ export function canFocusSearch(event: KeyboardEvent) {
     )
   );
 }
+
+/** 全局命令面板快捷键：Cmd+K (macOS) 或 Ctrl+K (Windows/Linux)。 */
+export function isCommandPaletteShortcut(event: KeyboardEvent) {
+  return (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    !event.defaultPrevented &&
+    !isComposingKey(event) &&
+    event.key.toLowerCase() === 'k'
+  );
+}

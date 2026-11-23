@@ -69,9 +69,9 @@ function StatCards({
   return (
     <section
       aria-label="书签统计"
-      className="grid overflow-hidden rounded-2xl border border-border/60 bg-card lg:grid-cols-[1fr_2fr]"
+      className="glass-surface grid overflow-hidden rounded-2xl border border-border bg-card shadow-soft lg:grid-cols-[1fr_2fr]"
     >
-      <div className="flex flex-col justify-center border-b border-border/50 p-6 sm:p-8 lg:border-r lg:border-b-0">
+      <div className="flex flex-col justify-center border-b border-border p-6 sm:p-8 lg:border-r lg:border-b-0">
         <Bookmark className="mb-5 size-6 text-primary" />
         <span className="text-sm text-muted-foreground">书签总数</span>
         <strong className="mt-2 text-5xl font-semibold tracking-tight tabular-nums">
@@ -149,7 +149,7 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/websites')}
-          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Globe className="size-5" />
@@ -164,7 +164,7 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/categories')}
-          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <FolderTree className="size-5" />
@@ -179,7 +179,7 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/tags')}
-          className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-5 text-left transition hover:border-primary/45 sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Tags className="size-5" />

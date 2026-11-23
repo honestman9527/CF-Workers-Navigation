@@ -33,7 +33,7 @@ export function FrontCategorySelect(props: SearchSelectProps) {
           <Popover.Popup
             aria-label={label}
             initialFocus={input}
-            className="front-surface flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border/60 bg-card p-2 text-foreground shadow-lg outline-none"
+            className="front-surface glass-surface animate-panel-enter flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none"
           >
             <div className="relative mb-2">
               <Search
@@ -46,7 +46,7 @@ export function FrontCategorySelect(props: SearchSelectProps) {
                 onChange={(event) => tree.setQuery(event.target.value)}
                 aria-label={placeholder}
                 placeholder={placeholder}
-                className="h-10 pl-9"
+                className="min-h-10 pl-9 text-sm"
                 onKeyDown={(event) => {
                   if (
                     !event.nativeEvent.isComposing &&
@@ -75,7 +75,7 @@ export function FrontCategorySelect(props: SearchSelectProps) {
                   key={option.value}
                   {...tree.itemProps(option)}
                   title={optionLabel(option)}
-                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg py-1 pr-2 text-sm outline-none hover:bg-secondary focus:bg-secondary focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset"
+                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl py-1 pr-2.5 text-sm transition-colors outline-none hover:bg-accent focus:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset"
                   style={{ paddingLeft: 4 + Math.min(option.depth ?? 0, 1) * 16 }}
                 >
                   {tree.hasChildren(option) ? (
@@ -91,11 +91,14 @@ export function FrontCategorySelect(props: SearchSelectProps) {
                         event.stopPropagation();
                         tree.toggle(option);
                       }}
-                      className="grid min-h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:cursor-default"
+                      className="grid min-h-11 w-11 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary disabled:cursor-default"
                     >
                       <ChevronRight
                         aria-hidden="true"
-                        className={cn('size-4', tree.isExpanded(option) && 'rotate-90')}
+                        className={cn(
+                          'size-4 transition-transform',
+                          tree.isExpanded(option) && 'rotate-90',
+                        )}
                       />
                     </button>
                   ) : (
@@ -129,7 +132,7 @@ export function FrontCategorySelect(props: SearchSelectProps) {
                   ) : null}
                   <span className="grid size-4 shrink-0 place-items-center">
                     {value === option.value ? (
-                      <Check aria-hidden="true" className="size-4" />
+                      <Check aria-hidden="true" className="size-4 text-primary" />
                     ) : null}
                   </span>
                 </div>

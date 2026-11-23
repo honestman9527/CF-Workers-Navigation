@@ -5,7 +5,7 @@ import { act, type ComponentProps } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { AdminPage } from '@nav/features/admin/AdminPage';
-import { themeAtom } from '@nav/features/settings/store';
+import { paletteAtom, themeAtom } from '@nav/features/settings/store';
 
 import { click, mount } from '../../render';
 
@@ -215,4 +215,17 @@ it('主题写入失败时，重新挂载仍保留内存偏好，不被旧存储�
   );
   expect(store.get(themeAtom)).toBe('dark');
   expect(document.documentElement.classList.contains('dark')).toBe(true);
+});
+
+it('后台更多菜单支持切换 4 套主题色并同步到根节点', async () => {
+  const store = await setup();
+  await openMenu();
+  expect(document.querySelector('[role="group"][aria-label="主题色"]')).not.toBeNull();
+  await click(menuItem('翡翠森语'));
+  expect(store.get(paletteAtom)).toBe('emerald');
+  expect(document.documentElement.dataset.palette).toBe('emerald');
+  await openMenu();
+  await click(menuItem('玫瑰暮霞'));
+  expect(store.get(paletteAtom)).toBe('rose');
+  expect(document.documentElement.dataset.palette).toBe('rose');
 });

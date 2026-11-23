@@ -216,7 +216,7 @@ export function WebsitesTab() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/60 bg-card p-4">
+      <div className="glass-surface flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <ToggleGroup
           aria-label="状态筛选"
           value={[view]}
@@ -320,7 +320,7 @@ export function WebsitesTab() {
           <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或新建一个书签。</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+        <div className="glass-surface overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
           {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
           <Table className="block table-fixed md:table [&_button]:size-11 md:[&_button]:size-8">
             <TableHeader className="hidden bg-muted/40 md:table-header-group">

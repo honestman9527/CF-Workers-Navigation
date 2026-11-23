@@ -57,12 +57,13 @@ export function FrontBookmarkEditor({
                 autoFocus={!props.bookmark}
               />
               <FrontButton
+                tone="subtle"
                 aria-label="自动填写"
                 disabled={editor.fetching || !form.url.trim()}
                 onClick={() => void editor.fetchMetadata()}
-                className="bg-secondary px-3"
+                className="px-3.5"
               >
-                <Sparkles className="size-4" />
+                <Sparkles className="size-4 text-primary" />
                 <span className="hidden sm:inline">{editor.fetching ? '获取中…' : '自动填写'}</span>
                 <span className="sr-only sm:hidden">自动填写</span>
               </FrontButton>
@@ -118,17 +119,17 @@ export function FrontBookmarkEditor({
             <label htmlFor="bookmark-tags" className="mb-2 block text-sm font-semibold">
               标签
             </label>
-            <div className="mb-2 flex flex-wrap gap-1">
+            <div className="mb-2 flex flex-wrap gap-1.5">
               {editor.selectedTags.map((tag) => (
                 <button
                   type="button"
                   key={tag}
                   onClick={() => editor.removeTag(tag)}
                   aria-label={`移除标签 ${tag}`}
-                  className="flex min-h-9 items-center gap-2 rounded-full bg-secondary px-3 text-sm"
+                  className="flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border border-primary/25 bg-accent px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
                 >
                   {tag}
-                  <X className="size-3" />
+                  <X className="size-3.5" />
                 </button>
               ))}
             </div>
@@ -160,7 +161,8 @@ export function FrontBookmarkEditor({
                 .map((tag) => (
                   <FrontButton
                     key={tag.id}
-                    className="min-h-9 px-2 text-xs"
+                    tone="subtle"
+                    className="min-h-8 rounded-lg px-2.5 text-xs"
                     onClick={() => editor.addTag(tag.name)}
                   >
                     + {tag.name}
@@ -170,24 +172,33 @@ export function FrontBookmarkEditor({
           </div>
           <fieldset>
             <legend className="mb-2 text-sm font-semibold">访问权限</legend>
-            <div className="flex gap-6">
-              {(['public', 'private'] as const).map((value) => (
-                <label key={value} className="flex min-h-11 items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    className="size-4 accent-primary"
-                    value={value}
-                    checked={
-                      (form.visibility ?? defaults.data?.defaultBookmarkVisibility) === value
-                    }
-                    onChange={() => setForm({ ...form, visibility: value })}
-                  />
-                  {value === 'public' ? '公开' : '私有'}
-                </label>
-              ))}
+            <div className="flex gap-3">
+              {(['public', 'private'] as const).map((value) => {
+                const checked =
+                  (form.visibility ?? defaults.data?.defaultBookmarkVisibility) === value;
+                return (
+                  <label
+                    key={value}
+                    className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm transition-colors ${
+                      checked
+                        ? 'border-primary/45 bg-accent font-medium text-foreground'
+                        : 'border-border bg-background/60 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="visibility"
+                      className="size-4 accent-primary"
+                      value={value}
+                      checked={checked}
+                      onChange={() => setForm({ ...form, visibility: value })}
+                    />
+                    {value === 'public' ? '公开' : '私有'}
+                  </label>
+                );
+              })}
             </div>
-            <p className="text-xs leading-5 text-muted-foreground">
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
               {category?.effectiveVisibility === 'private'
                 ? '受上级分类限制：当前仅登录可见。移出私有分类后，将按自身权限生效。'
                 : '公开内容无需登录；私有内容仅管理员登录后可见。'}
@@ -196,7 +207,7 @@ export function FrontBookmarkEditor({
           {props.bookmark?.effectiveVisibility === 'private' &&
           props.bookmark.visibility === 'public' &&
           props.bookmark.categoryId !== form.categoryId ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="rounded-xl border border-border bg-secondary/60 px-3.5 py-2.5 text-sm text-muted-foreground">
               移动会重新计算权限；移出私有分类后，此书签可能公开。
             </p>
           ) : null}
@@ -208,16 +219,19 @@ export function FrontBookmarkEditor({
           ) : null}
           <div>
             <FrontButton
-              className="w-full justify-between rounded-xl bg-secondary"
+              tone="subtle"
+              className="w-full justify-between rounded-xl"
               aria-expanded={editor.iconOpen}
               onClick={() => editor.setIconOpen(!editor.iconOpen)}
             >
               自定义图标
-              <ChevronDown className={`size-4 ${editor.iconOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={`size-4 transition-transform ${editor.iconOpen ? 'rotate-180' : ''}`}
+              />
             </FrontButton>
             {editor.iconOpen ? (
-              <div className="mt-3">
-                <label htmlFor="bookmark-icon" className="mb-2 block text-sm">
+              <div className="mt-3 rounded-xl border border-border bg-secondary/40 p-3.5">
+                <label htmlFor="bookmark-icon" className="mb-2 block text-sm font-medium">
                   图标地址（可选）
                 </label>
                 <div className="flex gap-2">
@@ -227,6 +241,7 @@ export function FrontBookmarkEditor({
                     onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
                   />
                   <FrontButton
+                    tone="subtle"
                     aria-label="获取图标"
                     disabled={editor.faviconFetching || !form.url.trim()}
                     onClick={() => void editor.fetchFavicon()}
@@ -245,8 +260,8 @@ export function FrontBookmarkEditor({
             {editor.error}
           </p>
         ) : null}
-        <div className="flex justify-end gap-2 border-t border-border/60 pt-4">
-          <FrontButton disabled={editor.loading} onClick={onClose}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <FrontButton tone="subtle" disabled={editor.loading} onClick={onClose}>
             取消
           </FrontButton>
           <FrontButton

@@ -47,7 +47,8 @@ import { Toaster } from '@/components/ui/toast';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
-import { ThemeMenuOptions } from '@nav/features/settings/ThemeMenuOptions';
+import { PaletteMenuOptions, ThemeMenuOptions } from '@nav/features/settings/ThemeMenuOptions';
+import { useAppearance } from '@nav/hooks/useAppearance';
 import { useTheme } from '@nav/hooks/useTheme';
 
 const ADMIN_SIDEBAR_STORAGE_KEY = 'nav-admin-sidebar-open';
@@ -99,15 +100,18 @@ function AdminSidebarContent({
   onLogout,
   loggingOut,
   themeSettings,
+  appearance,
 }: {
   frontRoute: '/';
   returnLabel: string;
   onLogout: () => void;
   loggingOut: boolean;
   themeSettings: ReturnType<typeof useTheme>;
+  appearance: ReturnType<typeof useAppearance>;
 }) {
   const { open, isMobile, setOpenMobile } = useSidebar();
-  const { theme, setTheme } = themeSettings;
+  const { theme, resolvedTheme, setTheme } = themeSettings;
+  const { palette, setPalette } = appearance;
 
   return (
     <div
@@ -165,11 +169,20 @@ function AdminSidebarContent({
                 side={isMobile ? 'top' : 'right'}
                 align="end"
                 sideOffset={8}
-                className="w-44"
+                className="w-48"
               >
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>主题</DropdownMenuLabel>
                   <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>主题色</DropdownMenuLabel>
+                  <PaletteMenuOptions
+                    palette={palette}
+                    resolvedTheme={resolvedTheme}
+                    onPaletteChange={setPalette}
+                  />
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
@@ -198,6 +211,7 @@ function AdminSidebarTrigger() {
 export function AdminPage() {
   const auth = useAuthContext();
   const themeSettings = useTheme();
+  const appearance = useAppearance();
   const [loggingOut, setLoggingOut] = useState(false);
   const logoutPending = useRef(false);
   const { pathname } = useLocation();
@@ -245,7 +259,7 @@ export function AdminPage() {
       <Sidebar
         collapsible="offcanvas"
         variant="sidebar"
-        className="top-[var(--safe-t)] bottom-[env(safe-area-inset-bottom)] h-auto border-border/60"
+        className="top-[var(--safe-t)] bottom-[env(safe-area-inset-bottom)] h-auto border-border"
       >
         <AdminSidebarContent
           frontRoute={frontRoute}
@@ -253,11 +267,12 @@ export function AdminPage() {
           onLogout={() => void logout()}
           loggingOut={loggingOut}
           themeSettings={themeSettings}
+          appearance={appearance}
         />
       </Sidebar>
 
       <SidebarInset className="app-inset min-w-0 overflow-x-clip">
-        <header className="sticky top-0 z-30 flex min-h-16 items-center gap-3 border-b border-border/60 bg-card/90 px-4 backdrop-blur-xl sm:px-6">
+        <header className="glass-surface sticky top-0 z-30 flex min-h-16 items-center gap-3 border-b border-border bg-card px-4 sm:px-6">
           <AdminSidebarTrigger />
           <Breadcrumb>
             <BreadcrumbList>

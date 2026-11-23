@@ -10,9 +10,9 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
   const [loading, setLoading] = useState(false);
 
   return (
-    <main className="front-surface flex min-h-[100dvh] items-center justify-center bg-background px-6 py-16 text-foreground">
+    <main className="front-surface flex min-h-dvh items-center justify-center bg-background px-4 py-12 text-foreground sm:px-6 sm:py-16">
       <form
-        className="w-full max-w-[22rem]"
+        className="glass-surface w-full max-w-[24rem] rounded-2xl border border-border bg-card p-7 shadow-soft sm:p-8"
         onSubmit={async (event) => {
           event.preventDefault();
           setLoading(true);
@@ -26,13 +26,15 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           }
         }}
       >
-        <BrandIcon className="mb-6 size-12" />
-        <h1 className="mt-3 font-display text-3xl leading-tight">登录书签柜</h1>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        <BrandIcon className="mb-5 size-11" />
+        <h1 className="font-display text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
+          登录书签柜
+        </h1>
+        <p className="mt-2.5 text-sm leading-6 text-muted-foreground">
           输入管理员密码，查看私有书签并整理内容。
         </p>
 
-        <div className="mt-8 flex flex-col gap-2">
+        <div className="mt-7 flex flex-col gap-2">
           <label htmlFor="cabinet-password" className="text-sm font-semibold">
             密码
           </label>
@@ -47,7 +49,11 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
           />
         </div>
 
-        {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
 
         <Button
           tone="primary"
