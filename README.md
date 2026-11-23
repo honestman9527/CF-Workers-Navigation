@@ -31,3 +31,7 @@ CF Workers Navigation 是一个部署在 Cloudflare Workers 与 D1 上的个人�
 - [部署](docs/deployment.md)：Cloudflare 配置、发布、迁移与恢复。
 - [导入与导出](docs/import-export.md)：备份格式、兼容范围与导入规则。
 - [完整文档索引](docs/index.md)：架构、数据库、API 和设计规范。
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
