@@ -4,8 +4,8 @@
 
 - 默认中文回复；使用 pnpm。
 - `src/worker` 与 `src/web` 是同一个部署单元；跨端契约只放在 `src/shared`。
-- 前台使用定制组件，可复用 Base UI 无样式交互；管理后台使用 `shadcn/ui`。前后台共享无外观逻辑，各自实现呈现。
-- 功能性图标统一使用 `lucide-react`；不得手写 SVG 或混用其他图标库。
+- 组件库 `shadcn/ui` Base UI。
+- 功能性图标统一使用 `lucide-react`
 - 样式优先使用 Tailwind 工具类；全局 CSS 只保留 token、关键帧和必要全局规则。
 
 ## 任务流程与 Git
@@ -21,21 +21,9 @@
 - 所有 Git 推送均须用户明确同意；同一目标与范围内的已有授权沿用。确认前完成本地交付，说明待推送分支、提交及可能触发的发布流程；本地合并不包含推送授权。
 - 部署、远程迁移和恢复以用户任务目标为边界，执行流程见 [docs/deployment.md](docs/deployment.md)；本地开发任务完成后停在本地合并。
 
-## 任务路由
+## 文档
 
-修改前读取命中文档；行为、规则或取舍变化时更新对应职责文档，跨场景组合读取。文档分工与去重规则见 [docs/AGENTS.md](docs/AGENTS.md)。
-
-| 任务场景                                       | 读取与记录位置                                                                                  |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| 视觉设计、组件外观或主题样式                   | [DESIGN.md](DESIGN.md)                                                                          |
-| 服务边界、运行时路由、权限继承、分页或缓存设计 | [docs/architecture.md](docs/architecture.md)                                                    |
-| 数据库表结构、索引、触发器或迁移               | [docs/database.md](docs/database.md)                                                            |
-| API 路由、跨端契约、认证、访问范围或错误码     | [docs/api.md](docs/api.md)                                                                      |
-| 页面交互、本地开发或常用命令                   | [docs/usage.md](docs/usage.md)                                                                  |
-| 导入导出格式、兼容性或数据传输行为             | [docs/import-export.md](docs/import-export.md)                                                  |
-| 准备部署、配置密钥或执行远程迁移               | [docs/deployment.md](docs/deployment.md)；迁移规则同时查阅 [docs/database.md](docs/database.md) |
-| 修改文档内容、结构或协作规则（含 AGENTS.md）   | [docs/AGENTS.md](docs/AGENTS.md)                                                                |
-| 合并异步状态、准备代码审查或交付               | [docs/agents/review.md](docs/agents/review.md)                                                  |
+- 详见 `docs/`
 
 ## 风险匹配验证
 
