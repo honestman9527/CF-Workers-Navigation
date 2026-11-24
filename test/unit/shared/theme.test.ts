@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ADMIN_SIDEBAR_STORAGE_KEY,
   clampBgOverlayOpacity,
+  DEFAULT_ADMIN_SIDEBAR_OPEN,
   DEFAULT_BG_OVERLAY_OPACITY,
   DEFAULT_FRONT_SIDEBAR_OPEN,
   DEFAULT_PALETTE,
@@ -86,9 +88,11 @@ describe('appearance preference contract', () => {
     expect(parseBgOverlayOpacity('99')).toBe(MAX_BG_OVERLAY_OPACITY);
   });
 
-  it('parses front sidebar open preference with expanded default', () => {
+  it('parses front and admin sidebar open preferences with expanded default', () => {
     expect(DEFAULT_FRONT_SIDEBAR_OPEN).toBe(true);
     expect(FRONT_SIDEBAR_STORAGE_KEY).toBe('nav-front-sidebar-open');
+    expect(DEFAULT_ADMIN_SIDEBAR_OPEN).toBe(true);
+    expect(ADMIN_SIDEBAR_STORAGE_KEY).toBe('nav-admin-sidebar-open');
     expect(parseSidebarOpen(null)).toBe(true);
     expect(parseSidebarOpen('')).toBe(true);
     expect(parseSidebarOpen('invalid')).toBe(true);

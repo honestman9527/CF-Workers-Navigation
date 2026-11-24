@@ -51,7 +51,7 @@ export function FrontTooltip({
           <Tooltip.Positioner side={side} align={align} sideOffset={sideOffset} className="z-50">
             <Tooltip.Popup
               className={cn(
-                'front-surface glass-surface inline-flex max-w-xs items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg transition-[opacity,transform] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0',
+                'front-surface glass-surface overlay-popup inline-flex max-w-xs origin-(--transform-origin) items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg outline-none',
                 className,
               )}
             >

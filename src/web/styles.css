@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -10,9 +9,9 @@
   interpolate-size: allow-keywords;
   --background: #f8fafc;
   --foreground: #0f172a;
-  --card: rgba(255, 255, 255, 0.88);
+  --card: rgb(255 255 255 / 0.88);
   --card-foreground: #0f172a;
-  --popover: rgba(255, 255, 255, 0.94);
+  --popover: rgb(255 255 255 / 0.94);
   --popover-foreground: #0f172a;
   --primary: #4f46e5;
   --primary-hover: #4338ca;
@@ -24,17 +23,17 @@
   --accent: rgb(79 70 229 / 0.1);
   --accent-foreground: #0f172a;
   --destructive: #dc2626;
-  --border: rgba(148, 163, 184, 0.24);
-  --border-strong: rgba(148, 163, 184, 0.42);
-  --input: rgba(148, 163, 184, 0.28);
+  --border: rgb(148 163 184 / 0.24);
+  --border-strong: rgb(148 163 184 / 0.42);
+  --input: rgb(148 163 184 / 0.28);
   --ring: #4f46e5;
-  --sidebar: rgba(255, 255, 255, 0.84);
+  --sidebar: rgb(255 255 255 / 0.84);
   --sidebar-foreground: #0f172a;
   --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(79 70 229 / 0.1);
   --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: rgba(148, 163, 184, 0.24);
+  --sidebar-border: rgb(148 163 184 / 0.24);
   --sidebar-ring: #4f46e5;
   --chart-1: #4f46e5;
   --chart-2: #0f172a;
@@ -57,6 +56,13 @@
   --scrollbar-thumb-hover: #475569;
   --scrollbar-track: transparent;
   --shadow-soft-value: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.08);
+
+  &:has(> head > meta[name='color-scheme'][content='dark']) {
+    color-scheme: dark;
+  }
+  &:has(> head > meta[name='color-scheme'][content='light']) {
+    color-scheme: light;
+  }
 }
 
 .light {
@@ -67,9 +73,9 @@
   color-scheme: dark;
   --background: #0b0f19;
   --foreground: #f8fafc;
-  --card: rgba(17, 24, 39, 0.82);
+  --card: rgb(17 24 39 / 0.82);
   --card-foreground: #f8fafc;
-  --popover: rgba(17, 24, 39, 0.94);
+  --popover: rgb(17 24 39 / 0.94);
   --popover-foreground: #f8fafc;
   --primary: #818cf8;
   --primary-hover: #6366f1;
@@ -81,17 +87,17 @@
   --accent: rgb(129 140 248 / 0.16);
   --accent-foreground: #f8fafc;
   --destructive: #f87171;
-  --border: rgba(148, 163, 184, 0.14);
-  --border-strong: rgba(148, 163, 184, 0.28);
-  --input: rgba(148, 163, 184, 0.2);
+  --border: rgb(148 163 184 / 0.14);
+  --border-strong: rgb(148 163 184 / 0.28);
+  --input: rgb(148 163 184 / 0.2);
   --ring: #818cf8;
-  --sidebar: rgba(17, 24, 39, 0.78);
+  --sidebar: rgb(17 24 39 / 0.78);
   --sidebar-foreground: #f8fafc;
   --sidebar-primary: #818cf8;
   --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(129 140 248 / 0.16);
   --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: rgba(148, 163, 184, 0.14);
+  --sidebar-border: rgb(148 163 184 / 0.14);
   --sidebar-ring: #818cf8;
   --chart-1: #818cf8;
   --chart-2: #f8fafc;
@@ -280,7 +286,6 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --shadow-soft: var(--shadow-soft-value);
-  --animate-indeterminate-bar: indeterminate-bar 1.2s ease-in-out infinite;
 }
 
 @layer base {
@@ -346,7 +351,24 @@
   }
 
   ::selection {
-    background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+
+  /* 原生 <details> 平滑高度展开/收起（渐进增强，需浏览器支持 ::details-content 与 interpolate-size）。 */
+  details::details-content {
+    overflow: clip;
+    contain: layout;
+  }
+  details:not([open])::details-content {
+    block-size: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    details::details-content {
+      transition: block-size, content-visibility, display;
+      transition-duration: 0.24s;
+      transition-timing-function: ease-out;
+      transition-behavior: allow-discrete;
+    }
   }
 
   :focus-visible {
@@ -369,8 +391,54 @@
     backdrop-filter: blur(var(--surface-blur, 16px));
     -webkit-backdrop-filter: blur(var(--surface-blur, 16px));
   }
-  .animate-panel-enter {
-    animation: panel-enter 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* 现代双向浮层入场/退场过渡：opacity 使用 ease-out，scale/translate 使用物理 linear() 弹性曲线（ease-out 回退）。 */
+  .overlay-popup {
+    opacity: 1;
+    scale: 1;
+    transition:
+      opacity 0.16s ease-out,
+      scale 0.22s ease-out,
+      translate 0.22s ease-out;
+    transition-timing-function:
+      ease-out, linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+      linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1);
+    &[data-side] {
+      translate: 0 0;
+    }
+    &[data-starting-style],
+    &[data-ending-style] {
+      opacity: 0;
+      scale: 0.96;
+    }
+    &[data-ending-style] {
+      transition-duration: 0.13s;
+      transition-timing-function: ease-in;
+    }
+    &[data-side='top']:where([data-starting-style], [data-ending-style]) {
+      translate: 0 4px;
+    }
+    &[data-side='bottom']:where([data-starting-style], [data-ending-style]) {
+      translate: 0 -4px;
+    }
+    &[data-side='left']:where([data-starting-style], [data-ending-style]) {
+      translate: 4px 0;
+    }
+    &[data-side='right']:where([data-starting-style], [data-ending-style]) {
+      translate: -4px 0;
+    }
+  }
+  /* 独立挂载提示条（非 Base UI Popup）：使用原生 @starting-style 触发合成层入场过渡。 */
+  .overlay-enter {
+    opacity: 1;
+    translate: 0 0;
+    transition:
+      opacity 0.16s ease-out,
+      translate 0.22s ease-out;
+    transition-timing-function: ease-out, linear(0, 0.45 15%, 0.85 35%, 1.02 65%, 1);
+    @starting-style {
+      opacity: 0;
+      translate: 0 8px;
+    }
   }
   .skip-link {
     @apply sr-only rounded-xl border border-border bg-popover px-4 py-2.5 text-sm font-semibold text-popover-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
@@ -442,14 +510,6 @@
   }
 }
 
-@keyframes indeterminate-bar {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(400%);
-  }
-}
 @keyframes native-progress-indeterminate {
   from,
   to {
@@ -461,16 +521,6 @@
   }
   to {
     translate: 100cqi;
-  }
-}
-@keyframes panel-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-0.25rem) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -503,13 +553,30 @@ html.has-background .app-inset {
   }
 }
 
-/* 减少动态偏好：仅抑制位移动效与入场动画、放慢不定态进度，保留颜色/边框等无晕动风险的交互反馈。 */
+/* 减少动态偏好：抑制位移动效与缩放，保留短促透明度淡入淡出并放慢不定态进度。 */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .animate-panel-enter {
-    animation: none;
+  .overlay-popup {
+    transition-property: opacity;
+    transition-duration: 0.1s;
+    transition-timing-function: ease-out;
+    &[data-starting-style],
+    &[data-ending-style] {
+      scale: 1;
+    }
+    &[data-side]:where([data-starting-style], [data-ending-style]) {
+      translate: 0 0;
+    }
+  }
+  .overlay-enter {
+    transition-property: opacity;
+    transition-duration: 0.1s;
+    transition-timing-function: ease-out;
+    @starting-style {
+      translate: 0 0;
+    }
   }
   .native-progress {
     --progress-bar-indeterminate-duration: 10s;

@@ -34,7 +34,7 @@ export function FrontCategorySelect(props: SearchSelectProps) {
           <Popover.Popup
             aria-label={label}
             initialFocus={input}
-            className="front-surface glass-surface animate-panel-enter flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none"
+            className="front-surface glass-surface overlay-popup flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] origin-(--transform-origin) flex-col overflow-hidden rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none"
           >
             <div className="relative mb-2">
               <Search

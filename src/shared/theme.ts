@@ -34,6 +34,8 @@ export const BG_OVERLAY_OPACITY_STORAGE_KEY = 'nav-bg-overlay-opacity';
 
 export const DEFAULT_FRONT_SIDEBAR_OPEN = true;
 export const FRONT_SIDEBAR_STORAGE_KEY = 'nav-front-sidebar-open';
+export const DEFAULT_ADMIN_SIDEBAR_OPEN = true;
+export const ADMIN_SIDEBAR_STORAGE_KEY = 'nav-admin-sidebar-open';
 
 export function parseSidebarOpen(
   value: string | null | undefined,

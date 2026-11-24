@@ -1073,7 +1073,7 @@ function NavigationSurface() {
       {notice ? (
         <div
           role="status"
-          className="glass-surface animate-panel-enter fixed right-4 bottom-4 left-4 z-40 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-4 rounded-2xl border border-border bg-popover py-2 pr-1.5 pl-5 text-sm text-popover-foreground shadow-xl"
+          className="glass-surface overlay-enter fixed right-4 bottom-4 left-4 z-40 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-4 rounded-2xl border border-border bg-popover py-2 pr-1.5 pl-5 text-sm text-popover-foreground shadow-xl"
         >
           <span>{notice}</span>
           <FrontButton aria-label="关闭提示" onClick={() => setNotice('')} className="size-10 p-0">

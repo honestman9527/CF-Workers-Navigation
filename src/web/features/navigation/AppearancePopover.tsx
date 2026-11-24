@@ -92,7 +92,7 @@ export function AppearancePopover({
               sideOffset={tooltipOffset}
               className="z-50"
             >
-              <Tooltip.Popup className="front-surface glass-surface inline-flex items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg transition-[opacity,transform] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
+              <Tooltip.Popup className="front-surface glass-surface overlay-popup inline-flex origin-(--transform-origin) items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg outline-none">
                 外观与配色{currentPaletteLabel ? ` · ${currentPaletteLabel}` : ''}
               </Tooltip.Popup>
             </Tooltip.Positioner>
@@ -128,7 +128,7 @@ export function AppearancePopover({
         >
           <Popover.Popup
             aria-label="外观设置"
-            className="front-surface glass-surface animate-panel-enter w-76 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-xl outline-none"
+            className="front-surface glass-surface overlay-popup w-76 max-w-[calc(100vw-1.5rem)] origin-(--transform-origin) rounded-2xl border border-border bg-popover p-4 text-popover-foreground shadow-xl outline-none"
           >
             <div className="flex flex-col gap-4">
               <div>

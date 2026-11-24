@@ -1,4 +1,4 @@
-import type { ResolvedTheme } from '@shared';
+import type { ResolvedTheme, Theme } from '@shared';
 
 import { resolveTheme } from '@shared';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -13,17 +13,21 @@ function readSystemTheme(): ResolvedTheme {
   return window.matchMedia(SYSTEM_THEME_QUERY).matches ? 'dark' : 'light';
 }
 
-function applyThemeClass(theme: ResolvedTheme) {
+function applyTheme(preference: Theme, resolved: ResolvedTheme) {
   const root = document.documentElement;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+  if (meta) {
+    meta.content = preference === 'system' ? 'light dark' : preference;
+  }
   root.classList.remove('dark', 'light');
-  root.classList.add(theme);
-  root.style.colorScheme = theme;
+  root.classList.add(resolved);
+  root.style.colorScheme = resolved;
   document
     .querySelector<HTMLLinkElement>('#site-favicon')
-    ?.setAttribute('href', `/hm-${theme}.svg?v=1`);
+    ?.setAttribute('href', `/hm-${resolved}.svg?v=1`);
 }
 
-/** 主题偏好：读写 jotai 持久化原子，并把解析后的主题应用到根元素。 */
+/** 主题偏好：读写 jotai 持久化原子，同步 <meta name="color-scheme"> 与根元素主题类。 */
 export function useTheme() {
   const theme = useAtomValue(themeAtom);
   const setTheme = useSetAtom(themeAtom);
@@ -34,19 +38,15 @@ export function useTheme() {
     const media = window.matchMedia(SYSTEM_THEME_QUERY);
     const update = () => setSystemTheme(media.matches ? 'dark' : 'light');
     update();
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', update);
-      return () => media.removeEventListener('change', update);
-    }
-    media.addListener(update);
-    return () => media.removeListener(update);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
   }, []);
 
   const resolvedTheme = resolveTheme(theme, systemTheme === 'dark');
 
   useEffect(() => {
-    applyThemeClass(resolvedTheme);
-  }, [resolvedTheme]);
+    applyTheme(theme, resolvedTheme);
+  }, [theme, resolvedTheme]);
 
   return {
     theme,

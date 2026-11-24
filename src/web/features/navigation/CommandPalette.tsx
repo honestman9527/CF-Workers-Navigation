@@ -529,7 +529,7 @@ export function CommandPalette({
         <Dialog.Popup
           aria-label="全局命令面板"
           initialFocus={inputRef}
-          className="front-surface glass-surface animate-panel-enter fixed top-[12vh] left-1/2 z-50 flex max-h-[min(76dvh,38rem)] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl outline-none"
+          className="front-surface glass-surface overlay-popup fixed top-[12vh] left-1/2 z-50 flex max-h-[min(76dvh,38rem)] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl outline-none"
         >
           <Dialog.Title className="sr-only">全局命令面板</Dialog.Title>
           <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">

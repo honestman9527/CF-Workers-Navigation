@@ -49,10 +49,10 @@ description: 温润中性 Slate 基底 + 低饱和现代主色（4 套可选主�
 
 - **统一圆角阶梯**：容器与浮层弹窗统一 `rounded-2xl`（16px），按钮、输入框与导航项统一 `rounded-xl`（12px），内部微章与紧凑按钮统一 `rounded-lg` / `rounded-md`。
 - **层次与阴影**：常规面板使用轻磨砂底色 + 1px `--border` + 柔和 `--shadow-soft`；悬浮弹窗与命令面板使用 `--popover` + `shadow-xl` / `shadow-2xl`。
-- **克制微交互**：书签卡片与概览快捷入口在悬停时轻抬 `2px`（`motion-safe:hover:-translate-y-0.5`）并强化边框与阴影；按钮按下时轻缩 `motion-safe:active:scale-[0.98]`；在 `prefers-reduced-motion: reduce` 下定向取消卡片/图标位移与平滑滚动，而非一刀切清除所有组件过渡。
-- **桌面侧边栏折叠与容器查询**：前台桌面左侧边栏支持在展开态（`264px`，完整两级分类树与快捷设置）与紧凑图标栏（`72px` Icon Rail，配合 Base UI Tooltip）间无缝切换；书签网格采用 CSS 容器查询（`@container`）而非视口宽度决定列数，折叠侧边栏释放宽度后自动增加列数。管理后台桌面侧栏收起使用合成层 `translate-x` 过渡。
+- **克制微交互与现代过渡**：书签卡片与概览快捷入口在悬停时轻抬 `2px`（`motion-safe:hover:-translate-y-0.5`）并强化边框与阴影；按钮按下时轻缩 `motion-safe:active:scale-[0.98]`；前后台弹窗、抽屉、下拉菜单与 Tooltip 统一采用合成层 `opacity`/`scale`/`translate` 双向过渡（基于 Base UI `data-starting-style`/`data-ending-style` 与原生 `@starting-style`，配合 `linear()` 弹性曲线及 `ease-out` 回退），原生 `<details>` 渐进支持 `::details-content` + `interpolate-size: allow-keywords` 平滑展开；在 `prefers-reduced-motion: reduce` 下抑制位移与缩放，仅保留短促透明度淡入淡出。
+- **前后台统一侧边栏折叠与底部工具栏**：前后台桌面左侧边栏统一采用 `264px` 展开态 ↔ `72px` 紧凑图标栏（Icon Rail，配合 Tooltip、头部折叠按钮与 `Cmd/Ctrl + B`），共享轻磨砂 `glass-surface` 材质；展开态底部统一收束为单行无边框轻量工具栏（左侧极简切换入口「后台 / 登录 / 前台」，右侧一键明暗切换 + 外观配色浮层 + 退出图标），折叠态统一为竖排居中 `44px` 图标按钮。前台书签网格采用 CSS 容器查询（`@container`）而非视口宽度决定列数，折叠侧边栏释放宽度后自动增加列数。
 - **桌面悬停操作胶囊与触控热区**：桌面端书签管理操作（置顶/编辑/移入回收站）仅在真实悬停指针设备（`@media (hover: hover)`）下启用 `absolute top-2.5 right-2.5` 磨砂悬浮胶囊；触控屏与平板设备常显操作条，并在粗指针环境（`pointer: coarse`）下统一保证交互热区不小于 `44px`（`min-h-11`）。
-- **无障碍、高对比度与滚动条**：设置 `:root { color-scheme: light dark; }` 同步系统原生控件外观；滚动条采用标准 `scrollbar-color` / `scrollbar-width`（默认滑块与画布对比度 ≥ 3:1，并在 `prefers-contrast: more` 下进一步加深）；在 `forced-colors: active`（Windows 高对比度）下保留明确 `:focus-visible` 轮廓与主题色色卡真实颜色（`forced-color-adjust: none`）。
+- **无障碍、高对比度与滚动条**：同步 `<meta name="color-scheme">` 与 `:root { color-scheme: light dark; }`（CSS `:has()` 跟随覆盖），文本选区使用 `color-mix(in oklab, ...)`；滚动条采用标准 `scrollbar-color` / `scrollbar-width`（默认滑块与画布对比度 ≥ 3:1，并在 `prefers-contrast: more` 下进一步加深）；在 `forced-colors: active`（Windows 高对比度）下保留明确 `:focus-visible` 轮廓与主题色色卡真实颜色（`forced-color-adjust: none`）。
 
 ## 本项目组件与状态规则
 

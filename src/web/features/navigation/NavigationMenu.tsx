@@ -41,11 +41,11 @@ export function NavigationMenu({
   return (
     <Menu.Root>
       <Menu.Trigger render={<FrontButton aria-label="打开菜单" className="size-10 p-0" />}>
-        <Settings2 className="size-4" />
+        <Settings2 aria-hidden="true" className="size-4" />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
-          <Menu.Popup className="front-surface glass-surface animate-panel-enter w-60 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none">
+          <Menu.Popup className="front-surface glass-surface overlay-popup w-60 origin-(--transform-origin) rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none">
             <Menu.Group>
               <Menu.GroupLabel className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
                 明暗模式
@@ -88,7 +88,7 @@ export function NavigationMenu({
                   <Menu.RadioItem key={option.id} value={option.id} className={menuItem}>
                     <span
                       aria-hidden="true"
-                      className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                      className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
                       style={{ backgroundColor: isDark ? option.dark : option.light }}
                     />
                     {option.label}

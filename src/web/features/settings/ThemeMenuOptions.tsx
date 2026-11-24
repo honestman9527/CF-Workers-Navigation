@@ -26,15 +26,15 @@ export function ThemeMenuOptions({
       }}
     >
       <DropdownMenuRadioItem value="light">
-        <Sun />
+        <Sun aria-hidden="true" />
         亮色
       </DropdownMenuRadioItem>
       <DropdownMenuRadioItem value="dark">
-        <Moon />
+        <Moon aria-hidden="true" />
         暗色
       </DropdownMenuRadioItem>
       <DropdownMenuRadioItem value="system">
-        <Monitor />
+        <Monitor aria-hidden="true" />
         跟随系统
       </DropdownMenuRadioItem>
     </DropdownMenuRadioGroup>
@@ -63,7 +63,7 @@ export function PaletteMenuOptions({
         <DropdownMenuRadioItem key={option.id} value={option.id}>
           <span
             aria-hidden="true"
-            className="size-3 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+            className="size-3 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
             style={{ backgroundColor: isDark ? option.dark : option.light }}
           />
           {option.label}

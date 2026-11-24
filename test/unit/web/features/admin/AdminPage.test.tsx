@@ -1,5 +1,5 @@
-import { THEME_STORAGE_KEY } from '@shared';
 // @vitest-environment jsdom
+import { THEME_STORAGE_KEY } from '@shared';
 import { Provider, createStore } from 'jotai';
 import { act, type ComponentProps } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -37,6 +37,12 @@ beforeEach(() => {
   dark = false;
   mediaListeners.clear();
   mocks.logout.mockResolvedValue(undefined);
+  if (!document.querySelector('meta[name="color-scheme"]')) {
+    const meta = document.createElement('meta');
+    meta.name = 'color-scheme';
+    meta.content = 'light dark';
+    document.head.appendChild(meta);
+  }
 });
 afterEach(async () => {
   await app?.cleanup();
@@ -76,23 +82,30 @@ function menuItem(text: string) {
     (item) => item.textContent?.trim() === text,
   )!;
 }
-async function openMenu() {
-  const trigger = button('更多管理操作');
+async function openAppearanceMenu() {
+  const trigger = button('外观与主题设置');
   if (trigger.getAttribute('aria-expanded') !== 'true') await click(trigger);
 }
 
-it('底部返回统一首页，桌面收起恢复且隐藏内容不可聚焦', async () => {
+it('底部返回前台并与前台风格一致，桌面收起为图标栏后保留焦点与图标导航并持久化', async () => {
   localStorage.setItem('nav-front-view', 'workspace');
   await setup();
   const footer = app.container.querySelector('[data-sidebar="footer"]')!;
   expect(footer.querySelector('a')?.getAttribute('href')).toBe('/');
-  expect(footer.textContent).toContain('返回前台');
+  expect(footer.textContent).toContain('前台');
   expect(footer.textContent).not.toContain('退出登录');
-  await click(button('收起管理导航'));
+
+  const toggle = button('收起管理导航');
+  toggle.focus();
+  await click(toggle);
   expect(localStorage.getItem('nav-admin-sidebar-open')).toBe('false');
-  expect(
-    app.container.querySelector('[data-sidebar="content"]')?.parentElement?.hasAttribute('inert'),
-  ).toBe(true);
+  const sidebar = app.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
+  expect(sidebar.dataset.state).toBe('collapsed');
+  expect(sidebar.dataset.collapsible).toBe('icon');
+  expect(document.activeElement).toBe(button('展开管理导航'));
+  expect(app.container.querySelector('a[aria-label="书签"]')).not.toBeNull();
+  expect(footer.querySelector('a[aria-label="返回前台"]')).not.toBeNull();
+
   await app.cleanup();
   await setup();
   expect(button('展开管理导航').getAttribute('aria-expanded')).toBe('false');
@@ -102,32 +115,50 @@ it('底部返回统一首页，桌面收起恢复且隐藏内容不可聚焦', a
   expect(button('收起管理导航').getAttribute('aria-expanded')).toBe('true');
 });
 
-it('三种主题直接可选，键盘关闭菜单后焦点返回；收起时系统主题仍更新', async () => {
+it('底部支持一键明暗切换与三种主题菜单，同步 color-scheme meta 并在收起时响应系统主题', async () => {
   const store = await setup();
-  const more = button('更多管理操作');
-  more.focus();
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')!;
+  expect(meta.content).toBe('light');
+
+  // 一键快捷切换暗色/亮色
+  await click(button('切换暗色模式'));
+  expect(store.get(themeAtom)).toBe('dark');
+  expect(meta.content).toBe('dark');
+  await click(button('切换亮色模式'));
+  expect(store.get(themeAtom)).toBe('light');
+  expect(meta.content).toBe('light');
+
+  const appearanceBtn = button('外观与主题设置');
+  appearanceBtn.focus();
   await act(() =>
-    more.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+    appearanceBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
   );
   expect(document.querySelector('[role="menu"]')).not.toBeNull();
   expect(document.querySelector('[role="group"][aria-label="主题"]')).not.toBeNull();
   await click(menuItem('暗色'));
   expect(store.get(themeAtom)).toBe('dark');
   expect(document.documentElement.classList.contains('dark')).toBe(true);
-  await openMenu();
+  expect(meta.content).toBe('dark');
+
+  await openAppearanceMenu();
   await click(menuItem('亮色'));
   expect(store.get(themeAtom)).toBe('light');
-  await openMenu();
+  expect(meta.content).toBe('light');
+
+  await openAppearanceMenu();
   await click(menuItem('跟随系统'));
   expect(store.get(themeAtom)).toBe('system');
-  await openMenu();
+  expect(meta.content).toBe('light dark');
+
+  await openAppearanceMenu();
   await act(() =>
     document.activeElement!.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     ),
   );
-  expect(more.getAttribute('aria-expanded')).toBe('false');
-  expect(document.activeElement).toBe(more);
+  expect(appearanceBtn.getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(appearanceBtn);
+
   await click(button('收起管理导航'));
   await act(() => {
     dark = true;
@@ -136,11 +167,11 @@ it('三种主题直接可选，键盘关闭菜单后焦点返回；收起时系�
   expect(document.documentElement.classList.contains('dark')).toBe(true);
 });
 
-it('移动抽屉中切换主题保留抽屉，返回后关闭且不改变桌面偏好', async () => {
+it('移动抽屉中切换主题保留抽屉，返回前台后关闭且不改变桌面偏好', async () => {
   localStorage.setItem('nav-admin-sidebar-open', 'false');
   await setup(375);
   await click(button('展开管理导航'));
-  await openMenu();
+  await openAppearanceMenu();
   await click(menuItem('暗色'));
   expect(button('收起管理导航').getAttribute('aria-expanded')).toBe('true');
   const link = document.querySelector<HTMLAnchorElement>('[data-sidebar="footer"] a')!;
@@ -150,7 +181,7 @@ it('移动抽屉中切换主题保留抽屉，返回后关闭且不改变桌面�
   expect(localStorage.getItem('nav-admin-sidebar-open')).toBe('false');
 });
 
-it('退出期间禁用重复操作，失败提示后可重新打开菜单重试', async () => {
+it('退出期间禁用重复操作，失败提示后可重试', async () => {
   let reject!: (error: Error) => void;
   mocks.logout.mockImplementationOnce(
     () =>
@@ -159,17 +190,17 @@ it('退出期间禁用重复操作，失败提示后可重新打开菜单重试'
       }),
   );
   await setup();
-  await openMenu();
-  await click(menuItem('退出登录'));
-  await openMenu();
-  expect(menuItem('退出中…').getAttribute('aria-disabled')).toBe('true');
-  await click(menuItem('退出中…'));
+  const logoutBtn = button('退出登录');
+  await click(logoutBtn);
+  expect(logoutBtn.disabled).toBe(true);
+  await click(logoutBtn);
   expect(mocks.logout).toHaveBeenCalledOnce();
   await act(async () => reject(new Error('network')));
   expect(document.querySelector('[data-slot="toast-title"]')?.textContent).toBe(
     '退出登录失败，请重试',
   );
-  await click(menuItem('退出登录'));
+  expect(logoutBtn.disabled).toBe(false);
+  await click(logoutBtn);
   expect(mocks.logout).toHaveBeenCalledTimes(2);
 });
 
@@ -181,7 +212,7 @@ it('浏览器禁止存储时仍能切换主题及收起导航', async () => {
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked);
   vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(blocked);
   const store = await setup();
-  await openMenu();
+  await openAppearanceMenu();
   await click(menuItem('暗色'));
   expect(store.get(themeAtom)).toBe('dark');
   expect(document.documentElement.classList.contains('dark')).toBe(true);
@@ -203,7 +234,7 @@ it('主题写入失败时，重新挂载仍保留内存偏好，不被旧存储�
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
     throw new DOMException('Quota exceeded', 'QuotaExceededError');
   });
-  await openMenu();
+  await openAppearanceMenu();
   await click(menuItem('暗色'));
   expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
   await app.cleanup();
@@ -217,14 +248,14 @@ it('主题写入失败时，重新挂载仍保留内存偏好，不被旧存储�
   expect(document.documentElement.classList.contains('dark')).toBe(true);
 });
 
-it('后台更多菜单支持切换 4 套主题色并同步到根节点', async () => {
+it('后台外观菜单支持切换 4 套主题色并同步到根节点', async () => {
   const store = await setup();
-  await openMenu();
+  await openAppearanceMenu();
   expect(document.querySelector('[role="group"][aria-label="主题色"]')).not.toBeNull();
   await click(menuItem('翡翠森语'));
   expect(store.get(paletteAtom)).toBe('emerald');
   expect(document.documentElement.dataset.palette).toBe('emerald');
-  await openMenu();
+  await openAppearanceMenu();
   await click(menuItem('玫瑰暮霞'));
   expect(store.get(paletteAtom)).toBe('rose');
   expect(document.documentElement.dataset.palette).toBe('rose');

@@ -54,11 +54,17 @@
           const storedSidebar = localStorage.getItem('nav-front-sidebar-open');
           const frontSidebar = storedSidebar === 'false' ? 'collapsed' : 'expanded';
           const root = document.documentElement;
+          const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+          if (colorSchemeMeta) {
+            colorSchemeMeta.setAttribute(
+              'content',
+              preference === 'system' ? 'light dark' : preference,
+            );
+          }
           root.classList.remove('dark', 'light');
           root.classList.add(theme);
           root.dataset.palette = palette;
           root.dataset.frontSidebar = frontSidebar;
-          root.style.colorScheme = theme;
           root.style.setProperty('--bg-overlay-opacity', String(opacity));
           const favicon = document.getElementById('site-favicon');
           if (favicon) favicon.href = '/hm-' + theme + '.svg?v=1';
