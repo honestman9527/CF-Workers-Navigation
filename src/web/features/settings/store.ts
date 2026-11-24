@@ -4,14 +4,17 @@ import {
   BG_OVERLAY_OPACITY_STORAGE_KEY,
   clampBgOverlayOpacity,
   DEFAULT_BG_OVERLAY_OPACITY,
+  DEFAULT_FRONT_SIDEBAR_OPEN,
   DEFAULT_PALETTE,
   DEFAULT_THEME,
   DEFAULT_VIEW_DENSITY,
+  FRONT_SIDEBAR_STORAGE_KEY,
   isPalette,
   isTheme,
   isViewDensity,
   PALETTE_STORAGE_KEY,
   parseBgOverlayOpacity,
+  parseSidebarOpen,
   THEME_STORAGE_KEY,
   VIEW_DENSITY_STORAGE_KEY,
   type Palette,
@@ -64,6 +67,19 @@ const themeStorage = {
       /* optional preference */
     }
   },
+  subscribe: (key: string, callback: (value: Theme) => void) => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+      return () => {};
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== key && event.key !== LEGACY_THEME_STORAGE_KEY) return;
+      const next = isTheme(event.newValue) ? event.newValue : themeStorage.getItem(key);
+      memoryTheme = next;
+      callback(next);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  },
 };
 
 function createResilientStorage<T>(
@@ -100,6 +116,18 @@ function createResilientStorage<T>(
       } catch {
         failed = true;
       }
+    },
+    subscribe: (key: string, callback: (value: T) => void) => {
+      if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+        return () => {};
+      }
+      const onStorage = (event: StorageEvent) => {
+        if (event.key !== null && event.key !== key) return;
+        memory = parse(event.newValue);
+        callback(memory);
+      };
+      window.addEventListener('storage', onStorage);
+      return () => window.removeEventListener('storage', onStorage);
     },
   };
 }
@@ -141,6 +169,18 @@ export const bgOverlayOpacityAtom = atomWithStorage<number>(
     DEFAULT_BG_OVERLAY_OPACITY,
     (raw) => parseBgOverlayOpacity(raw),
     (value) => String(clampBgOverlayOpacity(value)),
+  ),
+  { getOnInit: true },
+);
+
+/** 前台桌面侧边栏展开偏好：true 为完整侧栏，false 为紧凑图标栏（Icon Rail）。 */
+export const frontSidebarOpenAtom = atomWithStorage<boolean>(
+  FRONT_SIDEBAR_STORAGE_KEY,
+  DEFAULT_FRONT_SIDEBAR_OPEN,
+  createResilientStorage<boolean>(
+    DEFAULT_FRONT_SIDEBAR_OPEN,
+    (raw) => parseSidebarOpen(raw, DEFAULT_FRONT_SIDEBAR_OPEN),
+    (value) => String(value),
   ),
   { getOnInit: true },
 );

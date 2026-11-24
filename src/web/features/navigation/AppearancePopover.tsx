@@ -1,4 +1,5 @@
 import { Popover } from '@base-ui/react/popover';
+import { Tooltip } from '@base-ui/react/tooltip';
 import {
   DEFAULT_BG_OVERLAY_OPACITY,
   MAX_BG_OVERLAY_OPACITY,
@@ -38,6 +39,8 @@ export function AppearancePopover({
   side = 'top',
   align = 'start',
   compactTrigger = false,
+  showTooltip = false,
+  triggerClassName,
 }: {
   theme: Theme;
   resolvedTheme?: ResolvedTheme;
@@ -52,44 +55,61 @@ export function AppearancePopover({
   side?: 'top' | 'bottom' | 'left' | 'right';
   align?: 'start' | 'center' | 'end';
   compactTrigger?: boolean;
+  showTooltip?: boolean;
+  triggerClassName?: string;
 }) {
   const isDark = resolvedTheme === 'dark';
   const opacityPercent = Math.round(bgOverlayOpacity * 100);
+  const currentPaletteLabel = PALETTE_OPTIONS.find((item) => item.id === palette)?.label;
+  const triggerButton = (
+    <FrontButton
+      tone={compactTrigger ? 'quiet' : 'subtle'}
+      aria-label="外观与配色设置"
+      className={cn(
+        compactTrigger
+          ? 'size-10 p-0'
+          : 'min-h-9 w-full justify-between rounded-xl px-3 text-xs font-medium',
+        triggerClassName,
+      )}
+    />
+  );
 
   return (
     <Popover.Root>
-      <Popover.Trigger
-        render={
-          <FrontButton
-            tone={compactTrigger ? 'quiet' : 'subtle'}
-            aria-label="外观与配色设置"
-            title="外观与配色设置"
-            className={cn(
-              compactTrigger
-                ? 'size-10 p-0'
-                : 'min-h-9 w-full justify-between rounded-xl px-3 text-xs font-medium',
-            )}
-          />
-        }
-      >
-        {compactTrigger ? (
-          <PaletteIcon className="size-4" />
-        ) : (
-          <>
-            <span className="flex items-center gap-2">
-              <PaletteIcon className="size-3.5 text-primary" />
-              <span>外观与配色</span>
-            </span>
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span
-                aria-hidden="true"
-                className="size-2.5 rounded-full bg-primary ring-2 ring-primary/25"
-              />
-              {PALETTE_OPTIONS.find((item) => item.id === palette)?.label}
-            </span>
-          </>
-        )}
-      </Popover.Trigger>
+      {compactTrigger && showTooltip ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger render={<Popover.Trigger render={triggerButton} />}>
+            <PaletteIcon aria-hidden="true" className="size-4" />
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Positioner side="right" align="center" sideOffset={10} className="z-50">
+              <Tooltip.Popup className="front-surface glass-surface inline-flex items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg transition-[opacity,transform] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
+                外观与配色{currentPaletteLabel ? ` · ${currentPaletteLabel}` : ''}
+              </Tooltip.Popup>
+            </Tooltip.Positioner>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      ) : (
+        <Popover.Trigger render={triggerButton}>
+          {compactTrigger ? (
+            <PaletteIcon aria-hidden="true" className="size-4" />
+          ) : (
+            <>
+              <span className="flex items-center gap-2">
+                <PaletteIcon aria-hidden="true" className="size-3.5 text-primary" />
+                <span>外观与配色</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full bg-primary ring-2 ring-primary/25 [forced-color-adjust:none]"
+                />
+                {currentPaletteLabel}
+              </span>
+            </>
+          )}
+        </Popover.Trigger>
+      )}
       <Popover.Portal>
         <Popover.Positioner
           side={side}
@@ -156,11 +176,13 @@ export function AppearancePopover({
                       >
                         <span
                           aria-hidden="true"
-                          className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                          className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
                           style={{ backgroundColor: swatch }}
                         />
                         <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                        {selected ? <Check className="size-3.5 shrink-0 text-primary" /> : null}
+                        {selected ? (
+                          <Check aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+                        ) : null}
                       </button>
                     );
                   })}
@@ -230,10 +252,11 @@ export function AppearancePopover({
                   max={Math.round(MAX_BG_OVERLAY_OPACITY * 100)}
                   step={5}
                   value={opacityPercent}
+                  aria-valuetext={`${opacityPercent}%`}
                   onChange={(event) => setBgOverlayOpacity(Number(event.target.value) / 100)}
-                  className="h-2 w-full cursor-pointer accent-primary"
+                  className="h-9 w-full cursor-pointer accent-primary"
                 />
-                <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="mt-1 flex items-center justify-between text-[0.6875rem] text-muted-foreground">
                   <span>25% 通透</span>
                   <span>{hasBackground ? '实时保护文字对比度' : '启用壁纸后生效'}</span>
                   <span>95% 柔和</span>

@@ -2,10 +2,15 @@ import { clampBgOverlayOpacity } from '@shared';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useCallback, useEffect } from 'react';
 
-import { bgOverlayOpacityAtom, paletteAtom, viewDensityAtom } from '@nav/features/settings/store';
+import {
+  bgOverlayOpacityAtom,
+  frontSidebarOpenAtom,
+  paletteAtom,
+  viewDensityAtom,
+} from '@nav/features/settings/store';
 
 /**
- * 外观偏好（主题色、书签视图密度、壁纸遮罩浓度）：
+ * 外观偏好（主题色、书签视图密度、壁纸遮罩浓度、前台桌面侧栏折叠态）：
  * 与 useTheme 解耦，避免影响仅关注明暗模式的现有测试与调用方。
  */
 export function useAppearance() {
@@ -15,6 +20,8 @@ export function useAppearance() {
   const setDensity = useSetAtom(viewDensityAtom);
   const bgOverlayOpacity = useAtomValue(bgOverlayOpacityAtom);
   const setRawOverlayOpacity = useSetAtom(bgOverlayOpacityAtom);
+  const frontSidebarOpen = useAtomValue(frontSidebarOpenAtom);
+  const setFrontSidebarOpen = useSetAtom(frontSidebarOpenAtom);
 
   const setBgOverlayOpacity = useCallback(
     (value: number) => {
@@ -34,6 +41,10 @@ export function useAppearance() {
     );
   }, [bgOverlayOpacity]);
 
+  useEffect(() => {
+    document.documentElement.dataset.frontSidebar = frontSidebarOpen ? 'expanded' : 'collapsed';
+  }, [frontSidebarOpen]);
+
   return {
     palette,
     setPalette,
@@ -41,5 +52,7 @@ export function useAppearance() {
     setDensity,
     bgOverlayOpacity,
     setBgOverlayOpacity,
+    frontSidebarOpen,
+    setFrontSidebarOpen,
   };
 }

@@ -29,3 +29,19 @@ export function isCommandPaletteShortcut(event: KeyboardEvent) {
     event.key.toLowerCase() === 'k'
   );
 }
+
+/** 桌面侧边栏折叠/展开快捷键：Cmd+B (macOS) 或 Ctrl+B (Windows/Linux)。 */
+export function isSidebarToggleShortcut(event: KeyboardEvent) {
+  return (
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    !event.defaultPrevented &&
+    !isComposingKey(event) &&
+    event.key.toLowerCase() === 'b' &&
+    !(
+      event.target instanceof Element &&
+      event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')
+    )
+  );
+}

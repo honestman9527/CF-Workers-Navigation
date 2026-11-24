@@ -43,11 +43,11 @@ export function FeedContent({
 }) {
   const compact = actions.density === 'compact';
   const gridClass = compact
-    ? 'grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5'
-    : 'grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4';
+    ? 'grid grid-cols-1 gap-2.5 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5'
+    : 'grid grid-cols-1 gap-3.5 @lg:grid-cols-2 @3xl:grid-cols-3 @6xl:grid-cols-4';
 
   return (
-    <>
+    <div className="@container">
       {feed.loading ? (
         <div role="status" aria-label="正在加载网站" className={gridClass}>
           {Array.from({ length: compact ? 6 : 4 }, (_, index) => (
@@ -198,11 +198,11 @@ export function FeedContent({
                 {actions.authed ? (
                   <div
                     className={cn(
-                      'flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2 sm:pointer-events-none sm:absolute sm:top-2.5 sm:right-2.5 sm:z-10 sm:gap-0.5 sm:rounded-xl sm:border sm:border-border sm:bg-popover/95 sm:p-1 sm:opacity-0 sm:shadow-md sm:backdrop-blur-md sm:transition-opacity sm:duration-150 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100',
+                      'flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2 sm:[@media(hover:hover)]:pointer-events-none sm:[@media(hover:hover)]:absolute sm:[@media(hover:hover)]:top-2.5 sm:[@media(hover:hover)]:right-2.5 sm:[@media(hover:hover)]:z-10 sm:[@media(hover:hover)]:gap-0.5 sm:[@media(hover:hover)]:rounded-xl sm:[@media(hover:hover)]:border sm:[@media(hover:hover)]:border-border sm:[@media(hover:hover)]:bg-popover/95 sm:[@media(hover:hover)]:p-1 sm:[@media(hover:hover)]:opacity-0 sm:[@media(hover:hover)]:shadow-md sm:[@media(hover:hover)]:backdrop-blur-md sm:[@media(hover:hover)]:transition-opacity sm:[@media(hover:hover)]:duration-150 sm:[@media(hover:hover)]:group-focus-within:pointer-events-auto sm:[@media(hover:hover)]:group-focus-within:opacity-100 sm:[@media(hover:hover)]:group-hover:pointer-events-auto sm:[@media(hover:hover)]:group-hover:opacity-100',
                     )}
                   >
                     <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:min-h-8 sm:w-8 sm:min-w-8"
+                      className="min-h-11 min-w-11 rounded-lg px-0 sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
                       aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
                       aria-pressed={bookmark.isPinned}
                       title={bookmark.isPinned ? '取消常用' : '加入常用'}
@@ -210,26 +210,27 @@ export function FeedContent({
                       onClick={() => actions.onPin(bookmark)}
                     >
                       <Star
+                        aria-hidden="true"
                         className={cn('size-3.5', bookmark.isPinned && 'fill-current text-primary')}
                       />
                     </FrontButton>
                     <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:min-h-8 sm:w-8 sm:min-w-8"
+                      className="min-h-11 min-w-11 rounded-lg px-0 sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
                       aria-label={`编辑：${bookmark.title}`}
                       title="编辑书签"
                       onClick={() => actions.onEdit(bookmark)}
                     >
-                      <Pencil className="size-3.5" />
+                      <Pencil aria-hidden="true" className="size-3.5" />
                     </FrontButton>
                     {actions.onDelete ? (
                       <FrontButton
-                        className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:min-h-8 sm:w-8 sm:min-w-8"
+                        className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
                         aria-label={`删除：${bookmark.title}`}
                         title="移入回收站"
                         disabled={actions.pendingIds.has(bookmark.id)}
                         onClick={() => actions.onDelete?.(bookmark)}
                       >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 aria-hidden="true" className="size-3.5" />
                       </FrontButton>
                     ) : null}
                   </div>
@@ -263,7 +264,7 @@ export function FeedContent({
           </FrontButton>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 

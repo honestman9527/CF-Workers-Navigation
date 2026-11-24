@@ -13,6 +13,8 @@ import {
   Menu as MenuIcon,
   Monitor,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Search,
   SlidersHorizontal,
@@ -21,7 +23,12 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { canFocusSearch, isCommandPaletteShortcut, isComposingKey } from '@/lib/keyboard';
+import {
+  canFocusSearch,
+  isCommandPaletteShortcut,
+  isComposingKey,
+  isSidebarToggleShortcut,
+} from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
@@ -51,6 +58,7 @@ import { CommandPalette } from './CommandPalette';
 import { FrontButton } from './controls';
 import { FrontCategoryDrawer } from './FrontCategoryDrawer';
 import { FrontDialog } from './FrontDialog';
+import { FrontTooltip, FrontTooltipProvider } from './FrontTooltip';
 import { NavigationMenu } from './NavigationMenu';
 import { type SearchMode } from './search';
 import { useBookmarkFeed } from './useBookmarkFeed';
@@ -73,8 +81,19 @@ export function NavigationPage() {
 function NavigationSurface() {
   const auth = useAuthContext();
   const { theme, resolvedTheme, setTheme } = useTheme();
-  const { palette, setPalette, density, setDensity, bgOverlayOpacity, setBgOverlayOpacity } =
-    useAppearance();
+  const {
+    palette,
+    setPalette,
+    density,
+    setDensity,
+    bgOverlayOpacity,
+    setBgOverlayOpacity,
+    frontSidebarOpen: sidebarOpen,
+    setFrontSidebarOpen: setSidebarOpen,
+  } = useAppearance();
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => !prev);
+  }, [setSidebarOpen]);
   const navigate = useNavigate();
   const [composing, setComposing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -198,6 +217,12 @@ function NavigationSurface() {
         setCommandOpen((prev) => !prev);
         return;
       }
+      if (isSidebarToggleShortcut(event)) {
+        if (editor !== null || pendingTrash !== null || commandOpen || drawerOpen) return;
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
       if (!commandOpen && !drawerOpen && canFocusSearch(event)) {
         event.preventDefault();
         input.current?.focus();
@@ -205,7 +230,7 @@ function NavigationSurface() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [editor, pendingTrash, commandOpen, drawerOpen]);
+  }, [editor, pendingTrash, commandOpen, drawerOpen, toggleSidebar]);
 
   function selectCategory(category?: string) {
     void browse.selectCategory(category, draft);
@@ -322,7 +347,13 @@ function NavigationSurface() {
     browse.root?.name ?? (search.category === 'uncategorized' ? '未分类' : '常用');
 
   return (
-    <div className="front-surface min-h-dvh pb-[max(2rem,env(safe-area-inset-bottom))] text-foreground lg:grid lg:grid-cols-[264px_minmax(0,1fr)] lg:pb-0">
+    <div
+      data-sidebar-state={sidebarOpen ? 'expanded' : 'collapsed'}
+      className={cn(
+        'front-surface min-h-dvh pb-[max(2rem,env(safe-area-inset-bottom))] text-foreground lg:grid lg:pb-0 motion-safe:lg:transition-[grid-template-columns] motion-safe:lg:duration-200',
+        sidebarOpen ? 'lg:grid-cols-[264px_minmax(0,1fr)]' : 'lg:grid-cols-[72px_minmax(0,1fr)]',
+      )}
+    >
       {/* 移动端 / 平板端吸顶顶栏（< lg）：左侧打开分类抽屉，替代原横向滚动分类条 */}
       <header className="glass-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-5 lg:hidden">
         <div className="flex min-w-0 items-center gap-2">
@@ -398,127 +429,252 @@ function NavigationSurface() {
         </div>
       </header>
 
-      {/* 桌面端固定左侧边栏（>= lg） */}
-      <aside className="glass-surface hidden border-r border-border bg-sidebar lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[264px] lg:flex-col lg:justify-between lg:px-4 lg:py-5">
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <Link
-            to="/"
-            search={{}}
-            className="flex min-w-0 items-center gap-3 rounded-xl px-2 text-foreground"
-          >
-            <BrandIcon className="size-9 shrink-0" />
-            <div className="min-w-0">
-              <strong className="block truncate font-display text-base font-semibold">
-                书签柜
-              </strong>
-              <span className="block truncate text-xs text-muted-foreground">网站导航与整理</span>
-            </div>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setCommandOpen(true)}
-            aria-label="打开命令面板"
-            className="flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 text-xs text-muted-foreground shadow-2xs transition-colors hover:border-border-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45"
-          >
-            <span className="flex items-center gap-2">
-              <Search className="size-3.5" />
-              <span>快速跳转或命令…</span>
-            </span>
-            <kbd className="rounded-md border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              ⌘K
-            </kbd>
-          </button>
-
-          <CategoryNavTree
-            roots={roots}
-            totals={totals}
-            activeRoot={browse.activeRoot}
-            selectedCategory={search.category}
-            searching={searching}
-            onSelectCategory={selectCategory}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 border-t border-border pt-3.5">
+      {/* 桌面端可折叠左侧边栏（>= lg）：支持展开完整两级树与折叠紧凑图标栏（Icon Rail） */}
+      <FrontTooltipProvider>
+        <aside
+          id="front-sidebar"
+          data-state={sidebarOpen ? 'expanded' : 'collapsed'}
+          className={cn(
+            'glass-surface hidden border-r border-border bg-sidebar lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:justify-between motion-safe:lg:transition-[width,padding] motion-safe:lg:duration-200',
+            sidebarOpen
+              ? 'lg:w-[264px] lg:px-4 lg:py-5'
+              : 'lg:w-[72px] lg:items-center lg:px-2 lg:py-4',
+          )}
+        >
           <div
-            role="group"
-            aria-label="主题设置"
-            className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1"
+            className={cn(
+              'flex min-h-0 w-full flex-1 flex-col',
+              sidebarOpen ? 'gap-4' : 'items-center gap-3',
+            )}
           >
-            {(
-              [
-                { value: 'light', label: '亮色', shortLabel: '亮色', icon: Sun },
-                { value: 'dark', label: '暗色', shortLabel: '暗色', icon: Moon },
-                { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Monitor },
-              ] as const
-            ).map(({ value, label, shortLabel, icon: Icon }) => (
-              <FrontButton
-                key={value}
-                aria-pressed={theme === value}
-                aria-label={label}
-                title={label}
-                onClick={() => setTheme(value)}
-                className={cn(
-                  'min-h-8 gap-1.5 rounded-lg px-2 py-1 text-xs',
-                  theme === value
-                    ? 'bg-card font-semibold text-foreground shadow-2xs'
-                    : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
-                )}
+            <div
+              className={cn(
+                'flex w-full items-center gap-2',
+                sidebarOpen ? 'justify-between' : 'flex-col',
+              )}
+            >
+              <FrontTooltip enabled={!sidebarOpen} content="书签柜首页">
+                <Link
+                  to="/"
+                  search={{}}
+                  aria-label={sidebarOpen ? undefined : '书签柜首页'}
+                  className={cn(
+                    'flex min-w-0 items-center rounded-xl text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
+                    sidebarOpen ? 'gap-3 px-2' : 'grid size-11 place-items-center',
+                  )}
+                >
+                  <BrandIcon className="size-9 shrink-0" />
+                  {sidebarOpen ? (
+                    <div className="min-w-0">
+                      <strong className="block truncate font-display text-base font-semibold">
+                        书签柜
+                      </strong>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        网站导航与整理
+                      </span>
+                    </div>
+                  ) : null}
+                </Link>
+              </FrontTooltip>
+
+              <FrontTooltip
+                enabled={!sidebarOpen}
+                content={sidebarOpen ? '收起为图标栏 (⌘B / Ctrl+B)' : '展开侧边栏 (⌘B / Ctrl+B)'}
               >
-                <Icon className="size-3.5 shrink-0" />
-                <span>{shortLabel}</span>
-              </FrontButton>
-            ))}
+                <FrontButton
+                  aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
+                  aria-expanded={sidebarOpen}
+                  aria-controls="front-sidebar"
+                  title={sidebarOpen ? '收起为图标栏 (⌘B / Ctrl+B)' : '展开侧边栏 (⌘B / Ctrl+B)'}
+                  onClick={toggleSidebar}
+                  className={cn('rounded-xl p-0', sidebarOpen ? 'size-9 min-h-9' : 'size-11')}
+                >
+                  {sidebarOpen ? (
+                    <PanelLeftClose aria-hidden="true" className="size-4" />
+                  ) : (
+                    <PanelLeftOpen aria-hidden="true" className="size-4" />
+                  )}
+                </FrontButton>
+              </FrontTooltip>
+            </div>
+
+            {sidebarOpen ? (
+              <button
+                type="button"
+                onClick={() => setCommandOpen(true)}
+                aria-label="打开命令面板"
+                className="flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 text-xs text-muted-foreground shadow-2xs transition-colors hover:border-border-strong hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/45"
+              >
+                <span className="flex items-center gap-2">
+                  <Search aria-hidden="true" className="size-3.5" />
+                  <span>快速跳转或命令…</span>
+                </span>
+                <kbd className="rounded-md border border-border bg-secondary px-1.5 py-0.5 font-mono text-[0.6875rem] text-muted-foreground">
+                  ⌘K
+                </kbd>
+              </button>
+            ) : (
+              <FrontTooltip content="命令面板 (⌘K / Ctrl+K)">
+                <FrontButton
+                  tone="subtle"
+                  onClick={() => setCommandOpen(true)}
+                  aria-label="打开命令面板"
+                  className="size-11 rounded-xl p-0"
+                >
+                  <Search aria-hidden="true" className="size-4" />
+                </FrontButton>
+              </FrontTooltip>
+            )}
+
+            <CategoryNavTree
+              roots={roots}
+              totals={totals}
+              activeRoot={browse.activeRoot}
+              selectedCategory={search.category}
+              searching={searching}
+              collapsed={!sidebarOpen}
+              onSelectCategory={selectCategory}
+            />
           </div>
 
-          <AppearancePopover
-            theme={theme}
-            resolvedTheme={effectiveResolvedTheme}
-            setTheme={setTheme}
-            palette={palette}
-            setPalette={setPalette}
-            density={density}
-            setDensity={setDensity}
-            bgOverlayOpacity={bgOverlayOpacity}
-            setBgOverlayOpacity={setBgOverlayOpacity}
-            hasBackground={hasBackground}
-            side="top"
-            align="start"
-          />
+          {sidebarOpen ? (
+            <div className="flex w-full flex-col gap-2 border-t border-border pt-3.5">
+              <div
+                role="group"
+                aria-label="主题设置"
+                className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1"
+              >
+                {(
+                  [
+                    { value: 'light', label: '亮色', shortLabel: '亮色', icon: Sun },
+                    { value: 'dark', label: '暗色', shortLabel: '暗色', icon: Moon },
+                    { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Monitor },
+                  ] as const
+                ).map(({ value, label, shortLabel, icon: Icon }) => (
+                  <FrontButton
+                    key={value}
+                    aria-pressed={theme === value}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => setTheme(value)}
+                    className={cn(
+                      'min-h-8 gap-1.5 rounded-lg px-2 py-1 text-xs',
+                      theme === value
+                        ? 'bg-card font-semibold text-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
+                    )}
+                  >
+                    <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+                    <span>{shortLabel}</span>
+                  </FrontButton>
+                ))}
+              </div>
 
-          {auth.authed ? (
-            <div className="grid grid-cols-2 gap-1.5">
-              <FrontButton
-                tone="subtle"
-                onClick={goAdmin}
-                className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
-              >
-                <LayoutDashboard className="size-3.5 shrink-0" />
-                <span>管理后台</span>
-              </FrontButton>
-              <FrontButton
-                tone="subtle"
-                disabled={loggingOut}
-                onClick={() => void logout()}
-                className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-              >
-                <LogOut className="size-3.5 shrink-0" />
-                <span>{loggingOut ? '退出中…' : '退出登录'}</span>
-              </FrontButton>
+              <AppearancePopover
+                theme={theme}
+                resolvedTheme={effectiveResolvedTheme}
+                setTheme={setTheme}
+                palette={palette}
+                setPalette={setPalette}
+                density={density}
+                setDensity={setDensity}
+                bgOverlayOpacity={bgOverlayOpacity}
+                setBgOverlayOpacity={setBgOverlayOpacity}
+                hasBackground={hasBackground}
+                side="top"
+                align="start"
+              />
+
+              {auth.authed ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  <FrontButton
+                    tone="subtle"
+                    onClick={goAdmin}
+                    className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
+                  >
+                    <LayoutDashboard aria-hidden="true" className="size-3.5 shrink-0" />
+                    <span>管理后台</span>
+                  </FrontButton>
+                  <FrontButton
+                    tone="subtle"
+                    disabled={loggingOut}
+                    onClick={() => void logout()}
+                    className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                  >
+                    <LogOut aria-hidden="true" className="size-3.5 shrink-0" />
+                    <span>{loggingOut ? '退出中…' : '退出登录'}</span>
+                  </FrontButton>
+                </div>
+              ) : (
+                <FrontButton
+                  tone="subtle"
+                  onClick={goLogin}
+                  className="min-h-9 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
+                >
+                  <LogIn aria-hidden="true" className="size-3.5 shrink-0" />
+                  <span>管理员登录</span>
+                </FrontButton>
+              )}
             </div>
           ) : (
-            <FrontButton
-              tone="subtle"
-              onClick={goLogin}
-              className="min-h-9 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
-            >
-              <LogIn className="size-3.5 shrink-0" />
-              <span>管理员登录</span>
-            </FrontButton>
+            <div className="flex w-full flex-col items-center gap-1.5 border-t border-border pt-3">
+              <AppearancePopover
+                theme={theme}
+                resolvedTheme={effectiveResolvedTheme}
+                setTheme={setTheme}
+                palette={palette}
+                setPalette={setPalette}
+                density={density}
+                setDensity={setDensity}
+                bgOverlayOpacity={bgOverlayOpacity}
+                setBgOverlayOpacity={setBgOverlayOpacity}
+                hasBackground={hasBackground}
+                side="right"
+                align="end"
+                compactTrigger
+                showTooltip
+                triggerClassName="size-11"
+              />
+              {auth.authed ? (
+                <>
+                  <FrontTooltip content="管理后台">
+                    <FrontButton
+                      tone="quiet"
+                      aria-label="管理后台"
+                      onClick={goAdmin}
+                      className="size-11 rounded-xl p-0"
+                    >
+                      <LayoutDashboard aria-hidden="true" className="size-4" />
+                    </FrontButton>
+                  </FrontTooltip>
+                  <FrontTooltip content={loggingOut ? '退出中…' : '退出登录'}>
+                    <FrontButton
+                      tone="quiet"
+                      aria-label="退出登录"
+                      disabled={loggingOut}
+                      onClick={() => void logout()}
+                      className="size-11 rounded-xl p-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive"
+                    >
+                      <LogOut aria-hidden="true" className="size-4" />
+                    </FrontButton>
+                  </FrontTooltip>
+                </>
+              ) : (
+                <FrontTooltip content="管理员登录">
+                  <FrontButton
+                    tone="quiet"
+                    aria-label="管理员登录"
+                    onClick={goLogin}
+                    className="size-11 rounded-xl p-0"
+                  >
+                    <LogIn aria-hidden="true" className="size-4" />
+                  </FrontButton>
+                </FrontTooltip>
+              )}
+            </div>
           )}
-        </div>
-      </aside>
+        </aside>
+      </FrontTooltipProvider>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         <main className="mx-auto w-full max-w-[90rem] min-w-0 flex-1">
@@ -880,6 +1036,8 @@ function NavigationSurface() {
         density={density}
         setDensity={setDensity}
         authed={auth.authed}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={toggleSidebar}
         onSelectCategory={selectCategory}
         onOpenBookmark={openLink}
         onCreateBookmark={() => setEditor('new')}

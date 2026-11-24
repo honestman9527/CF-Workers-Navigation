@@ -22,6 +22,8 @@ import {
   LogIn,
   Monitor,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Search,
   Star,
@@ -58,7 +60,9 @@ type PaletteEntry = {
     | 'dark'
     | 'system'
     | 'comfortable'
-    | 'compact';
+    | 'compact'
+    | 'sidebar-collapse'
+    | 'sidebar-expand';
   onSelect: () => void;
 };
 
@@ -125,9 +129,13 @@ function EntryIcon({ entry }: { entry: PaletteEntry }) {
     case 'comfortable':
       return <LayoutGrid className={iconClass} />;
     case 'compact':
-      return <List className={iconClass} />;
+      return <List aria-hidden="true" className={iconClass} />;
+    case 'sidebar-collapse':
+      return <PanelLeftClose aria-hidden="true" className={iconClass} />;
+    case 'sidebar-expand':
+      return <PanelLeftOpen aria-hidden="true" className={iconClass} />;
     default:
-      return <ExternalLink className={iconClass} />;
+      return <ExternalLink aria-hidden="true" className={iconClass} />;
   }
 }
 
@@ -149,6 +157,8 @@ export function CommandPalette({
   density,
   setDensity,
   authed,
+  sidebarOpen,
+  onToggleSidebar,
   onSelectCategory,
   onOpenBookmark,
   onCreateBookmark,
@@ -169,6 +179,8 @@ export function CommandPalette({
   density: ViewDensity;
   setDensity: (density: ViewDensity) => void;
   authed: boolean;
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
   onSelectCategory: (slug?: string) => void;
   onOpenBookmark: (url: string) => void;
   onCreateBookmark: () => void;
@@ -372,6 +384,20 @@ export function CommandPalette({
       });
     }
 
+    if (onToggleSidebar && matches('侧边栏', '折叠', '收起', '展开', '图标栏', 'sidebar', 'rail')) {
+      actionEntries.push({
+        id: 'act-toggle-sidebar',
+        group: 'actions',
+        title: sidebarOpen ? '折叠侧边栏为图标栏' : '展开侧边栏',
+        subtitle: '快捷键 Cmd / Ctrl + B',
+        iconKind: sidebarOpen ? 'sidebar-collapse' : 'sidebar-expand',
+        onSelect: () => {
+          onToggleSidebar();
+          onOpenChange(false);
+        },
+      });
+    }
+
     const appearanceEntries: PaletteEntry[] = [];
     const themeItems = [
       { value: 'light', title: '切换到亮色模式', aliases: '亮色 白天 light', iconKind: 'light' },
@@ -448,6 +474,8 @@ export function CommandPalette({
     recentBookmarks,
     flatCategories,
     authed,
+    sidebarOpen,
+    onToggleSidebar,
     theme,
     palette,
     density,

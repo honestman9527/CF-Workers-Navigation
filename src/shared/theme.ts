@@ -32,6 +32,18 @@ export const MIN_BG_OVERLAY_OPACITY = 0.25;
 export const MAX_BG_OVERLAY_OPACITY = 0.95;
 export const BG_OVERLAY_OPACITY_STORAGE_KEY = 'nav-bg-overlay-opacity';
 
+export const DEFAULT_FRONT_SIDEBAR_OPEN = true;
+export const FRONT_SIDEBAR_STORAGE_KEY = 'nav-front-sidebar-open';
+
+export function parseSidebarOpen(
+  value: string | null | undefined,
+  fallback = DEFAULT_FRONT_SIDEBAR_OPEN,
+): boolean {
+  if (value === 'false') return false;
+  if (value === 'true') return true;
+  return fallback;
+}
+
 export function isTheme(value: string | null | undefined): value is Theme {
   return value === 'light' || value === 'dark' || value === 'system';
 }

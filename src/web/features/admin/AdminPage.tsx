@@ -114,11 +114,7 @@ function AdminSidebarContent({
   const { palette, setPalette } = appearance;
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col"
-      inert={!isMobile && !open}
-      aria-hidden={!isMobile && !open ? true : undefined}
-    >
+    <div className="flex min-h-0 flex-1 flex-col" inert={!isMobile && !open}>
       <SidebarHeader className="px-5 py-7">
         <div className="flex items-center gap-3">
           <BrandIcon className="size-9" />

@@ -51,7 +51,7 @@ export function FrontCategoryDrawer({
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-xs transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
           aria-label="分类导航抽屉"
-          className="front-surface glass-surface fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(20rem,88vw)] flex-col border-r border-border bg-popover text-popover-foreground shadow-2xl transition-transform duration-200 ease-out outline-none data-ending-style:-translate-x-full data-starting-style:-translate-x-full"
+          className="front-surface glass-surface fixed inset-y-0 left-0 z-50 flex h-svh w-[min(20rem,88vw)] flex-col border-r border-border bg-popover text-popover-foreground shadow-2xl transition-transform duration-200 ease-out outline-none data-ending-style:-translate-x-full data-starting-style:-translate-x-full"
         >
           <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
             <div className="flex min-w-0 items-center gap-3">
