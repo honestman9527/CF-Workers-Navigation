@@ -12,7 +12,6 @@ import {
   LogIn,
   LogOut,
   Menu as MenuIcon,
-  Monitor,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -546,86 +545,90 @@ function NavigationSurface() {
           </div>
 
           {sidebarOpen ? (
-            <div className="flex w-full flex-col gap-2 border-t border-border pt-3.5">
-              <div
-                role="group"
-                aria-label="主题设置"
-                className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1"
-              >
-                {(
-                  [
-                    { value: 'light', label: '亮色', shortLabel: '亮色', icon: Sun },
-                    { value: 'dark', label: '暗色', shortLabel: '暗色', icon: Moon },
-                    { value: 'system', label: '跟随系统', shortLabel: '系统', icon: Monitor },
-                  ] as const
-                ).map(({ value, label, shortLabel, icon: Icon }) => (
-                  <FrontButton
-                    key={value}
-                    aria-pressed={theme === value}
-                    aria-label={label}
-                    title={label}
-                    onClick={() => setTheme(value)}
-                    className={cn(
-                      'min-h-8 gap-1.5 rounded-lg px-2 py-1 text-xs',
-                      theme === value
-                        ? 'bg-card font-semibold text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span>{shortLabel}</span>
-                  </FrontButton>
-                ))}
-              </div>
-
-              <AppearancePopover
-                theme={theme}
-                resolvedTheme={effectiveResolvedTheme}
-                setTheme={setTheme}
-                palette={palette}
-                setPalette={setPalette}
-                density={density}
-                setDensity={setDensity}
-                bgOverlayOpacity={bgOverlayOpacity}
-                setBgOverlayOpacity={setBgOverlayOpacity}
-                hasBackground={hasBackground}
-                side="top"
-                align="start"
-              />
-
+            <div className="flex w-full items-center justify-between gap-1 border-t border-border/70 pt-2.5">
               {auth.authed ? (
-                <div className="grid grid-cols-2 gap-1.5">
-                  <FrontButton
-                    tone="subtle"
-                    onClick={goAdmin}
-                    className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
-                  >
-                    <LayoutDashboard aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span>管理后台</span>
-                  </FrontButton>
-                  <FrontButton
-                    tone="subtle"
-                    disabled={loggingOut}
-                    onClick={() => void logout()}
-                    className="min-h-9 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                  >
-                    <LogOut aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span>{loggingOut ? '退出中…' : '退出登录'}</span>
-                  </FrontButton>
-                </div>
+                <FrontButton
+                  tone="quiet"
+                  onClick={goAdmin}
+                  aria-label="管理后台"
+                  className="min-h-9 gap-2 rounded-xl px-2.5 text-xs font-medium pointer-coarse:min-h-11"
+                >
+                  <LayoutDashboard aria-hidden="true" className="size-4 shrink-0" />
+                  <span>后台</span>
+                </FrontButton>
               ) : (
                 <FrontButton
-                  tone="subtle"
+                  tone="quiet"
                   onClick={goLogin}
-                  className="min-h-9 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
+                  aria-label="管理员登录"
+                  className="min-h-9 gap-2 rounded-xl px-2.5 text-xs font-medium pointer-coarse:min-h-11"
                 >
-                  <LogIn aria-hidden="true" className="size-3.5 shrink-0" />
-                  <span>管理员登录</span>
+                  <LogIn aria-hidden="true" className="size-4 shrink-0" />
+                  <span>登录</span>
                 </FrontButton>
               )}
+
+              <div className="flex items-center gap-0.5">
+                <FrontTooltip
+                  side="top"
+                  sideOffset={8}
+                  content={effectiveResolvedTheme === 'dark' ? '切换亮色' : '切换暗色'}
+                >
+                  <FrontButton
+                    tone="quiet"
+                    aria-label={effectiveResolvedTheme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
+                    onClick={() => setTheme(effectiveResolvedTheme === 'dark' ? 'light' : 'dark')}
+                    className="size-9 min-h-9 rounded-xl p-0 pointer-coarse:size-11"
+                  >
+                    {effectiveResolvedTheme === 'dark' ? (
+                      <Sun aria-hidden="true" className="size-4" />
+                    ) : (
+                      <Moon aria-hidden="true" className="size-4" />
+                    )}
+                  </FrontButton>
+                </FrontTooltip>
+
+                <AppearancePopover
+                  theme={theme}
+                  resolvedTheme={effectiveResolvedTheme}
+                  setTheme={setTheme}
+                  palette={palette}
+                  setPalette={setPalette}
+                  density={density}
+                  setDensity={setDensity}
+                  bgOverlayOpacity={bgOverlayOpacity}
+                  setBgOverlayOpacity={setBgOverlayOpacity}
+                  hasBackground={hasBackground}
+                  side="top"
+                  align="end"
+                  compactTrigger
+                  showTooltip
+                  tooltipSide="top"
+                  tooltipOffset={8}
+                  triggerClassName="size-9 min-h-9 rounded-xl pointer-coarse:size-11"
+                />
+
+                {auth.authed ? (
+                  <FrontTooltip
+                    side="top"
+                    sideOffset={8}
+                    content={loggingOut ? '退出中…' : '退出登录'}
+                  >
+                    <FrontButton
+                      tone="quiet"
+                      aria-label="退出登录"
+                      disabled={loggingOut}
+                      onClick={() => void logout()}
+                      className="size-9 min-h-9 rounded-xl p-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive pointer-coarse:size-11"
+                    >
+                      <LogOut aria-hidden="true" className="size-4" />
+                    </FrontButton>
+                  </FrontTooltip>
+                ) : null}
+              </div>
             </div>
           ) : (
-            <div className="flex w-full flex-col items-center gap-1.5 border-t border-border pt-3">
+            <div className="flex w-full flex-col items-center gap-1.5 border-t border-border/70 pt-2.5">
               <AppearancePopover
                 theme={theme}
                 resolvedTheme={effectiveResolvedTheme}

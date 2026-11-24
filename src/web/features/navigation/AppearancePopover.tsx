@@ -40,6 +40,8 @@ export function AppearancePopover({
   align = 'start',
   compactTrigger = false,
   showTooltip = false,
+  tooltipSide = 'right',
+  tooltipOffset = 10,
   triggerClassName,
 }: {
   theme: Theme;
@@ -56,6 +58,8 @@ export function AppearancePopover({
   align?: 'start' | 'center' | 'end';
   compactTrigger?: boolean;
   showTooltip?: boolean;
+  tooltipSide?: 'top' | 'bottom' | 'left' | 'right';
+  tooltipOffset?: number;
   triggerClassName?: string;
 }) {
   const isDark = resolvedTheme === 'dark';
@@ -82,7 +86,12 @@ export function AppearancePopover({
             <PaletteIcon aria-hidden="true" className="size-4" />
           </Tooltip.Trigger>
           <Tooltip.Portal>
-            <Tooltip.Positioner side="right" align="center" sideOffset={10} className="z-50">
+            <Tooltip.Positioner
+              side={tooltipSide}
+              align="center"
+              sideOffset={tooltipOffset}
+              className="z-50"
+            >
               <Tooltip.Popup className="front-surface glass-surface inline-flex items-center gap-1.5 rounded-lg border border-border bg-foreground px-2.5 py-1.5 text-xs font-medium text-background shadow-lg transition-[opacity,transform] duration-150 outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0">
                 外观与配色{currentPaletteLabel ? ` · ${currentPaletteLabel}` : ''}
               </Tooltip.Popup>

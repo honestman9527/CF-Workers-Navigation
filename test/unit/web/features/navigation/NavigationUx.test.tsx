@@ -345,6 +345,11 @@ it('桌面侧边栏可折叠为紧凑图标栏并持久化，保留焦点且支�
   expect(sidebar.dataset.state).toBe('expanded');
   expect(document.documentElement.dataset.frontSidebar).toBe('expanded');
 
+  // 展开态底部使用克制的单行工具栏，支持一键切换明暗模式与精简入口
+  expect(sidebar.querySelector('[aria-label="管理员登录"]')?.textContent?.trim()).toBe('登录');
+  await click(sidebar.querySelector<HTMLButtonElement>('[aria-label="切换暗色模式"]')!);
+  expect(themeState.setTheme).toHaveBeenCalledWith('dark');
+
   const toggle = app.container.querySelector<HTMLButtonElement>('[aria-label="收起侧边栏"]')!;
   toggle.focus();
   await click(toggle);
