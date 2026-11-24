@@ -218,10 +218,10 @@ export function TransferTab() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-2xl border border-border/60 bg-card p-5 sm:p-7">
-          <div className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
-            <Download size={16} />
+          <h2 className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
+            <Download aria-hidden="true" size={16} />
             导出
-          </div>
+          </h2>
           <div className="grid gap-2">
             <Button
               className="h-auto min-h-20 justify-start gap-4 rounded-xl px-4 py-4 text-left"
@@ -269,10 +269,10 @@ export function TransferTab() {
         </section>
 
         <section className="rounded-2xl border border-border/60 bg-card p-5 sm:p-7">
-          <div className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
-            <Upload size={16} />
+          <h2 className="mb-5 flex items-center gap-3 text-lg font-semibold text-foreground">
+            <Upload aria-hidden="true" size={16} />
             导入
-          </div>
+          </h2>
           <Empty
             className={cn(
               'min-h-48 gap-4 rounded-xl border border-dashed bg-background/50 px-4 py-6 transition-colors',
@@ -354,18 +354,19 @@ export function TransferTab() {
           </div>
 
           {importState.stage === 'uploading' ? (
-            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-background">
-              <div
-                className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
-                style={{ width: `${Math.round(importState.progress * 100)}%` }}
-              />
-            </div>
+            <progress
+              className="native-progress mt-2"
+              value={Math.round(importState.progress * 100)}
+              max={100}
+              aria-label="导入上传进度"
+            />
           ) : null}
 
           {importState.stage === 'reading' || importState.stage === 'processing' ? (
-            <div className="relative mt-2 h-1 w-full overflow-hidden rounded-full bg-background">
-              <div className="h-full w-[40%] animate-indeterminate-bar rounded-full bg-primary/70" />
-            </div>
+            <progress
+              className="native-progress mt-2"
+              aria-label={stageLabels[importState.stage]}
+            />
           ) : null}
 
           {importState.summary ? (

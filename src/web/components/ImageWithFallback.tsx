@@ -8,11 +8,15 @@ export function ImageWithFallback({
   fallback = null,
   className,
   loading,
+  width,
+  height,
 }: {
   src: string | null | undefined;
   fallback?: ReactNode;
   className?: string;
   loading?: 'eager' | 'lazy';
+  width?: number;
+  height?: number;
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -21,6 +25,15 @@ export function ImageWithFallback({
   if (!src || failed) return fallback;
 
   return (
-    <img src={src} alt="" className={className} loading={loading} onError={() => setFailed(true)} />
+    <img
+      src={src}
+      alt=""
+      width={width}
+      height={height}
+      decoding="async"
+      className={className}
+      loading={loading}
+      onError={() => setFailed(true)}
+    />
   );
 }

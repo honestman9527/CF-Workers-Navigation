@@ -182,7 +182,7 @@ it('后台常用操作刷新页码列表，保留分类和标签索引', async (
   vi.mocked(api.updateBookmark).mockResolvedValue({ ...bookmark, isPinned: true });
   const app = await mount(<WebsitesTab />);
   try {
-    await click(app.container.querySelector('[aria-label="加入常用"]')!);
+    await click(app.container.querySelector('[aria-label="加入常用：网站"]')!);
     expect(api.updateBookmark).toHaveBeenCalledWith(1, { isPinned: true });
     expect(mocks.refresh).toHaveBeenCalledOnce();
     expect(api.getTags).toHaveBeenCalledOnce();

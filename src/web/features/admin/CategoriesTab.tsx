@@ -287,12 +287,13 @@ export function CategoriesTab() {
           {node.children.length > 0 ? (
             <button
               type="button"
-              aria-label={isExpanded ? '收起分类' : '展开分类'}
+              aria-label={`${isExpanded ? '收起' : '展开'}分类 ${node.name}`}
               aria-expanded={isExpanded}
               onClick={() => toggleExpanded(node.id)}
               className="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <ChevronRight
+                aria-hidden="true"
                 className={cn(
                   'size-3.5 transition-transform duration-150',
                   isExpanded && 'rotate-90',
@@ -310,7 +311,7 @@ export function CategoriesTab() {
                 <button
                   type="button"
                   disabled={busy}
-                  aria-label="选择图标"
+                  aria-label={`为 ${node.name} 选择图标`}
                   className={cn(
                     'grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg border transition',
                     isRoot

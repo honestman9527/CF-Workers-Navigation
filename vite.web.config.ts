@@ -34,14 +34,14 @@ function staticHeaders(): Plugin {
         "font-src 'self'",
         "connect-src 'self'",
         "object-src 'none'",
-        "base-uri 'self'",
+        "base-uri 'none'",
         "frame-ancestors 'none'",
         "form-action 'self'",
       ].join('; ');
       this.emitFile({
         type: 'asset',
         fileName: '_headers',
-        source: `/*\n  Content-Security-Policy: ${policy}\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n`,
+        source: `/*\n  Content-Security-Policy: ${policy}\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: no-referrer\n  Permissions-Policy: camera=(), geolocation=(), microphone=(), focus-without-user-activation=()\n  Cross-Origin-Opener-Policy: same-origin-allow-popups\n  Cross-Origin-Resource-Policy: same-origin\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n`,
       });
     },
   };

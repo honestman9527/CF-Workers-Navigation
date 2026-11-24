@@ -46,11 +46,12 @@ export function CategoryGroups({
         ) : null}
       </div>
       <div className="space-y-7 sm:space-y-8">
-        {[root, ...root.children].map((category) => (
+        {[root, ...root.children].map((category, index) => (
           <CategoryGroup
             key={category.id}
             category={category}
             direct={category.id === root.id}
+            deferred={index >= 2}
             hideEmpty={category.id === root.id && root.children.length > 0}
             selected={selectedSlug === category.slug && category.id !== root.id}
             actions={actions}
@@ -67,6 +68,7 @@ export function CategoryGroups({
 function CategoryGroup({
   category,
   direct,
+  deferred,
   hideEmpty,
   selected,
   actions,
@@ -76,6 +78,7 @@ function CategoryGroup({
 }: {
   category: CategoryNode;
   direct: boolean;
+  deferred: boolean;
   hideEmpty: boolean;
   selected: boolean;
   actions: BookmarkActions;
@@ -100,7 +103,7 @@ function CategoryGroup({
       id={direct ? `${categorySectionId(category.slug)}-direct` : categorySectionId(category.slug)}
       aria-label={title}
       aria-current={selected ? 'location' : undefined}
-      className="scroll-mt-20"
+      className={deferred ? 'deferred-group scroll-mt-20' : 'scroll-mt-20'}
     >
       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">

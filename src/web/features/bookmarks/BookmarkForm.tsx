@@ -68,6 +68,7 @@ export function BookmarkForm({
         网址会自动查重。回车添加标签，也可以点选已有标签。
       </p>
       <form
+        noValidate
         className="mt-7 grid gap-5"
         onSubmit={(event) => {
           event.preventDefault();
@@ -80,6 +81,13 @@ export function BookmarkForm({
               <Label htmlFor="bookmark-url">网址</Label>
               <Input
                 id="bookmark-url"
+                name="url"
+                type="url"
+                inputMode="url"
+                required
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 className="mt-2"
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
@@ -117,6 +125,8 @@ export function BookmarkForm({
             <Label htmlFor="bookmark-title">标题</Label>
             <Input
               id="bookmark-title"
+              name="title"
+              required
               className="mt-2"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -252,6 +262,12 @@ export function BookmarkForm({
               <div className="mt-2 flex gap-2">
                 <Input
                   id="bookmark-icon"
+                  name="iconUrl"
+                  type="url"
+                  inputMode="url"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   value={form.iconUrl}
                   onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
                   placeholder="https://example.com/favicon.ico"
@@ -263,14 +279,18 @@ export function BookmarkForm({
                   disabled={faviconFetching || !form.url.trim()}
                   onClick={() => void fetchFavicon()}
                 >
-                  <RefreshCw className={faviconFetching ? 'animate-spin' : ''} />
+                  <RefreshCw aria-hidden="true" className={faviconFetching ? 'animate-spin' : ''} />
                   {faviconFetching ? '获取中' : '获取图标'}
                 </Button>
               </div>
             </CollapsibleContent>
           </Collapsible>
         </fieldset>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2 border-t border-border/60 pt-5">
           <Button type="button" variant="ghost" disabled={loading} onClick={onClose}>
             取消

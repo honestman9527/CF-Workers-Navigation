@@ -61,6 +61,7 @@ afterEach(async () => app?.cleanup());
 const cases = [
   {
     name: '分类',
+    itemName: '旧分类',
     Component: CategoriesTab,
     createText: '新建一级分类',
     createLabel: '分类名称',
@@ -70,6 +71,7 @@ const cases = [
   },
   {
     name: '标签',
+    itemName: '旧标签',
     Component: TagsTab,
     createText: '新建标签',
     createLabel: '新标签名称',
@@ -106,12 +108,14 @@ it.each(cases)(
 
 it.each(cases)(
   '$name 重命名可保存与取消，失败不会丢输入',
-  async ({ Component, renameLabel, rename }) => {
+  async ({ Component, itemName, renameLabel, rename }) => {
     rename()
       .mockRejectedValueOnce(new Error('失败'))
       .mockResolvedValueOnce({} as never);
     app = await mount(<Component />);
-    await click(app.container.querySelector<HTMLButtonElement>('[aria-label="重命名"]')!);
+    await click(
+      app.container.querySelector<HTMLButtonElement>(`[aria-label="重命名 ${itemName}"]`)!,
+    );
     const input = app.container.querySelector<HTMLInputElement>(`[aria-label="${renameLabel}"]`)!;
     await fill(input, '新名称');
     await act(() =>
@@ -124,7 +128,9 @@ it.each(cases)(
     expect(input.value).toBe('新名称');
     await click(buttonWithText(app.container, '保存'));
     expect(app.container.querySelector(`[aria-label="${renameLabel}"]`)).toBeNull();
-    await click(app.container.querySelector<HTMLButtonElement>('[aria-label="重命名"]')!);
+    await click(
+      app.container.querySelector<HTMLButtonElement>(`[aria-label="重命名 ${itemName}"]`)!,
+    );
     await click(buttonWithText(app.container, '取消'));
     expect(app.container.querySelector(`[aria-label="${renameLabel}"]`)).toBeNull();
     expect(rename()).toHaveBeenCalledTimes(2);

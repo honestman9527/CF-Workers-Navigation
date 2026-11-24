@@ -384,11 +384,15 @@ export function CommandPalette({
       });
     }
 
-    if (onToggleSidebar && matches('侧边栏', '折叠', '收起', '展开', '图标栏', 'sidebar', 'rail')) {
+    const sidebarTitle = sidebarOpen ? '折叠侧边栏为图标栏' : '展开侧边栏';
+    if (
+      onToggleSidebar &&
+      matches(sidebarTitle, '收起侧边栏', '折叠侧边栏', '展开侧边栏', '图标栏', 'sidebar', 'rail')
+    ) {
       actionEntries.push({
         id: 'act-toggle-sidebar',
         group: 'actions',
-        title: sidebarOpen ? '折叠侧边栏为图标栏' : '展开侧边栏',
+        title: sidebarTitle,
         subtitle: '快捷键 Cmd / Ctrl + B',
         iconKind: sidebarOpen ? 'sidebar-collapse' : 'sidebar-expand',
         onSelect: () => {

@@ -37,6 +37,7 @@ export function FrontBookmarkEditor({
       dismissible={!editor.loading}
     >
       <form
+        noValidate
         className="grid gap-5"
         onSubmit={(event) => {
           event.preventDefault();
@@ -51,6 +52,13 @@ export function FrontBookmarkEditor({
             <div className="flex gap-2">
               <FrontInput
                 id="bookmark-url"
+                name="url"
+                type="url"
+                inputMode="url"
+                required
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
                 placeholder="https://workers.cloudflare.com"
@@ -63,7 +71,7 @@ export function FrontBookmarkEditor({
                 onClick={() => void editor.fetchMetadata()}
                 className="px-3.5"
               >
-                <Sparkles className="size-4 text-primary" />
+                <Sparkles aria-hidden="true" className="size-4 text-primary" />
                 <span className="hidden sm:inline">{editor.fetching ? '获取中…' : '自动填写'}</span>
                 <span className="sr-only sm:hidden">自动填写</span>
               </FrontButton>
@@ -78,6 +86,8 @@ export function FrontBookmarkEditor({
             </label>
             <FrontInput
               id="bookmark-title"
+              name="title"
+              required
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="给它一个容易找到的名字"
@@ -237,6 +247,12 @@ export function FrontBookmarkEditor({
                 <div className="flex gap-2">
                   <FrontInput
                     id="bookmark-icon"
+                    name="iconUrl"
+                    type="url"
+                    inputMode="url"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     value={form.iconUrl}
                     onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
                   />

@@ -104,6 +104,7 @@ it.each([
     load: () => vi.mocked(api.getCategories),
     data: [category],
     create: () => vi.mocked(api.createCategory),
+    itemName: '现有分类',
     createText: '新建一级分类',
     createLabel: '分类名称',
     editLabel: '重命名分类',
@@ -113,19 +114,22 @@ it.each([
     load: () => vi.mocked(api.getTags),
     data: [tag],
     create: () => vi.mocked(api.createTag),
+    itemName: '现有标签',
     createText: '新建标签',
     createLabel: '新标签名称',
     editLabel: '重命名标签',
   },
 ])(
   '刷新失败保留已有列表及尚未保存的编辑输入 ($editLabel)',
-  async ({ Component, load, data, create, createText, createLabel, editLabel }) => {
+  async ({ Component, load, data, create, itemName, createText, createLabel, editLabel }) => {
     load()
       .mockResolvedValueOnce(data as never)
       .mockRejectedValueOnce(new Error('刷新失败'));
     create().mockResolvedValue({} as never);
     app = await mount(<Component />);
-    await click(app.container.querySelector<HTMLButtonElement>('[aria-label="重命名"]')!);
+    await click(
+      app.container.querySelector<HTMLButtonElement>(`[aria-label="重命名 ${itemName}"]`)!,
+    );
     await fill(
       app.container.querySelector<HTMLInputElement>('[aria-label="' + editLabel + '"]')!,
       '未保存名称',
@@ -153,7 +157,7 @@ it('标签合并使用单选目标，失败保留选择并可重试', async () =
     .mockRejectedValueOnce(new Error('合并失败'))
     .mockResolvedValueOnce({} as never);
   app = await mount(<TagsTab />);
-  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="合并标签"]')!);
+  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="合并标签 现有标签"]')!);
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
   const confirm = buttonWithText(dialog, '确认合并');
   expect(confirm.disabled).toBe(true);
@@ -170,7 +174,7 @@ it('标签合并使用单选目标，失败保留选择并可重试', async () =
 it('只有一个标签时说明没有目标，不能合并', async () => {
   vi.mocked(api.getTags).mockResolvedValue([tag]);
   app = await mount(<TagsTab />);
-  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="合并标签"]')!);
+  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="合并标签 现有标签"]')!);
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
   expect(dialog.textContent).toContain('没有可用的目标标签');
   expect(buttonWithText(dialog, '确认合并').disabled).toBe(true);
@@ -184,7 +188,7 @@ it('分类菜单排序刷新保留展开状态，新建子类入口仍展开父�
   vi.mocked(api.reorderCategories).mockResolvedValue({} as never);
   app = await mount(<CategoriesTab />);
   expect(app.container.textContent).not.toContain('已有子项');
-  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="展开分类"]')!);
+  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="展开分类 现有分类"]')!);
   await click(
     app.container.querySelector<HTMLButtonElement>('[aria-label="现有分类 的更多操作"]')!,
   );
@@ -194,7 +198,7 @@ it('分类菜单排序刷新保留展开状态，新建子类入口仍展开父�
   await click(down);
   expect(api.reorderCategories).toHaveBeenCalledWith([3, 1]);
   expect(app.container.textContent).toContain('已有子项');
-  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="收起分类"]')!);
+  await click(app.container.querySelector<HTMLButtonElement>('[aria-label="收起分类 现有分类"]')!);
   await click(
     app.container.querySelector<HTMLButtonElement>('[aria-label="在 现有分类 下新建子分类"]')!,
   );

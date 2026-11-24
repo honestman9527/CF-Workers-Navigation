@@ -117,8 +117,13 @@ export function TagsTab() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-h-11 items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 focus-within:border-primary/50">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <input
+            type="search"
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="筛选标签"
@@ -265,9 +270,10 @@ export function TagsTab() {
                           size="icon-sm"
                           disabled={busy}
                           onClick={() => setEditing({ id: tag.id, name: tag.name })}
-                          aria-label="重命名"
+                          aria-label={`重命名 ${tag.name}`}
+                          title="重命名"
                         >
-                          <Pencil />
+                          <Pencil aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -278,18 +284,20 @@ export function TagsTab() {
                             setMergeFor(tag);
                             setMergeTarget(null);
                           }}
-                          aria-label="合并标签"
+                          aria-label={`合并标签 ${tag.name}`}
+                          title="合并标签"
                         >
-                          <GitMerge />
+                          <GitMerge aria-hidden="true" />
                         </Button>
                         <Button
                           variant="destructive"
                           size="icon-sm"
                           disabled={busy}
                           onClick={() => setConfirmDelete(tag)}
-                          aria-label="删除"
+                          aria-label={`删除标签 ${tag.name}`}
+                          title="删除标签"
                         >
-                          <Trash2 />
+                          <Trash2 aria-hidden="true" />
                         </Button>
                       </div>
                     )}

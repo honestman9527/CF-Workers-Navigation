@@ -16,7 +16,7 @@ Worker、Web、shared 分别使用独立的 TypeScript 配置，隔离 Cloudflar
 
 Wrangler 配置中的绑定声明生成到 `src/worker/bindings.d.ts`；密钥声明单独维护在 `env.d.ts`。生成与一致性检查命令见[使用与本地开发](usage.md#常用命令)。
 
-Web 构建自动生成静态资源 `_headers`：CSP 仅允许本站脚本，并按最终 HTML 计算内联主题初始化脚本的 SHA-256；自定义图标和背景图片允许 HTTP、HTTPS 与 data 图片，动态样式保留内联支持。静态页面禁止嵌入框架、设置 `nosniff` 与 `no-referrer`；API 响应头契约见 [API 与权限](api.md#基础规则)。带内容哈希的 `/assets/*` 使用一年 immutable 浏览器缓存，HTML 继续按平台默认规则重新验证。
+Web 构建自动生成静态资源 `_headers`：CSP 仅允许本站脚本并设置 `base-uri 'none'`，按最终 HTML 计算内联主题初始化脚本的 SHA-256；自定义图标和背景图片允许 HTTP、HTTPS 与 data 图片，动态样式保留内联支持。静态页面禁止嵌入框架，并设置 `nosniff`、`no-referrer`、`Permissions-Policy`、`Cross-Origin-Opener-Policy: same-origin-allow-popups` 与 `Cross-Origin-Resource-Policy: same-origin`；API 响应头契约见 [API 与权限](api.md#基础规则)。带内容哈希的 `/assets/*` 使用一年 immutable 浏览器缓存，HTML 继续按平台默认规则重新验证。
 
 分类最多两层，跨端限制定义在 `src/shared/category-rules.ts`；创建与移动先做服务校验，数据库触发器兜底防止并发写入产生第三层。导入先校验原始及合并树的引用和循环，再将新深层分类提升为原一级的二级并保留原私有保护。表结构、索引、触发器与迁移维护规则见[数据库与迁移](database.md)。
 

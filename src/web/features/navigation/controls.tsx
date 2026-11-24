@@ -12,7 +12,7 @@ export function FrontButton({
     <button
       type="button"
       className={cn(
-        'inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100',
+        'inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-[color,background-color,border-color,box-shadow,transform] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100 motion-safe:active:scale-[0.98]',
         tone === 'primary'
           ? 'bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover'
           : tone === 'subtle'

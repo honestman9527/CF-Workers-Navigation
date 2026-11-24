@@ -159,52 +159,73 @@ function EngineFormDialog({
       <h2 className="font-display text-lg font-semibold">
         {engine ? '编辑搜索引擎' : '添加搜索引擎'}
       </h2>
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="engine-name">名称</FieldLabel>
-          <Input
-            id="engine-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="例如：知乎"
-            autoFocus
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="engine-url">搜索网址模板</FieldLabel>
-          <Input
-            id="engine-url"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://www.zhihu.com/search?type=content&q={query}"
-          />
-          <p className="text-[11px] text-muted-foreground">
-            使用 <code className="rounded bg-card px-1">{'{query}'}</code> 作为查询词占位符。
-          </p>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="engine-icon">图标网址（可选）</FieldLabel>
-          <Input
-            id="engine-icon"
-            value={iconUrl}
-            onChange={(event) => setIconUrl(event.target.value)}
-            placeholder="留空则自动取域名 favicon"
-          />
-        </Field>
-        {error ? (
-          <p role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        ) : null}
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>
-            取消
-          </Button>
-          <Button type="button" onClick={submit}>
-            {engine ? '保存修改' : '添加'}
-          </Button>
-        </div>
-      </FieldGroup>
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="engine-name">名称</FieldLabel>
+            <Input
+              id="engine-name"
+              name="name"
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="例如：知乎"
+              autoFocus
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="engine-url">搜索网址模板</FieldLabel>
+            <Input
+              id="engine-url"
+              name="url"
+              type="url"
+              inputMode="url"
+              required
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://www.zhihu.com/search?type=content&q={query}"
+            />
+            <p className="text-[0.6875rem] text-muted-foreground">
+              使用 <code className="rounded bg-card px-1">{'{query}'}</code> 作为查询词占位符。
+            </p>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="engine-icon">图标网址（可选）</FieldLabel>
+            <Input
+              id="engine-icon"
+              name="iconUrl"
+              type="url"
+              inputMode="url"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={iconUrl}
+              onChange={(event) => setIconUrl(event.target.value)}
+              placeholder="留空则自动取域名 favicon"
+            />
+          </Field>
+          {error ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button type="submit">{engine ? '保存修改' : '添加'}</Button>
+          </div>
+        </FieldGroup>
+      </form>
     </DialogPanel>
   );
 }
@@ -307,7 +328,9 @@ export function SettingsTab() {
               <TabsContent value="privacy">
                 <Card className="rounded-2xl border border-border/60 ring-0 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
                   <CardHeader>
-                    <CardTitle>访问与隐私</CardTitle>
+                    <CardTitle>
+                      <h2>访问与隐私</h2>
+                    </CardTitle>
                     <CardDescription>
                       游客只能浏览公开内容。私有分类保护全部子分类及网站；旧内容保持私有。
                     </CardDescription>
@@ -360,6 +383,11 @@ export function SettingsTab() {
                           <FieldLabel htmlFor="background-url">图片网址</FieldLabel>
                           <Input
                             id="background-url"
+                            type="url"
+                            inputMode="url"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
                             aria-invalid={invalid === 'background-url'}
                             value={draft.backgroundImageUrl}
                             onChange={(event) => update({ backgroundImageUrl: event.target.value })}
@@ -426,12 +454,15 @@ export function SettingsTab() {
                                 >
                                   <span
                                     aria-hidden="true"
-                                    className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+                                    className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
                                     style={{ backgroundColor: swatch }}
                                   />
                                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                                   {selected ? (
-                                    <Check className="size-4 shrink-0 text-primary" />
+                                    <Check
+                                      aria-hidden="true"
+                                      className="size-4 shrink-0 text-primary"
+                                    />
                                   ) : null}
                                 </button>
                               );
@@ -492,10 +523,11 @@ export function SettingsTab() {
                             max={Math.round(MAX_BG_OVERLAY_OPACITY * 100)}
                             step={5}
                             value={Math.round(bgOverlayOpacity * 100)}
+                            aria-valuetext={`${Math.round(bgOverlayOpacity * 100)}%`}
                             onChange={(event) =>
                               setBgOverlayOpacity(Number(event.target.value) / 100)
                             }
-                            className="h-2 w-full cursor-pointer accent-primary"
+                            className="h-9 w-full cursor-pointer accent-primary"
                           />
                           <FieldDescription>
                             调节背景图上方的半透明磨砂遮罩（25%–95%，默认 72%），保障文字清晰易读。
@@ -552,6 +584,11 @@ export function SettingsTab() {
                         <FieldLabel htmlFor="favicon-url">图标网址模板</FieldLabel>
                         <Input
                           id="favicon-url"
+                          type="url"
+                          inputMode="url"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
                           aria-invalid={invalid === 'favicon-url'}
                           readOnly={provider !== 'custom'}
                           value={draft.faviconProxyUrl}

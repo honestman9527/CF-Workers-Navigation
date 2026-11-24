@@ -7,6 +7,9 @@ export function BrandIcon({ className }: { className?: string }) {
     <img
       src={`/hm-${resolvedTheme}.svg?v=1`}
       alt=""
+      width={36}
+      height={36}
+      decoding="async"
       className={cn('size-7 shrink-0 rounded-md', className)}
     />
   );

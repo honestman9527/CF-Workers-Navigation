@@ -10,7 +10,7 @@ import {
   Settings,
   Tags,
 } from 'lucide-react';
-import { useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import {
   Breadcrumb,
@@ -87,7 +87,7 @@ function AdminNavItem({ to, label, icon: Icon, end }: (typeof NAV)[number]) {
         aria-current={active ? 'page' : undefined}
         className="h-11 rounded-xl px-3 text-sm data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
       >
-        <Icon />
+        <Icon aria-hidden="true" />
         <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -143,7 +143,7 @@ function AdminSidebarContent({
               render={<Link to={frontRoute} onClick={() => setOpenMobile(false)} />}
               className="h-11 rounded-xl px-3 text-sm data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
             >
-              <ArrowLeft />
+              <ArrowLeft aria-hidden="true" />
               <span>{returnLabel}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -159,7 +159,7 @@ function AdminSidebarContent({
                   />
                 }
               >
-                <Ellipsis />
+                <Ellipsis aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 side={isMobile ? 'top' : 'right'}
@@ -212,6 +212,9 @@ export function AdminPage() {
   const logoutPending = useRef(false);
   const { pathname } = useLocation();
   const currentLabel = NAV.find((item) => item.to === pathname)?.label ?? '概览';
+  useEffect(() => {
+    document.title = `${currentLabel} · 管理后台 · 书签柜`;
+  }, [currentLabel]);
   const frontRoute = '/';
   const returnLabel = '返回前台';
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -250,8 +253,11 @@ export function AdminPage() {
       open={sidebarOpen}
       onOpenChange={changeSidebarOpen}
       style={{ '--sidebar-width': '15.5rem' } as CSSProperties}
-      className="admin-surface app-root min-h-dvh w-full max-w-full overflow-x-clip bg-background text-foreground motion-reduce:**:transition-none"
+      className="admin-surface app-root min-h-dvh w-full max-w-full overflow-x-clip bg-background text-foreground"
     >
+      <a href="#admin-main" className="skip-link">
+        跳至主内容
+      </a>
       <Sidebar
         collapsible="offcanvas"
         variant="sidebar"
@@ -283,7 +289,11 @@ export function AdminPage() {
           </Breadcrumb>
         </header>
 
-        <div className="mx-auto w-full max-w-[86rem] px-4 py-7 sm:px-8 sm:py-10 xl:px-10">
+        <div
+          id="admin-main"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[86rem] px-4 py-7 outline-none sm:px-8 sm:py-10 xl:px-10"
+        >
           <Outlet />
         </div>
       </SidebarInset>

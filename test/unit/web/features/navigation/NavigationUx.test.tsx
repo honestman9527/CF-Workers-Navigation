@@ -6,6 +6,7 @@ import type { Bookmark, Category } from '@shared/api/types';
 
 import {
   BG_OVERLAY_OPACITY_STORAGE_KEY,
+  FRONT_SIDEBAR_STORAGE_KEY,
   PALETTE_STORAGE_KEY,
   VIEW_DENSITY_STORAGE_KEY,
 } from '@shared';
@@ -15,7 +16,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { api } from '@nav/api/client';
 import { NavigationPage } from '@nav/features/navigation/NavigationPage';
-import { bgOverlayOpacityAtom, paletteAtom, viewDensityAtom } from '@nav/features/settings/store';
+import {
+  bgOverlayOpacityAtom,
+  frontSidebarOpenAtom,
+  paletteAtom,
+  viewDensityAtom,
+} from '@nav/features/settings/store';
 
 import { buttonWithText, click, fill, mount } from '../../render';
 
@@ -127,6 +133,7 @@ beforeEach(() => {
   localStorage.clear();
   document.documentElement.className = 'light';
   document.documentElement.dataset.palette = 'indigo';
+  delete document.documentElement.dataset.frontSidebar;
   document.documentElement.style.removeProperty('--bg-overlay-opacity');
   document.documentElement.style.removeProperty('--bg-image');
   route.nextKey = 0;
@@ -327,4 +334,97 @@ it('外观面板支持调节 4 套主题色与壁纸遮罩浓度并应用到根�
   expect(store.get(bgOverlayOpacityAtom)).toBe(0.85);
   expect(localStorage.getItem(BG_OVERLAY_OPACITY_STORAGE_KEY)).toBe('0.85');
   expect(document.documentElement.style.getPropertyValue('--bg-overlay-opacity')).toBe('0.85');
+});
+
+it('桌面侧边栏可折叠为紧凑图标栏并持久化，保留焦点且支持 Cmd/Ctrl+B 与命令面板切换', async () => {
+  const store = createStore();
+  store.set(frontSidebarOpenAtom, true);
+  app = await mount(<Host store={store} />);
+
+  const sidebar = app.container.querySelector<HTMLElement>('#front-sidebar')!;
+  expect(sidebar.dataset.state).toBe('expanded');
+  expect(document.documentElement.dataset.frontSidebar).toBe('expanded');
+
+  const toggle = app.container.querySelector<HTMLButtonElement>('[aria-label="收起侧边栏"]')!;
+  toggle.focus();
+  await click(toggle);
+
+  expect(sidebar.dataset.state).toBe('collapsed');
+  expect(document.documentElement.dataset.frontSidebar).toBe('collapsed');
+  expect(localStorage.getItem(FRONT_SIDEBAR_STORAGE_KEY)).toBe('false');
+  expect(app.container.querySelector('nav[data-collapsed="true"]')).not.toBeNull();
+  const expandedToggle = app.container.querySelector<HTMLButtonElement>(
+    '[aria-label="展开侧边栏"]',
+  )!;
+  expect(expandedToggle.getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(expandedToggle);
+
+  // 图标栏模式仍可点击一级分类切换范围
+  await click(
+    app.container.querySelector<HTMLButtonElement>(
+      'nav[data-collapsed="true"] [aria-label="设计灵感"]',
+    )!,
+  );
+  expect(route.search).toMatchObject({ category: 'design' });
+
+  // Cmd/Ctrl + B 恢复展开
+  await act(() => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+  });
+  expect(sidebar.dataset.state).toBe('expanded');
+  expect(localStorage.getItem(FRONT_SIDEBAR_STORAGE_KEY)).toBe('true');
+
+  // 命令面板内可直接收起侧边栏
+  await act(() => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }),
+    );
+  });
+  const dialog = document.querySelector<HTMLElement>('[aria-label="全局命令面板"]')!;
+  const cmdInput = dialog.querySelector<HTMLInputElement>('input')!;
+  await fill(cmdInput, '收起侧边栏');
+  await act(() => {
+    cmdInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(sidebar.dataset.state).toBe('collapsed');
+});
+
+it('跨标签页 storage 事件同步侧边栏折叠状态与主题色，并安全过滤非法背景图 URL', async () => {
+  vi.mocked(api.getPublicSettings).mockResolvedValue({
+    searchEngines: [],
+    defaultEngineId: 'google',
+    backgroundImageUrl: 'javascript:alert(1)',
+    backgroundImageEnabled: true,
+  });
+  const store = createStore();
+  store.set(frontSidebarOpenAtom, true);
+  store.set(paletteAtom, 'indigo');
+  app = await mount(<Host store={store} />);
+
+  // 非 HTTP(S) 背景图被安全拒绝
+  expect(document.documentElement.classList.contains('has-background')).toBe(false);
+  expect(document.documentElement.style.getPropertyValue('--bg-image')).toBe('');
+
+  await act(() => {
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: FRONT_SIDEBAR_STORAGE_KEY,
+        newValue: 'false',
+      }),
+    );
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: PALETTE_STORAGE_KEY,
+        newValue: 'rose',
+      }),
+    );
+  });
+  expect(store.get(frontSidebarOpenAtom)).toBe(false);
+  expect(app.container.querySelector<HTMLElement>('#front-sidebar')!.dataset.state).toBe(
+    'collapsed',
+  );
+  expect(store.get(paletteAtom)).toBe('rose');
+  expect(document.documentElement.dataset.palette).toBe('rose');
 });

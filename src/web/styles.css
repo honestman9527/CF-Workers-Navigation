@@ -5,9 +5,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
 
-:root,
-.light {
-  color-scheme: light;
+:root {
+  color-scheme: light dark;
+  interpolate-size: allow-keywords;
   --background: #f8fafc;
   --foreground: #0f172a;
   --card: rgba(255, 255, 255, 0.88);
@@ -53,9 +53,14 @@
   --bg-overlay-rgb: 248 250 252;
   --bg-overlay-opacity: 0.72;
   --bg-overlay: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
-  --scrollbar-thumb: rgb(100 116 139 / 0.28);
-  --scrollbar-thumb-hover: rgb(100 116 139 / 0.46);
+  --scrollbar-thumb: #64748b;
+  --scrollbar-thumb-hover: #475569;
+  --scrollbar-track: transparent;
   --shadow-soft-value: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.08);
+}
+
+.light {
+  color-scheme: light;
 }
 
 .dark {
@@ -96,9 +101,25 @@
   --focus-ring: rgb(129 140 248 / 0.58);
   --bg-overlay-rgb: 11 15 25;
   --bg-overlay: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
-  --scrollbar-thumb: rgb(148 163 184 / 0.3);
-  --scrollbar-thumb-hover: rgb(148 163 184 / 0.48);
+  --scrollbar-thumb: #94a3b8;
+  --scrollbar-thumb-hover: #cbd5e1;
+  --scrollbar-track: transparent;
   --shadow-soft-value: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -8px rgb(0 0 0 / 0.48);
+}
+
+@media (prefers-contrast: more) {
+  :root,
+  .light {
+    --scrollbar-thumb: #0f172a;
+    --scrollbar-thumb-hover: #000000;
+    --scrollbar-track: #e2e8f0;
+  }
+
+  .dark {
+    --scrollbar-thumb: #f8fafc;
+    --scrollbar-thumb-hover: #ffffff;
+    --scrollbar-track: #1e293b;
+  }
 }
 
 /* 4 套主题主色（Light） */
@@ -275,16 +296,21 @@
   }
 
   html {
-    @apply overflow-x-clip font-sans antialiased;
+    @apply font-sans antialiased;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-padding-top: calc(4.5rem + var(--safe-t));
+    scroll-padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 
   body {
-    @apply m-0 min-h-svh max-w-full overflow-x-clip bg-background text-foreground antialiased;
+    @apply m-0 min-h-svh max-w-full bg-background text-foreground antialiased;
     min-width: 320px;
+    overflow-wrap: break-word;
     font-feature-settings:
       'ss01' on,
       'cv11' on;
@@ -296,7 +322,7 @@
   }
 
   #root {
-    @apply relative z-1 min-h-dvh max-w-full overflow-x-clip;
+    @apply relative z-1 min-h-dvh max-w-full;
   }
 
   button,
@@ -312,6 +338,11 @@
   h3 {
     @apply font-semibold text-foreground;
     letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   ::selection {
@@ -326,30 +357,13 @@
   a:focus:not(:focus-visible) {
     outline: none;
   }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) transparent;
-  }
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: 9999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover);
-  }
 }
 
 @layer components {
   .scrollbar-safe {
     scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
   .glass-surface {
     backdrop-filter: blur(var(--surface-blur, 16px));
@@ -357,6 +371,74 @@
   }
   .animate-panel-enter {
     animation: panel-enter 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .skip-link {
+    @apply sr-only rounded-xl border border-border bg-popover px-4 py-2.5 text-sm font-semibold text-popover-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
+  }
+  /* 离屏二级分类分组延迟渲染，配对预估高度避免滚动条跳动。 */
+  .deferred-group {
+    content-visibility: auto;
+    contain-intrinsic-block-size: auto 22rem;
+  }
+  /* 原生 <progress> 跨浏览器统一样式（支持确定态与不定态平滑过渡）。 */
+  .native-progress {
+    container-type: inline-size;
+    appearance: none;
+    display: block;
+    inline-size: 100%;
+    block-size: 0.375rem;
+    border: 0 solid;
+    border-radius: 9999px;
+    overflow: clip;
+    background: var(--secondary);
+    --progress-bar-indeterminate-size: 35%;
+    --progress-bar-indeterminate-duration: 1.4s;
+  }
+  .native-progress::-webkit-progress-bar {
+    background: transparent;
+  }
+  .native-progress::-webkit-progress-value {
+    background: var(--primary);
+    border-radius: 9999px;
+    transition: inline-size 0.2s ease-out;
+  }
+  .native-progress::-moz-progress-bar {
+    background: var(--primary);
+    border-radius: 9999px;
+  }
+  .native-progress:indeterminate::-webkit-progress-value {
+    animation: native-progress-indeterminate var(--progress-bar-indeterminate-duration) infinite
+      linear;
+  }
+  .native-progress:indeterminate::-moz-progress-bar {
+    animation: native-progress-indeterminate var(--progress-bar-indeterminate-duration) infinite
+      linear;
+  }
+}
+
+/* 仅在不支持标准 scrollbar-color 的旧版 WebKit/Blink 中启用 ::-webkit-scrollbar，并重置 scrollbar-width 避免被静默禁用。 */
+@supports not (scrollbar-color: auto) {
+  html,
+  .scrollbar-safe {
+    scrollbar-width: auto;
+  }
+  html::-webkit-scrollbar,
+  .scrollbar-safe::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  html::-webkit-scrollbar-track,
+  .scrollbar-safe::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  html::-webkit-scrollbar-thumb,
+  .scrollbar-safe::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+  }
+  html::-webkit-scrollbar-thumb:hover,
+  .scrollbar-safe::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
   }
 }
 
@@ -366,6 +448,19 @@
   }
   100% {
     transform: translateX(400%);
+  }
+}
+@keyframes native-progress-indeterminate {
+  from,
+  to {
+    inline-size: var(--progress-bar-indeterminate-size);
+    margin-right: auto;
+  }
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 100cqi;
   }
 }
 @keyframes panel-enter {
@@ -400,15 +495,23 @@ html.has-background .app-inset {
   background-color: transparent;
 }
 
+/* Windows 强制高对比度模式：确保依赖 box-shadow focus ring 的控件仍保留清晰系统焦点轮廓。 */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+  }
+}
+
+/* 减少动态偏好：仅抑制位移动效与入场动画、放慢不定态进度，保留颜色/边框等无晕动风险的交互反馈。 */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+  .animate-panel-enter {
+    animation: none;
+  }
+  .native-progress {
+    --progress-bar-indeterminate-duration: 10s;
   }
 }

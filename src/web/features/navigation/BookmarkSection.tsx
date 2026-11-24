@@ -77,7 +77,7 @@ export function FeedContent({
                 key={bookmark.id}
                 data-density={compact ? 'compact' : 'comfortable'}
                 className={cn(
-                  'group relative flex min-w-0 flex-col justify-between rounded-2xl border border-border bg-background/75 shadow-2xs transition-[transform,border-color,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-md dark:bg-secondary/55 dark:hover:bg-card',
+                  'group relative flex min-w-0 flex-col justify-between rounded-2xl border border-border bg-background/75 shadow-2xs transition-[transform,border-color,box-shadow,background-color] duration-200 hover:border-primary/40 hover:bg-card hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:bg-secondary/55 dark:hover:bg-card',
                   compact ? 'gap-2 p-3' : 'gap-3 p-4',
                   highlighted === index &&
                     'border-primary bg-accent ring-2 ring-primary/25 dark:bg-accent',
@@ -98,7 +98,9 @@ export function FeedContent({
                   >
                     <ImageWithFallback
                       src={bookmark.iconUrl}
-                      loading="lazy"
+                      loading={index < 8 ? 'eager' : 'lazy'}
+                      width={compact ? 20 : 24}
+                      height={compact ? 20 : 24}
                       className={cn('rounded-md object-contain', compact ? 'size-5' : 'size-6')}
                       fallback={
                         <span
@@ -302,7 +304,10 @@ export function BookmarkSection({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-          <h2 tabIndex={-1} className="truncate text-lg font-semibold tracking-tight sm:text-xl">
+          <h2
+            tabIndex={-1}
+            className="min-w-0 text-lg font-semibold tracking-tight break-words sm:text-xl"
+          >
             {title}
           </h2>
           {root?.effectiveVisibility === 'private' ? (

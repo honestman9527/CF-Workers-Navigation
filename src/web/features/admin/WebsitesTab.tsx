@@ -32,6 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -205,16 +206,8 @@ export function WebsitesTab() {
           retrying={tagsLoading}
         />
       ) : null}
-      {categoriesLoading ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          分类加载中…
-        </p>
-      ) : null}
-      {tagsLoading ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          标签加载中…
-        </p>
-      ) : null}
+      {categoriesLoading ? <p className="text-sm text-muted-foreground">分类加载中…</p> : null}
+      {tagsLoading ? <p className="text-sm text-muted-foreground">标签加载中…</p> : null}
 
       <div className="glass-surface flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
         <ToggleGroup
@@ -236,8 +229,13 @@ export function WebsitesTab() {
         </ToggleGroup>
 
         <div className="flex min-h-11 min-w-0 flex-[1_1_12rem] items-center gap-2 rounded-lg border border-border/70 bg-card px-3 py-2 focus-within:border-primary/50">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <input
+            type="search"
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             value={queryDraft}
             onChange={(event) => setQueryDraft(event.target.value)}
             placeholder="搜索标题、网址或描述"
@@ -322,15 +320,26 @@ export function WebsitesTab() {
       ) : (
         <div className="glass-surface overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
           {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
-          <Table className="block table-fixed md:table [&_button]:size-11 md:[&_button]:size-8">
+          <Table
+            containerLabel="书签管理列表"
+            className="block table-fixed md:table [&_button]:size-11 md:[&_button]:size-8"
+          >
+            <TableCaption className="sr-only">书签管理列表</TableCaption>
             <TableHeader className="hidden bg-muted/40 md:table-header-group">
               <TableRow className="border-border/60 hover:bg-transparent">
-                <TableHead className="text-xs font-semibold">书签</TableHead>
-                <TableHead className="hidden w-[12rem] text-xs font-semibold lg:table-cell">
+                <TableHead scope="col" className="text-xs font-semibold">
+                  书签
+                </TableHead>
+                <TableHead
+                  scope="col"
+                  className="hidden w-[12rem] text-xs font-semibold lg:table-cell"
+                >
                   分类 / 标签
                 </TableHead>
-                <TableHead className="w-[5rem] text-center text-xs font-semibold">状态</TableHead>
-                <TableHead className="w-[9rem] pr-4 text-right text-xs font-semibold">
+                <TableHead scope="col" className="w-[5rem] text-center text-xs font-semibold">
+                  状态
+                </TableHead>
+                <TableHead scope="col" className="w-[9rem] pr-4 text-right text-xs font-semibold">
                   操作
                 </TableHead>
               </TableRow>
@@ -371,12 +380,15 @@ export function WebsitesTab() {
                           <a
                             href={bookmark.url}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="inline-flex max-w-full items-center gap-1 truncate text-xs text-muted-foreground transition hover:text-primary"
                             title={bookmark.url}
                           >
                             <span className="truncate">{domainOf(bookmark.url)}</span>
-                            <ExternalLink className="size-2.5 shrink-0 opacity-60" />
+                            <ExternalLink
+                              aria-hidden="true"
+                              className="size-2.5 shrink-0 opacity-60"
+                            />
                           </a>
                         </div>
                       </div>
@@ -393,6 +405,7 @@ export function WebsitesTab() {
                     </TableCell>
                     {/* 状态 */}
                     <TableCell className="py-3 text-center">
+                      <span className="sr-only md:hidden">状态：</span>
                       {bookmark.deletedAt ? (
                         <Badge variant="destructive">回收站</Badge>
                       ) : bookmark.archivedAt ? (
@@ -417,10 +430,12 @@ export function WebsitesTab() {
                               size="icon-sm"
                               onClick={() => void mutations.togglePin(bookmark)}
                               disabled={mutations.pendingIds.has(bookmark.id)}
-                              aria-label={bookmark.isPinned ? '取消常用' : '加入常用'}
+                              aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
+                              aria-pressed={bookmark.isPinned}
                               title={bookmark.isPinned ? '取消常用' : '加入常用'}
                             >
                               <Star
+                                aria-hidden="true"
                                 className={cn(
                                   'size-3.5',
                                   bookmark.isPinned && 'fill-current text-primary',
@@ -431,10 +446,10 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => setEditor(bookmark)}
-                              aria-label="编辑"
+                              aria-label={`编辑：${bookmark.title}`}
                               title="编辑书签"
                             >
-                              <Pencil className="size-3.5" />
+                              <Pencil aria-hidden="true" className="size-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -449,10 +464,10 @@ export function WebsitesTab() {
                                   action: () => mutations.changeState(bookmark.id, 'archive'),
                                 })
                               }
-                              aria-label="归档"
+                              aria-label={`归档：${bookmark.title}`}
                               title="归档"
                             >
-                              <Archive className="size-3.5" />
+                              <Archive aria-hidden="true" className="size-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -465,11 +480,11 @@ export function WebsitesTab() {
                                   action: () => mutations.changeState(bookmark.id, 'trash'),
                                 })
                               }
-                              aria-label="移入回收站"
+                              aria-label={`移入回收站：${bookmark.title}`}
                               title="移入回收站"
                               className="text-muted-foreground hover:text-destructive"
                             >
-                              <Trash2 className="size-3.5" />
+                              <Trash2 aria-hidden="true" className="size-3.5" />
                             </Button>
                           </>
                         ) : bookmark.deletedAt ? (
@@ -478,10 +493,10 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => void mutations.changeState(bookmark.id, 'restore')}
-                              aria-label="恢复"
+                              aria-label={`恢复：${bookmark.title}`}
                               title="从回收站恢复"
                             >
-                              <Undo2 className="size-3.5" />
+                              <Undo2 aria-hidden="true" className="size-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -494,11 +509,11 @@ export function WebsitesTab() {
                                   action: () => mutations.changeState(bookmark.id, 'delete'),
                                 })
                               }
-                              aria-label="永久删除"
+                              aria-label={`永久删除：${bookmark.title}`}
                               title="彻底删除"
                               className="text-destructive hover:text-destructive"
                             >
-                              <X className="size-3.5" />
+                              <X aria-hidden="true" className="size-3.5" />
                             </Button>
                           </>
                         ) : (
@@ -507,19 +522,19 @@ export function WebsitesTab() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => void mutations.changeState(bookmark.id, 'restore')}
-                              aria-label="取消归档"
+                              aria-label={`取消归档：${bookmark.title}`}
                               title="恢复到使用中"
                             >
-                              <ArchiveRestore className="size-3.5" />
+                              <ArchiveRestore aria-hidden="true" className="size-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => setEditor(bookmark)}
-                              aria-label="编辑"
+                              aria-label={`编辑：${bookmark.title}`}
                               title="编辑书签"
                             >
-                              <Pencil className="size-3.5" />
+                              <Pencil aria-hidden="true" className="size-3.5" />
                             </Button>
                           </>
                         )}

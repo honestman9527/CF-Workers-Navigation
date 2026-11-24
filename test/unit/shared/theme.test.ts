@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   clampBgOverlayOpacity,
   DEFAULT_BG_OVERLAY_OPACITY,
+  DEFAULT_FRONT_SIDEBAR_OPEN,
   DEFAULT_PALETTE,
   DEFAULT_THEME,
   DEFAULT_VIEW_DENSITY,
+  FRONT_SIDEBAR_STORAGE_KEY,
   isPalette,
   isViewDensity,
   MAX_BG_OVERLAY_OPACITY,
@@ -13,6 +15,7 @@ import {
   PALETTE_OPTIONS,
   PALETTE_STORAGE_KEY,
   parseBgOverlayOpacity,
+  parseSidebarOpen,
   resolvePalettePreference,
   resolveTheme,
   resolveThemePreference,
@@ -81,5 +84,15 @@ describe('appearance preference contract', () => {
     expect(parseBgOverlayOpacity('0.5')).toBe(0.5);
     expect(parseBgOverlayOpacity('0.05')).toBe(MIN_BG_OVERLAY_OPACITY);
     expect(parseBgOverlayOpacity('99')).toBe(MAX_BG_OVERLAY_OPACITY);
+  });
+
+  it('parses front sidebar open preference with expanded default', () => {
+    expect(DEFAULT_FRONT_SIDEBAR_OPEN).toBe(true);
+    expect(FRONT_SIDEBAR_STORAGE_KEY).toBe('nav-front-sidebar-open');
+    expect(parseSidebarOpen(null)).toBe(true);
+    expect(parseSidebarOpen('')).toBe(true);
+    expect(parseSidebarOpen('invalid')).toBe(true);
+    expect(parseSidebarOpen('true')).toBe(true);
+    expect(parseSidebarOpen('false')).toBe(false);
   });
 });

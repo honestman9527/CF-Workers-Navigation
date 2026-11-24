@@ -49,8 +49,10 @@ description: 温润中性 Slate 基底 + 低饱和现代主色（4 套可选主�
 
 - **统一圆角阶梯**：容器与浮层弹窗统一 `rounded-2xl`（16px），按钮、输入框与导航项统一 `rounded-xl`（12px），内部微章与紧凑按钮统一 `rounded-lg` / `rounded-md`。
 - **层次与阴影**：常规面板使用轻磨砂底色 + 1px `--border` + 柔和 `--shadow-soft`；悬浮弹窗与命令面板使用 `--popover` + `shadow-xl` / `shadow-2xl`。
-- **克制微交互**：书签卡片与概览快捷入口在悬停时轻抬 `2px`（`-translate-y-0.5`）并强化边框与阴影；按钮按下时轻缩 `active:scale-[0.98]`；所有动效在 `prefers-reduced-motion: reduce` 下自动降为即时切换。
-- **桌面悬停操作胶囊与移动热区**：桌面端书签管理操作（置顶/编辑/移入回收站）以 `absolute top-2.5 right-2.5` 磨砂胶囊悬浮，默认不占用标题宽度；移动端常显操作条并保证按钮热区不小于 `44px`（`min-h-11`）。
+- **克制微交互**：书签卡片与概览快捷入口在悬停时轻抬 `2px`（`motion-safe:hover:-translate-y-0.5`）并强化边框与阴影；按钮按下时轻缩 `motion-safe:active:scale-[0.98]`；在 `prefers-reduced-motion: reduce` 下定向取消卡片/图标位移与平滑滚动，而非一刀切清除所有组件过渡。
+- **桌面侧边栏折叠与容器查询**：前台桌面左侧边栏支持在展开态（`264px`，完整两级分类树与快捷设置）与紧凑图标栏（`72px` Icon Rail，配合 Base UI Tooltip）间无缝切换；书签网格采用 CSS 容器查询（`@container`）而非视口宽度决定列数，折叠侧边栏释放宽度后自动增加列数。管理后台桌面侧栏收起使用合成层 `translate-x` 过渡。
+- **桌面悬停操作胶囊与触控热区**：桌面端书签管理操作（置顶/编辑/移入回收站）仅在真实悬停指针设备（`@media (hover: hover)`）下启用 `absolute top-2.5 right-2.5` 磨砂悬浮胶囊；触控屏与平板设备常显操作条，并在粗指针环境（`pointer: coarse`）下统一保证交互热区不小于 `44px`（`min-h-11`）。
+- **无障碍、高对比度与滚动条**：设置 `:root { color-scheme: light dark; }` 同步系统原生控件外观；滚动条采用标准 `scrollbar-color` / `scrollbar-width`（默认滑块与画布对比度 ≥ 3:1，并在 `prefers-contrast: more` 下进一步加深）；在 `forced-colors: active`（Windows 高对比度）下保留明确 `:focus-visible` 轮廓与主题色色卡真实颜色（`forced-color-adjust: none`）。
 
 ## 本项目组件与状态规则
 

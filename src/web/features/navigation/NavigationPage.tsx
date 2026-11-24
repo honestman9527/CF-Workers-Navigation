@@ -3,6 +3,7 @@ import type { Bookmark, BookmarkInput } from '@shared/api/types';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowRight,
+  ChevronDown,
   Command,
   Globe,
   LayoutDashboard,
@@ -195,9 +196,16 @@ function NavigationSurface() {
 
   const effectiveResolvedTheme = resolvedTheme ?? (theme === 'dark' ? 'dark' : 'light');
 
+  const currentScopeLabel =
+    browse.root?.name ?? (search.category === 'uncategorized' ? '未分类' : '常用');
+
   useEffect(() => {
-    document.title = '书签柜';
-  }, []);
+    document.title = searching
+      ? '站内搜索 · 书签柜'
+      : currentScopeLabel !== '常用'
+        ? `${currentScopeLabel} · 书签柜`
+        : '书签柜';
+  }, [searching, currentScopeLabel]);
   useEffect(() => {
     setDraft(search.q ?? '');
     setHighlighted(-1);
@@ -343,9 +351,6 @@ function NavigationSurface() {
     void navigate({ to: '/admin' });
   }, [navigate]);
 
-  const currentScopeLabel =
-    browse.root?.name ?? (search.category === 'uncategorized' ? '未分类' : '常用');
-
   return (
     <div
       data-sidebar-state={sidebarOpen ? 'expanded' : 'collapsed'}
@@ -354,6 +359,9 @@ function NavigationSurface() {
         sidebarOpen ? 'lg:grid-cols-[264px_minmax(0,1fr)]' : 'lg:grid-cols-[72px_minmax(0,1fr)]',
       )}
     >
+      <a href="#front-main" className="skip-link">
+        跳至主内容
+      </a>
       {/* 移动端 / 平板端吸顶顶栏（< lg）：左侧打开分类抽屉，替代原横向滚动分类条 */}
       <header className="glass-surface sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-5 lg:hidden">
         <div className="flex min-w-0 items-center gap-2">
@@ -363,7 +371,7 @@ function NavigationSurface() {
             onClick={() => setDrawerOpen(true)}
             className="size-11 p-0"
           >
-            <MenuIcon className="size-5" />
+            <MenuIcon aria-hidden="true" className="size-5" />
           </FrontButton>
           <Link
             to="/"
@@ -373,7 +381,7 @@ function NavigationSurface() {
             <BrandIcon className="size-8 shrink-0" />
             <div className="min-w-0">
               <strong className="block truncate font-display text-sm font-semibold">书签柜</strong>
-              <span className="block truncate text-[11px] text-muted-foreground">
+              <span className="block truncate text-[0.6875rem] text-muted-foreground">
                 {currentScopeLabel}
               </span>
             </div>
@@ -386,7 +394,7 @@ function NavigationSurface() {
             onClick={() => setCommandOpen(true)}
             className="size-10 p-0"
           >
-            <Command className="size-4" />
+            <Command aria-hidden="true" className="size-4" />
           </FrontButton>
           <AppearancePopover
             theme={theme}
@@ -680,7 +688,11 @@ function NavigationSurface() {
         <main className="mx-auto w-full max-w-[90rem] min-w-0 flex-1">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              <h1
+                id="front-main"
+                tabIndex={-1}
+                className="text-xl font-semibold tracking-tight text-foreground outline-none sm:text-2xl"
+              >
                 书签柜网站导航
               </h1>
               <p className="mt-1 text-xs text-muted-foreground tabular-nums sm:text-sm">
@@ -706,7 +718,7 @@ function NavigationSurface() {
                       : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
                   )}
                 >
-                  <LayoutGrid className="size-3.5" />
+                  <LayoutGrid aria-hidden="true" className="size-3.5" />
                   <span className="hidden sm:inline">舒适</span>
                 </FrontButton>
                 <FrontButton
@@ -721,7 +733,7 @@ function NavigationSurface() {
                       : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
                   )}
                 >
-                  <List className="size-3.5" />
+                  <List aria-hidden="true" className="size-3.5" />
                   <span className="hidden sm:inline">紧凑</span>
                 </FrontButton>
               </div>
@@ -731,7 +743,7 @@ function NavigationSurface() {
                   onClick={() => setEditor('new')}
                   className="hidden min-h-10 px-4 lg:inline-flex"
                 >
-                  <Plus className="size-4" />
+                  <Plus aria-hidden="true" className="size-4" />
                   添加书签
                 </FrontButton>
               ) : null}
@@ -749,14 +761,12 @@ function NavigationSurface() {
               </FrontButton>
             </div>
           ) : settingsLoading && !settings ? (
-            <p role="status" className="mb-5 py-2 text-sm text-muted-foreground">
-              正在加载设置…
-            </p>
+            <p className="mb-5 py-2 text-sm text-muted-foreground">正在加载设置…</p>
           ) : null}
 
-          <section
-            aria-label="搜索"
-            className="glass-surface mb-6 rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-6"
+          <search
+            aria-label="搜索书签或网页"
+            className="glass-surface mb-6 block rounded-2xl border border-border bg-card p-4 shadow-soft sm:p-6"
           >
             <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
               <div
@@ -781,14 +791,14 @@ function NavigationSurface() {
                         : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
                     )}
                   >
-                    <Icon className="size-4" />
+                    <Icon aria-hidden="true" className="size-4" />
                     {label}
                   </FrontButton>
                 ))}
               </div>
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
                 <span>按</span>
-                <kbd className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                <kbd className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[0.6875rem] text-foreground">
                   /
                 </kbd>
                 <span>
@@ -805,9 +815,15 @@ function NavigationSurface() {
               }}
               className="flex min-h-13 items-center gap-2 rounded-xl border border-input bg-background/85 px-3.5 py-1.5 shadow-2xs transition-[border-color,box-shadow,background-color] focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/25 sm:min-h-14 sm:px-4"
             >
-              <Search className="size-5 shrink-0 text-muted-foreground" />
+              <Search aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
               <input
                 ref={input}
+                type="search"
+                name="q"
+                enterKeyHint="search"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 value={draft}
                 onCompositionStart={() => setComposing(true)}
                 onCompositionEnd={() => setComposing(false)}
@@ -851,7 +867,7 @@ function NavigationSurface() {
                   aria-label="清除搜索"
                   onClick={clearSearch}
                 >
-                  <X className="size-4" />
+                  <X aria-hidden="true" className="size-4" />
                 </FrontButton>
               ) : null}
               <FrontButton
@@ -861,7 +877,7 @@ function NavigationSurface() {
                 className="size-10 rounded-lg p-0"
                 aria-label={mode === 'site' ? '搜索站内' : '搜索网页'}
               >
-                <ArrowRight className="size-5" />
+                <ArrowRight aria-hidden="true" className="size-5" />
               </FrontButton>
             </form>
             <p id="search-keyboard-help" className="sr-only" role="status">
@@ -908,9 +924,16 @@ function NavigationSurface() {
                   className="w-full"
                   onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
                 >
-                  <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary hover:text-foreground sm:text-sm">
-                    <SlidersHorizontal className="size-3.5" />
-                    筛选{search.tag || search.untagged ? ' · 已启用' : ''}
+                  <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary hover:text-foreground sm:text-sm [&::-webkit-details-marker]:hidden">
+                    <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+                    <span>筛选{search.tag || search.untagged ? ' · 已启用' : ''}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn(
+                        'size-3.5 transition-transform duration-150',
+                        filtersOpen && 'rotate-180',
+                      )}
+                    />
                   </summary>
                   <div className="mt-2.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/55 p-3">
                     <label htmlFor="search-tag" className="text-xs font-medium">
@@ -948,7 +971,7 @@ function NavigationSurface() {
                 </details>
               )}
             </div>
-          </section>
+          </search>
 
           {categories.error ? (
             <div
@@ -967,9 +990,7 @@ function NavigationSurface() {
             </p>
           ) : null}
           {categories.loading && !categories.data ? (
-            <p role="status" className="py-6 text-center text-sm text-muted-foreground">
-              正在加载分类…
-            </p>
+            <p className="py-6 text-center text-sm text-muted-foreground">正在加载分类…</p>
           ) : null}
           {(!search.category || search.category === 'uncategorized' || categories.data) &&
           !browse.invalidCategory ? (

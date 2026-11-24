@@ -77,10 +77,10 @@ export function CategoryActions({
         size="icon-sm"
         disabled={busy}
         onClick={() => onRename()}
-        aria-label="重命名"
+        aria-label={`重命名 ${category.name}`}
         title="重命名"
       >
-        <Pencil />
+        <Pencil aria-hidden="true" />
       </Button>
       <DropdownMenu
         open={menuOpen}

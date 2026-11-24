@@ -2,6 +2,7 @@ import { Popover } from '@base-ui/react/popover';
 import { Check, ChevronDown, ChevronRight, LockKeyhole, Search } from 'lucide-react';
 import { useRef } from 'react';
 
+import { isComposingKey } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import { optionLabel, type SearchSelectProps } from '@nav/features/selection/options';
 import { useCategorySelect } from '@nav/features/selection/useCategorySelect';
@@ -50,7 +51,7 @@ export function CategorySelect(props: SearchSelectProps) {
                 className="h-10 pl-9"
                 onKeyDown={(event) => {
                   if (
-                    !event.nativeEvent.isComposing &&
+                    !isComposingKey(event.nativeEvent) &&
                     (event.key === 'ArrowDown' || event.key === 'ArrowUp')
                   ) {
                     event.preventDefault();

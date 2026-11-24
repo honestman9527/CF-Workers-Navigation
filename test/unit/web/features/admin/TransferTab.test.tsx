@@ -42,6 +42,14 @@ it.each([false, true])('取消导入结束等待并恢复操作（已上传完�
   Object.defineProperty(file, 'text', { value: () => Promise.resolve('[]') });
   await selectFile(file);
   await click(buttonWithText(app.container, '开始导入'));
+  const progressBar = app.container.querySelector<HTMLProgressElement>('progress')!;
+  expect(progressBar).not.toBeNull();
+  if (processing) {
+    expect(progressBar.hasAttribute('value')).toBe(false);
+  } else {
+    expect(progressBar.getAttribute('value')).toBe('10');
+    expect(progressBar.getAttribute('max')).toBe('100');
+  }
   expect(buttonWithText(app.container, '选择文件').disabled).toBe(true);
   await selectFile(new File(['{}'], 'other.json'));
   expect(app.container.textContent).toContain('original.json');
@@ -66,6 +74,9 @@ it('读取文件时离开页面，读取完成后不会继续发送导入请求'
   });
   await selectFile(file);
   await click(buttonWithText(app.container, '开始导入'));
+  const progressBar = app.container.querySelector<HTMLProgressElement>('progress')!;
+  expect(progressBar).not.toBeNull();
+  expect(progressBar.hasAttribute('value')).toBe(false);
   await app.cleanup();
   await act(async () => finishReading('[]'));
   expect(api.importDataAuto).not.toHaveBeenCalled();

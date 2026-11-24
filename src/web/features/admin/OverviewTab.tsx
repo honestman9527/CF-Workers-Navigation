@@ -149,10 +149,10 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/websites')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Globe className="size-5" />
+            <Globe aria-hidden="true" className="size-5" />
           </span>
           <span className="min-w-0">
             <strong className="block text-sm font-semibold">管理书签</strong>
@@ -164,10 +164,10 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/categories')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <FolderTree className="size-5" />
+            <FolderTree aria-hidden="true" className="size-5" />
           </span>
           <span className="min-w-0">
             <strong className="block text-sm font-semibold">管理分类</strong>
@@ -179,10 +179,10 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/tags')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-md sm:p-6"
+          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-            <Tags className="size-5" />
+            <Tags aria-hidden="true" className="size-5" />
           </span>
           <span className="min-w-0">
             <strong className="block text-sm font-semibold">管理标签</strong>
