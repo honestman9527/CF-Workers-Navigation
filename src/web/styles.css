@@ -52,8 +52,8 @@
   --bg-overlay-rgb: 248 250 252;
   --bg-overlay-opacity: 0.72;
   --bg-overlay: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
-  --scrollbar-thumb: #64748b;
-  --scrollbar-thumb-hover: #475569;
+  --scrollbar-thumb: rgb(71 85 105 / 0.65);
+  --scrollbar-thumb-hover: rgb(51 65 85 / 0.82);
   --scrollbar-track: transparent;
   --shadow-soft-value: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.08);
 
@@ -107,8 +107,8 @@
   --focus-ring: rgb(129 140 248 / 0.58);
   --bg-overlay-rgb: 11 15 25;
   --bg-overlay: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
-  --scrollbar-thumb: #94a3b8;
-  --scrollbar-thumb-hover: #cbd5e1;
+  --scrollbar-thumb: rgb(148 163 184 / 0.52);
+  --scrollbar-thumb-hover: rgb(203 213 225 / 0.72);
   --scrollbar-track: transparent;
   --shadow-soft-value: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -8px rgb(0 0 0 / 0.48);
 }
@@ -308,7 +308,6 @@
     -moz-osx-font-smoothing: grayscale;
     scroll-padding-top: calc(4.5rem + var(--safe-t));
     scroll-padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
-    scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   }
 
@@ -381,11 +380,138 @@
   }
 }
 
+@property --scroll-fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* 72px 窄图标栏：支持滚动驱动边缘渐变时隐藏滚动条避免挤偏图标，旧浏览器回退至悬停显现细滚动条。 */
+@utility scrollbar-rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  @media (hover: hover) and (prefers-contrast: no-preference) {
+    scrollbar-color: transparent transparent;
+    &:hover,
+    &:focus-within {
+      scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    }
+  }
+  @supports (animation-timeline: scroll()) {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
 @layer components {
+  /* 内部面板滚动条：不再预留空槽（避免窄栏与图标栏偏心），桌面指针静息时隐身、悬停或聚焦时浮现。 */
   .scrollbar-safe {
-    scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  /* 磨砂列表上下边缘滚动渐变提示：仅在内容溢出并可继续滚动时按滚动进度渐隐，no-clip 不裁切焦点环。 */
+  @supports (animation-timeline: scroll()) {
+    .scroll-fade-y {
+      --scroll-fade-size: 1.5rem;
+      scroll-padding-block: var(--scroll-fade-size);
+      mask:
+        linear-gradient(black, black) no-clip subtract,
+        linear-gradient(to bottom, black, transparent) 0 0 / 100% var(--scroll-fade-top) no-repeat
+          no-clip,
+        linear-gradient(to bottom, transparent, black) 0 100% / 100% var(--scroll-fade-bottom)
+          no-repeat no-clip;
+      animation:
+        scroll-fade-top linear both,
+        scroll-fade-bottom linear both;
+      animation-timeline: scroll(self block);
+      animation-range:
+        0 var(--scroll-fade-size),
+        calc(100% - var(--scroll-fade-size)) 100%;
+    }
+  }
+  /* 弹窗表单等固定边框滚屏区：上下内阴影仅在存在更多可滚动内容时显现。 */
+  @supports (container-type: scroll-state) {
+    .scroll-shadow-y {
+      container-type: scroll-state;
+    }
+    .scroll-shadow-y::before,
+    .scroll-shadow-y::after {
+      content: '';
+      display: block;
+      position: sticky;
+      z-index: 1;
+      block-size: 0.75rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease-out;
+    }
+    .scroll-shadow-y::before {
+      inset-block-start: 0;
+      margin-block-end: -0.75rem;
+      background: radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.14), transparent);
+    }
+    .scroll-shadow-y::after {
+      inset-block-end: 0;
+      margin-block-start: -0.75rem;
+      background: radial-gradient(farthest-side at 50% 100%, rgb(15 23 42 / 0.14), transparent);
+    }
+    .dark .scroll-shadow-y::before {
+      background: radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.36), transparent);
+    }
+    .dark .scroll-shadow-y::after {
+      background: radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.36), transparent);
+    }
+    @container scroll-state(scrollable: block-start) {
+      .scroll-shadow-y::before {
+        opacity: 1;
+      }
+    }
+    @container scroll-state(scrollable: block-end) {
+      .scroll-shadow-y::after {
+        opacity: 1;
+      }
+    }
+  }
+  @supports (not (container-type: scroll-state)) and (animation-timeline: scroll()) {
+    .scroll-shadow-y::before,
+    .scroll-shadow-y::after {
+      content: '';
+      display: block;
+      position: sticky;
+      z-index: 1;
+      block-size: 0.75rem;
+      pointer-events: none;
+      opacity: 0;
+      animation: scroll-shadow-reveal linear both;
+      animation-timeline: scroll();
+    }
+    .scroll-shadow-y::before {
+      inset-block-start: 0;
+      margin-block-end: -0.75rem;
+      animation-range: 0 1.5rem;
+      background: radial-gradient(farthest-side at 50% 0, rgb(15 23 42 / 0.14), transparent);
+    }
+    .scroll-shadow-y::after {
+      inset-block-end: 0;
+      margin-block-start: -0.75rem;
+      animation-direction: reverse;
+      animation-range: calc(100% - 1.5rem) 100%;
+      background: radial-gradient(farthest-side at 50% 100%, rgb(15 23 42 / 0.14), transparent);
+    }
+    .dark .scroll-shadow-y::before {
+      background: radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.36), transparent);
+    }
+    .dark .scroll-shadow-y::after {
+      background: radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.36), transparent);
+    }
   }
   .glass-surface {
     backdrop-filter: blur(var(--surface-blur, 16px));
@@ -484,6 +610,17 @@
   }
 }
 
+/* 桌面精细指针且未开启高对比度时，内部面板滚动条静息隐身，悬停或键盘聚焦面板内时浮现（不对其做 transition 以规避 WebKit 闪烁缺陷）。 */
+@media (hover: hover) and (prefers-contrast: no-preference) {
+  .scrollbar-safe {
+    scrollbar-color: transparent transparent;
+  }
+  .scrollbar-safe:hover,
+  .scrollbar-safe:focus-within {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+}
+
 /* 仅在不支持标准 scrollbar-color 的旧版 WebKit/Blink 中启用 ::-webkit-scrollbar，并重置 scrollbar-width 避免被静默禁用。 */
 @supports not (scrollbar-color: auto) {
   html,
@@ -492,8 +629,8 @@
   }
   html::-webkit-scrollbar,
   .scrollbar-safe::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   html::-webkit-scrollbar-track,
   .scrollbar-safe::-webkit-scrollbar-track {
@@ -502,11 +639,40 @@
   html::-webkit-scrollbar-thumb,
   .scrollbar-safe::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
+    border: 2px solid transparent;
     border-radius: 9999px;
+    background-clip: content-box;
   }
   html::-webkit-scrollbar-thumb:hover,
   .scrollbar-safe::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  @media (hover: hover) and (prefers-contrast: no-preference) {
+    .scrollbar-safe::-webkit-scrollbar-thumb {
+      background: transparent;
+    }
+    .scrollbar-safe:hover::-webkit-scrollbar-thumb,
+    .scrollbar-safe:focus-within::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+    }
+  }
+}
+
+@keyframes scroll-fade-top {
+  to {
+    --scroll-fade-top: var(--scroll-fade-size);
+  }
+}
+@keyframes scroll-fade-bottom {
+  from {
+    --scroll-fade-bottom: var(--scroll-fade-size);
+  }
+}
+@keyframes scroll-shadow-reveal {
+  to {
+    opacity: 1;
   }
 }
 

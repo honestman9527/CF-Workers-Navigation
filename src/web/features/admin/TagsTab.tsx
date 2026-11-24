@@ -353,7 +353,7 @@ export function TagsTab() {
                   const target = mergeTargets.find((item) => String(item.id) === value);
                   if (target) setMergeTarget(target.id);
                 }}
-                className="max-h-64 overflow-y-auto"
+                className="scrollbar-safe max-h-64 overflow-y-auto"
               >
                 {mergeTargets.map((item) => (
                   <Field key={item.id} orientation="horizontal">

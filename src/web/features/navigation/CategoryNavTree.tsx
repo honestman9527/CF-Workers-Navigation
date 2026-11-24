@@ -63,7 +63,7 @@ export function CategoryNavTree({
       <nav
         aria-label={label}
         data-collapsed="true"
-        className="scrollbar-safe flex flex-1 flex-col items-center gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain py-1"
+        className="scrollbar-rail flex flex-1 scroll-fade-y flex-col items-center gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain py-1"
       >
         <FrontTooltip content="常用">
           <FrontButton
@@ -139,7 +139,10 @@ export function CategoryNavTree({
   }
 
   return (
-    <nav aria-label={label} className="scrollbar-safe flex-1 overflow-y-auto overscroll-contain">
+    <nav
+      aria-label={label}
+      className="scrollbar-safe flex-1 scroll-fade-y overflow-y-auto overscroll-contain"
+    >
       <div className="mb-2 px-2.5 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
         分类工作台
       </div>

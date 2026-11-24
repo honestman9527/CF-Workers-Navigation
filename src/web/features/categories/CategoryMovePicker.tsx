@@ -75,7 +75,7 @@ export function CategoryMovePicker({
         anchor={anchorRef}
         finalFocus={anchorRef}
         align="end"
-        className="max-h-(--available-height) w-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
+        className="scrollbar-safe max-h-(--available-height) w-64 max-w-[calc(100vw-2rem)] overflow-y-auto"
       >
         <PopoverTitle>移动到</PopoverTitle>
         <PopoverDescription>

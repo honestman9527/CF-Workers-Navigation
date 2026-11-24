@@ -44,7 +44,7 @@ export function DialogPanel({
       <DialogContent
         showCloseButton={dismissible}
         className={cn(
-          'admin-surface max-h-[min(92dvh,100%)] gap-0 overflow-y-auto overscroll-contain rounded-2xl border-border/60 p-5 shadow-xl sm:p-8',
+          'admin-surface flex max-h-[min(92dvh,100%)] flex-col gap-0 overflow-hidden rounded-2xl border-border/60 p-0 shadow-xl',
           sizeClass,
         )}
         aria-labelledby={labelledBy}
@@ -54,7 +54,9 @@ export function DialogPanel({
           <DialogDescription className="sr-only">{description}</DialogDescription>
         ) : null}
         {!title && !labelledBy ? <DialogTitle className="sr-only">对话框</DialogTitle> : null}
-        {children}
+        <div className="scrollbar-safe scroll-shadow-y min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="p-5 sm:p-8">{children}</div>
+        </div>
       </DialogContent>
     </Dialog>
   );
