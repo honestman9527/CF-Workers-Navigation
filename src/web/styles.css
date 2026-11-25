@@ -337,6 +337,13 @@
     letter-spacing: inherit;
   }
 
+  /* 搜索框统一由组件提供清除按钮与键盘语义，隐藏 WebKit/Blink 原生清除按钮避免重复。 */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+  }
+
   h1,
   h2,
   h3 {
