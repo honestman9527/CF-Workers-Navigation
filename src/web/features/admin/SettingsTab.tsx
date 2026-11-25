@@ -289,7 +289,7 @@ export function SettingsTab() {
   }
   const provider = PRESETS.find((item) => item.url === draft?.faviconProxyUrl)?.id ?? 'custom';
   return (
-    <div className="mx-auto flex w-full max-w-[64rem] flex-col gap-7">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
       <div>
         <h1 className="font-display text-3xl font-semibold tracking-tight">设置</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -454,7 +454,7 @@ export function SettingsTab() {
                                 >
                                   <span
                                     aria-hidden="true"
-                                    className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
+                                    className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 forced-color-adjust-none dark:ring-white/15"
                                     style={{ backgroundColor: swatch }}
                                   />
                                   <span className="min-w-0 flex-1 truncate">{option.label}</span>

@@ -3,6 +3,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
+@custom-variant hover-capable (@media (hover: hover));
 
 :root {
   color-scheme: light dark;
@@ -29,23 +30,13 @@
   --ring: #4f46e5;
   --sidebar: rgb(255 255 255 / 0.84);
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #4f46e5;
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(79 70 229 / 0.1);
   --sidebar-accent-foreground: #0f172a;
   --sidebar-border: rgb(148 163 184 / 0.24);
   --sidebar-ring: #4f46e5;
-  --chart-1: #4f46e5;
-  --chart-2: #0f172a;
-  --chart-3: #475569;
-  --chart-4: #94a3b8;
-  --chart-5: #cbd5e1;
   --safe-t: env(safe-area-inset-top, 0px);
   --radius: 0.75rem;
-  --radius-sm: 0.5rem;
   --radius-md: 0.625rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
   --focus-ring: rgb(79 70 229 / 0.45);
   --surface-blur: 16px;
   --bg-blur: 12px;
@@ -93,17 +84,10 @@
   --ring: #818cf8;
   --sidebar: rgb(17 24 39 / 0.78);
   --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #818cf8;
-  --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(129 140 248 / 0.16);
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: rgb(148 163 184 / 0.14);
   --sidebar-ring: #818cf8;
-  --chart-1: #818cf8;
-  --chart-2: #f8fafc;
-  --chart-3: #94a3b8;
-  --chart-4: #475569;
-  --chart-5: #1e293b;
   --focus-ring: rgb(129 140 248 / 0.58);
   --bg-overlay-rgb: 11 15 25;
   --bg-overlay: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
@@ -137,11 +121,8 @@
   --accent: rgb(79 70 229 / 0.1);
   --ring: #4f46e5;
   --focus-ring: rgb(79 70 229 / 0.45);
-  --sidebar-primary: #4f46e5;
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(79 70 229 / 0.1);
   --sidebar-ring: #4f46e5;
-  --chart-1: #4f46e5;
 }
 
 :root[data-palette='emerald'],
@@ -152,11 +133,8 @@
   --accent: rgb(5 150 105 / 0.1);
   --ring: #059669;
   --focus-ring: rgb(5 150 105 / 0.45);
-  --sidebar-primary: #059669;
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(5 150 105 / 0.1);
   --sidebar-ring: #059669;
-  --chart-1: #059669;
 }
 
 :root[data-palette='amber'],
@@ -167,11 +145,8 @@
   --accent: rgb(217 119 6 / 0.11);
   --ring: #d97706;
   --focus-ring: rgb(217 119 6 / 0.45);
-  --sidebar-primary: #d97706;
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(217 119 6 / 0.11);
   --sidebar-ring: #d97706;
-  --chart-1: #d97706;
 }
 
 :root[data-palette='rose'],
@@ -182,11 +157,8 @@
   --accent: rgb(225 29 72 / 0.1);
   --ring: #e11d48;
   --focus-ring: rgb(225 29 72 / 0.45);
-  --sidebar-primary: #e11d48;
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(225 29 72 / 0.1);
   --sidebar-ring: #e11d48;
-  --chart-1: #e11d48;
 }
 
 /* 4 套主题主色（Dark） */
@@ -197,11 +169,8 @@
   --accent: rgb(129 140 248 / 0.16);
   --ring: #818cf8;
   --focus-ring: rgb(129 140 248 / 0.58);
-  --sidebar-primary: #818cf8;
-  --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(129 140 248 / 0.16);
   --sidebar-ring: #818cf8;
-  --chart-1: #818cf8;
 }
 
 .dark[data-palette='emerald'] {
@@ -211,11 +180,8 @@
   --accent: rgb(52 211 153 / 0.16);
   --ring: #34d399;
   --focus-ring: rgb(52 211 153 / 0.58);
-  --sidebar-primary: #34d399;
-  --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(52 211 153 / 0.16);
   --sidebar-ring: #34d399;
-  --chart-1: #34d399;
 }
 
 .dark[data-palette='amber'] {
@@ -225,11 +191,8 @@
   --accent: rgb(251 191 36 / 0.16);
   --ring: #fbbf24;
   --focus-ring: rgb(251 191 36 / 0.58);
-  --sidebar-primary: #fbbf24;
-  --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(251 191 36 / 0.16);
   --sidebar-ring: #fbbf24;
-  --chart-1: #fbbf24;
 }
 
 .dark[data-palette='rose'] {
@@ -239,24 +202,17 @@
   --accent: rgb(251 113 133 / 0.16);
   --ring: #fb7185;
   --focus-ring: rgb(251 113 133 / 0.58);
-  --sidebar-primary: #fb7185;
-  --sidebar-primary-foreground: #0b0f19;
   --sidebar-accent: rgb(251 113 133 / 0.16);
   --sidebar-ring: #fb7185;
-  --chart-1: #fb7185;
 }
 
 @theme inline {
   --font-sans:
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
     sans-serif;
-  --font-display:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
+  --font-display: var(--font-sans);
+  --font-front: var(--font-sans);
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --font-front:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -279,8 +235,6 @@
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
@@ -418,31 +372,32 @@
   }
 }
 
+/* 磨砂列表上下边缘滚动渐变提示：独立工具类避免与 shadcn scroll-fade-y 冲突，no-clip 不裁切焦点环。 */
+@utility scroll-edge-fade {
+  @supports (animation-timeline: scroll()) {
+    --scroll-fade-size: 1.5rem;
+    scroll-padding-block: var(--scroll-fade-size);
+    mask:
+      linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to bottom, black, transparent) 0 0 / 100% var(--scroll-fade-top) no-repeat
+        no-clip,
+      linear-gradient(to bottom, transparent, black) 0 100% / 100% var(--scroll-fade-bottom)
+        no-repeat no-clip;
+    animation:
+      scroll-fade-top linear both,
+      scroll-fade-bottom linear both;
+    animation-timeline: scroll(self block);
+    animation-range:
+      0 var(--scroll-fade-size),
+      calc(100% - var(--scroll-fade-size)) 100%;
+  }
+}
+
 @layer components {
-  /* 内部面板滚动条：不再预留空槽（避免窄栏与图标栏偏心），桌面指针静息时隐身、悬停或聚焦时浮现。 */
+  /* 内部面板滚动条：桌面指针静息时隐身、悬停或聚焦时浮现。 */
   .scrollbar-safe {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-  }
-  /* 磨砂列表上下边缘滚动渐变提示：仅在内容溢出并可继续滚动时按滚动进度渐隐，no-clip 不裁切焦点环。 */
-  @supports (animation-timeline: scroll()) {
-    .scroll-fade-y {
-      --scroll-fade-size: 1.5rem;
-      scroll-padding-block: var(--scroll-fade-size);
-      mask:
-        linear-gradient(black, black) no-clip subtract,
-        linear-gradient(to bottom, black, transparent) 0 0 / 100% var(--scroll-fade-top) no-repeat
-          no-clip,
-        linear-gradient(to bottom, transparent, black) 0 100% / 100% var(--scroll-fade-bottom)
-          no-repeat no-clip;
-      animation:
-        scroll-fade-top linear both,
-        scroll-fade-bottom linear both;
-      animation-timeline: scroll(self block);
-      animation-range:
-        0 var(--scroll-fade-size),
-        calc(100% - var(--scroll-fade-size)) 100%;
-    }
   }
   /* 弹窗表单等固定边框滚屏区：上下内阴影仅在存在更多可滚动内容时显现。 */
   @supports (container-type: scroll-state) {
@@ -522,7 +477,6 @@
   }
   .glass-surface {
     backdrop-filter: blur(var(--surface-blur, 16px));
-    -webkit-backdrop-filter: blur(var(--surface-blur, 16px));
   }
   /* 现代双向浮层入场/退场过渡：opacity 使用 ease-out，scale/translate 使用物理 linear() 弹性曲线（ease-out 回退）。 */
   .overlay-popup {
@@ -573,8 +527,139 @@
       translate: 0 8px;
     }
   }
+  /* 动态出现的辅助控件（如清除搜索按钮）使用 @starting-style 弹性入场。 */
+  .control-enter {
+    opacity: 1;
+    scale: 1;
+    transition:
+      opacity 0.16s ease-out,
+      scale 0.22s ease-out;
+    transition-timing-function: ease-out, linear(0, 0.45 15%, 0.85 35%, 1.02 65%, 1);
+    @starting-style {
+      opacity: 0;
+      scale: 0.86;
+    }
+  }
+  /* 后台设置 Tabs 滑动胶囊指示器，跟随 Base UI --active-tab-* 变量弹性滑动。 */
+  .tabs-indicator {
+    translate: var(--active-tab-left, 0px) var(--active-tab-top, 0px);
+    width: var(--active-tab-width, 0px);
+    height: var(--active-tab-height, 0px);
+    transition:
+      translate 0.26s ease-out,
+      width 0.26s ease-out,
+      height 0.26s ease-out;
+    transition-timing-function:
+      linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+      linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+      linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1);
+  }
+  /* 顶部滚动进度丝带：纯 CSS Scroll-Driven Animations 渐进增强，不降级不监听 JS scroll。 */
+  .scroll-progress-bar {
+    display: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: scroll()) {
+      .scroll-progress-bar {
+        display: block;
+        position: fixed;
+        inset-block-start: 0;
+        inset-inline: 0;
+        z-index: 50;
+        block-size: 2px;
+        pointer-events: none;
+        transform-origin: 0 50%;
+        background: linear-gradient(
+          90deg,
+          var(--primary),
+          color-mix(in oklab, var(--primary) 65%, var(--foreground))
+        );
+        animation: scroll-progress-grow auto linear;
+        animation-timeline: scroll(root block);
+      }
+    }
+    /* 卡片列表交错弹性入场：优先使用原生 sibling-index()，不支持时回退至行内 --sibling-index。 */
+    .card-stagger-enter {
+      --stagger-step: 28ms;
+      --stagger-index: min(var(--sibling-index, 1), 12);
+      animation: card-enter 0.34s ease-out both;
+      animation-timing-function: linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1);
+      animation-delay: calc((var(--stagger-index) - 1) * var(--stagger-step));
+    }
+    @supports (animation-delay: calc(sibling-index() * 0.1s)) {
+      .card-stagger-enter {
+        animation-delay: calc((min(sibling-index(), 12) - 1) * var(--stagger-step));
+      }
+    }
+  }
+  /* 书签卡片独立变换基态（防悬停突建层叠上下文）与指针跟随微光。 */
+  .bookmark-card {
+    translate: 0 0;
+    transition:
+      translate 0.22s ease-out,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .bookmark-card-icon {
+    rotate: 0deg;
+    scale: 1;
+    transition:
+      rotate 0.26s ease-out,
+      scale 0.26s ease-out,
+      border-color 0.2s ease;
+  }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .bookmark-card {
+      transition:
+        translate 0.28s linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background-color 0.2s ease;
+    }
+    .bookmark-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.22s ease-out;
+      background: radial-gradient(
+        240px circle at var(--pointer-x, 50%) var(--pointer-y, 50%),
+        color-mix(in oklab, var(--primary) 13%, transparent),
+        transparent 70%
+      );
+    }
+    .bookmark-card:hover {
+      translate: 0 -2px;
+    }
+    .bookmark-card:hover::before {
+      opacity: 1;
+    }
+    .bookmark-card-icon {
+      transition:
+        rotate 0.3s linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+        scale 0.3s linear(0, 0.42 14%, 0.81 30%, 0.99 48%, 1.03 64%, 1.005 82%, 1),
+        border-color 0.2s ease;
+    }
+    .bookmark-card:hover .bookmark-card-icon {
+      rotate: -4deg;
+      scale: 1.07;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .star-pop {
+      animation: star-pop 0.36s ease-out;
+      animation-timing-function: linear(0, 0.45 15%, 1.08 35%, 0.97 55%, 1.01 75%, 1);
+    }
+    .theme-icon-pop {
+      animation: theme-icon-pop 0.3s ease-out;
+      animation-timing-function: linear(0, 0.45 15%, 1.06 38%, 0.98 64%, 1);
+    }
+  }
   .skip-link {
-    @apply sr-only rounded-xl border border-border bg-popover px-4 py-2.5 text-sm font-semibold text-popover-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60];
+    @apply sr-only rounded-xl border border-border bg-popover px-4 py-2.5 text-sm font-semibold text-popover-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-60;
   }
   /* 离屏二级分类分组延迟渲染，配对预估高度避免滚动条跳动。 */
   .deferred-group {
@@ -667,6 +752,72 @@
   }
 }
 
+/* View Transitions：主题切换光圈波纹与路由/视图温和淡入淡出。 */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.22s;
+    animation-timing-function: ease-out;
+  }
+  html[data-vt-kind='ripple']::view-transition-old(root),
+  html[data-vt-kind='ripple']::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  html[data-vt-kind='ripple']::view-transition-new(root) {
+    z-index: 1;
+    animation: vt-theme-ripple 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes vt-theme-ripple {
+  from {
+    clip-path: circle(0px at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+
+@keyframes scroll-progress-grow {
+  from {
+    scale: 0 1;
+  }
+  to {
+    scale: 1 1;
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+@keyframes star-pop {
+  0% {
+    scale: 0.72;
+    rotate: -18deg;
+  }
+  60% {
+    scale: 1.24;
+    rotate: 8deg;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes theme-icon-pop {
+  from {
+    opacity: 0.55;
+    rotate: -36deg;
+    scale: 0.75;
+  }
+}
+
 @keyframes scroll-fade-top {
   to {
     --scroll-fade-top: var(--scroll-fade-size);
@@ -708,7 +859,6 @@ html.has-background::before {
   content: '';
   background: rgb(var(--bg-overlay-rgb) / var(--bg-overlay-opacity, 0.72));
   backdrop-filter: blur(var(--bg-blur, 12px));
-  -webkit-backdrop-filter: blur(var(--bg-blur, 12px));
   pointer-events: none;
 }
 html.has-background body,
@@ -726,10 +876,15 @@ html.has-background .app-inset {
   }
 }
 
-/* 减少动态偏好：抑制位移动效与缩放，保留短促透明度淡入淡出并放慢不定态进度。 */
+/* 减少动态偏好：抑制位移动效、缩放与 View Transitions，保留短促透明度淡入淡出并放慢不定态进度。 */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
   .overlay-popup {
     transition-property: opacity;
@@ -750,6 +905,17 @@ html.has-background .app-inset {
     @starting-style {
       translate: 0 0;
     }
+  }
+  .control-enter {
+    transition-property: opacity;
+    transition-duration: 0.1s;
+    transition-timing-function: ease-out;
+    @starting-style {
+      scale: 1;
+    }
+  }
+  .tabs-indicator {
+    transition: none;
   }
   .native-progress {
     --progress-bar-indeterminate-duration: 10s;

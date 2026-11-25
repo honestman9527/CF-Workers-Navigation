@@ -20,7 +20,7 @@ export function LoginPage({ onSubmit }: { onSubmit: (password: string) => Promis
     <main className="front-surface flex min-h-dvh items-center justify-center bg-background px-4 py-12 text-foreground sm:px-6 sm:py-16">
       <form
         noValidate
-        className="glass-surface w-full max-w-[24rem] rounded-2xl border border-border bg-card p-7 shadow-soft sm:p-8"
+        className="glass-surface w-full max-w-sm rounded-2xl border border-border bg-card p-7 shadow-soft sm:p-8"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!password.trim()) {

@@ -2,7 +2,7 @@ import type { AdminStats } from '@shared/api/types';
 
 import { useNavigate } from '@tanstack/react-router';
 import { Archive, Bookmark, FolderTree, Globe, Inbox, Tags, Trash2 } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, type CSSProperties } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@nav/api/client';
@@ -16,7 +16,6 @@ type StatCard = {
   label: string;
   value: number;
   icon: typeof Bookmark;
-  tone: 'primary' | 'muted' | 'accent' | 'warn';
   to?: '/admin/categories' | '/admin/tags' | '/admin/websites';
 };
 
@@ -33,38 +32,33 @@ function StatCards({
       label: '书签总数',
       value: stats.bookmarks.total,
       icon: Bookmark,
-      tone: 'primary',
     },
     {
       key: 'active',
       label: '正常书签',
       value: stats.bookmarks.active,
       icon: Inbox,
-      tone: 'accent',
     },
     {
       key: 'archived',
       label: '已归档',
       value: stats.bookmarks.archived,
       icon: Archive,
-      tone: 'muted',
     },
     {
       key: 'trash',
       label: '回收站',
       value: stats.bookmarks.trash,
       icon: Trash2,
-      tone: 'warn',
     },
     {
       key: 'categories',
       label: '分类',
       value: stats.categories,
       icon: FolderTree,
-      tone: 'muted',
       to: '/admin/categories',
     },
-    { key: 'tags', label: '标签', value: stats.tags, icon: Tags, tone: 'muted', to: '/admin/tags' },
+    { key: 'tags', label: '标签', value: stats.tags, icon: Tags, to: '/admin/tags' },
   ];
   return (
     <section
@@ -122,7 +116,7 @@ export function OverviewTab() {
   });
 
   function go(to: '/admin/categories' | '/admin/tags' | '/admin/websites') {
-    void navigate({ to });
+    void navigate({ to, viewTransition: true });
   }
 
   return (
@@ -149,7 +143,8 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/websites')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
+          style={{ '--sibling-index': 1 } as CSSProperties}
+          className="glass-surface card-stagger-enter flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Globe aria-hidden="true" className="size-5" />
@@ -164,7 +159,8 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/categories')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
+          style={{ '--sibling-index': 2 } as CSSProperties}
+          className="glass-surface card-stagger-enter flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <FolderTree aria-hidden="true" className="size-5" />
@@ -179,7 +175,8 @@ export function OverviewTab() {
         <button
           type="button"
           onClick={() => go('/admin/tags')}
-          className="glass-surface flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
+          style={{ '--sibling-index': 3 } as CSSProperties}
+          className="glass-surface card-stagger-enter flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-soft transition-[transform,border-color,box-shadow] duration-200 hover:border-primary/45 hover:shadow-md motion-safe:hover:-translate-y-0.5 sm:p-6"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <Tags aria-hidden="true" className="size-5" />

@@ -279,7 +279,10 @@ export function BookmarkForm({
                   disabled={faviconFetching || !form.url.trim()}
                   onClick={() => void fetchFavicon()}
                 >
-                  <RefreshCw aria-hidden="true" className={faviconFetching ? 'animate-spin' : ''} />
+                  <RefreshCw
+                    aria-hidden="true"
+                    className={faviconFetching ? 'motion-safe:animate-spin' : ''}
+                  />
                   {faviconFetching ? '获取中' : '获取图标'}
                 </Button>
               </div>

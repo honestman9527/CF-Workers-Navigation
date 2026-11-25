@@ -30,6 +30,7 @@ import {
   isSidebarToggleShortcut,
 } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
+import { runViewTransition } from '@/lib/viewTransition';
 import { api } from '@nav/api/client';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
@@ -243,7 +244,12 @@ function NavigationSurface() {
     void browse.selectCategory(category, draft);
   }
   function selectMode(next: SearchMode) {
-    update({ ...search, mode: next, q: draft.trim() || undefined });
+    runViewTransition(
+      () => {
+        void update({ ...search, mode: next, q: draft.trim() || undefined });
+      },
+      { kind: 'fade' },
+    );
   }
   function clearSearch() {
     setDraft('');
@@ -344,10 +350,11 @@ function NavigationSurface() {
     void navigate({
       to: '/login',
       search: { redirect: window.location.pathname + window.location.search },
+      viewTransition: true,
     });
   }, [navigate]);
   const goAdmin = useCallback(() => {
-    void navigate({ to: '/admin' });
+    void navigate({ to: '/admin', viewTransition: true });
   }, [navigate]);
 
   return (
@@ -358,6 +365,7 @@ function NavigationSurface() {
         sidebarOpen ? 'lg:grid-cols-[264px_minmax(0,1fr)]' : 'lg:grid-cols-[72px_minmax(0,1fr)]',
       )}
     >
+      <div aria-hidden="true" className="scroll-progress-bar" />
       <a href="#front-main" className="skip-link">
         跳至主内容
       </a>
@@ -577,13 +585,18 @@ function NavigationSurface() {
                   <FrontButton
                     tone="quiet"
                     aria-label={effectiveResolvedTheme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
-                    onClick={() => setTheme(effectiveResolvedTheme === 'dark' ? 'light' : 'dark')}
+                    onClick={(event) =>
+                      runViewTransition(
+                        () => setTheme(effectiveResolvedTheme === 'dark' ? 'light' : 'dark'),
+                        { kind: 'ripple', origin: event.currentTarget },
+                      )
+                    }
                     className="size-9 min-h-9 rounded-xl p-0 pointer-coarse:size-11"
                   >
                     {effectiveResolvedTheme === 'dark' ? (
-                      <Sun aria-hidden="true" className="size-4" />
+                      <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
                     ) : (
-                      <Moon aria-hidden="true" className="size-4" />
+                      <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
                     )}
                   </FrontButton>
                 </FrontTooltip>
@@ -713,7 +726,9 @@ function NavigationSurface() {
                   aria-label="舒适卡片视图"
                   aria-pressed={density === 'comfortable'}
                   title="舒适卡片"
-                  onClick={() => setDensity('comfortable')}
+                  onClick={() =>
+                    runViewTransition(() => setDensity('comfortable'), { kind: 'fade' })
+                  }
                   className={cn(
                     'min-h-9 gap-1.5 rounded-lg px-2.5 text-xs',
                     density === 'comfortable'
@@ -728,7 +743,7 @@ function NavigationSurface() {
                   aria-label="紧凑网格视图"
                   aria-pressed={density === 'compact'}
                   title="紧凑网格"
-                  onClick={() => setDensity('compact')}
+                  onClick={() => runViewTransition(() => setDensity('compact'), { kind: 'fade' })}
                   className={cn(
                     'min-h-9 gap-1.5 rounded-lg px-2.5 text-xs',
                     density === 'compact'
@@ -866,7 +881,7 @@ function NavigationSurface() {
               />
               {draft ? (
                 <FrontButton
-                  className="size-10 rounded-lg p-0"
+                  className="control-enter size-10 rounded-lg p-0"
                   aria-label="清除搜索"
                   onClick={clearSearch}
                 >

@@ -231,7 +231,7 @@ export function TransferTab() {
               variant="secondary"
             >
               {exportFormat === 'html' ? (
-                <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                <LoaderCircle className="motion-safe:animate-spin" data-icon="inline-start" />
               ) : (
                 <FileCode className="text-primary" data-icon="inline-start" />
               )}
@@ -250,7 +250,7 @@ export function TransferTab() {
               variant="secondary"
             >
               {exportFormat === 'json' ? (
-                <LoaderCircle className="animate-spin" data-icon="inline-start" />
+                <LoaderCircle className="motion-safe:animate-spin" data-icon="inline-start" />
               ) : (
                 <Braces className="text-primary" data-icon="inline-start" />
               )}
@@ -340,7 +340,7 @@ export function TransferTab() {
               {importState.stage === 'done' ? (
                 <CheckCircle size={16} className="fill-current text-primary" />
               ) : busy ? (
-                <LoaderCircle size={16} className="animate-spin text-primary" />
+                <LoaderCircle size={16} className="text-primary motion-safe:animate-spin" />
               ) : (
                 <RefreshCw size={16} className="text-muted-foreground" />
               )}

@@ -35,7 +35,7 @@ export function CategoryGroups({
     >
       <div className="mb-6 flex min-w-0 flex-wrap items-center gap-2.5">
         <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-        <h2 className="min-w-0 text-lg font-semibold tracking-tight break-words sm:text-xl">
+        <h2 className="min-w-0 text-lg font-semibold tracking-tight wrap-break-word sm:text-xl">
           {root.name}
         </h2>
         {root.effectiveVisibility === 'private' ? (
@@ -107,7 +107,7 @@ function CategoryGroup({
     >
       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="min-w-0 text-sm font-semibold break-words text-foreground sm:text-base">
+          <h3 className="min-w-0 text-sm font-semibold wrap-break-word text-foreground sm:text-base">
             {title}
           </h3>
           {!direct && category.effectiveVisibility === 'private' ? (

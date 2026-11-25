@@ -14,7 +14,7 @@ export const adminRoute = createRoute({
 
 function AdminPending() {
   return (
-    <main className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
+    <main className="flex min-h-dvh items-center justify-center bg-background text-muted-foreground">
       正在打开管理后台…
     </main>
   );

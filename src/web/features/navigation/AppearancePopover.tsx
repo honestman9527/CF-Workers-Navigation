@@ -111,7 +111,7 @@ export function AppearancePopover({
               <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
                 <span
                   aria-hidden="true"
-                  className="size-2.5 rounded-full bg-primary ring-2 ring-primary/25 [forced-color-adjust:none]"
+                  className="size-2.5 rounded-full bg-primary ring-2 ring-primary/25 forced-color-adjust-none"
                 />
                 {currentPaletteLabel}
               </span>
@@ -185,7 +185,7 @@ export function AppearancePopover({
                       >
                         <span
                           aria-hidden="true"
-                          className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
+                          className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 forced-color-adjust-none dark:ring-white/15"
                           style={{ backgroundColor: swatch }}
                         />
                         <span className="min-w-0 flex-1 truncate">{option.label}</span>

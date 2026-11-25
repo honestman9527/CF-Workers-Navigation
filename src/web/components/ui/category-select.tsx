@@ -35,7 +35,7 @@ export function CategorySelect(props: SearchSelectProps) {
           <Popover.Popup
             aria-label={label}
             initialFocus={input}
-            className="flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg bg-popover p-2 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none"
+            className="glass-surface overlay-popup flex max-h-(--available-height) w-[max(20rem,var(--anchor-width))] max-w-[calc(100vw-2rem)] origin-(--transform-origin) flex-col overflow-hidden rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none"
           >
             <div className="relative mb-2">
               <Search

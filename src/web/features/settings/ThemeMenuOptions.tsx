@@ -63,7 +63,7 @@ export function PaletteMenuOptions({
         <DropdownMenuRadioItem key={option.id} value={option.id}>
           <span
             aria-hidden="true"
-            className="size-3 shrink-0 rounded-full ring-1 ring-black/10 [forced-color-adjust:none] dark:ring-white/15"
+            className="size-3 shrink-0 rounded-full ring-1 ring-black/10 forced-color-adjust-none dark:ring-white/15"
             style={{ backgroundColor: isDark ? option.dark : option.light }}
           />
           {option.label}

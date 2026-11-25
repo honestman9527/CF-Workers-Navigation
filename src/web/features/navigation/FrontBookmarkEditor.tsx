@@ -263,7 +263,7 @@ export function FrontBookmarkEditor({
                     onClick={() => void editor.fetchFavicon()}
                   >
                     <RefreshCw
-                      className={`size-4 ${editor.faviconFetching ? 'animate-spin' : ''}`}
+                      className={`size-4 ${editor.faviconFetching ? 'motion-safe:animate-spin' : ''}`}
                     />
                   </FrontButton>
                 </div>

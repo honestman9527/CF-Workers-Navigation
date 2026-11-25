@@ -1,4 +1,5 @@
 import type { ViewDensity } from '@shared';
+import type { CSSProperties } from 'react';
 
 import type { CategoryNode } from '@nav/features/categories/tree';
 import type { Bookmark } from '@shared/api/types';
@@ -54,7 +55,7 @@ export function FeedContent({
             <div
               key={index}
               className={cn(
-                'animate-pulse rounded-2xl border border-border bg-secondary/60',
+                'rounded-2xl border border-border bg-secondary/60 motion-safe:animate-pulse',
                 compact ? 'h-[62px]' : 'h-[98px]',
               )}
             />
@@ -76,8 +77,21 @@ export function FeedContent({
               <li
                 key={bookmark.id}
                 data-density={compact ? 'compact' : 'comfortable'}
+                style={{ '--sibling-index': Math.min(index + 1, 12) } as CSSProperties}
+                onPointerMove={(event) => {
+                  if (event.pointerType !== 'mouse') return;
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  event.currentTarget.style.setProperty(
+                    '--pointer-x',
+                    `${event.clientX - rect.left}px`,
+                  );
+                  event.currentTarget.style.setProperty(
+                    '--pointer-y',
+                    `${event.clientY - rect.top}px`,
+                  );
+                }}
                 className={cn(
-                  'group relative flex min-w-0 flex-col justify-between rounded-2xl border border-border bg-background/75 shadow-2xs transition-[transform,border-color,box-shadow,background-color] duration-200 hover:border-primary/40 hover:bg-card hover:shadow-md motion-safe:hover:-translate-y-0.5 dark:bg-secondary/55 dark:hover:bg-card',
+                  'bookmark-card card-stagger-enter group relative flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-border bg-background/75 shadow-2xs hover:border-primary/40 hover:bg-card hover:shadow-md dark:bg-secondary/55 dark:hover:bg-card',
                   compact ? 'gap-2 p-3' : 'gap-3 p-4',
                   highlighted === index &&
                     'border-primary bg-accent ring-2 ring-primary/25 dark:bg-accent',
@@ -92,7 +106,7 @@ export function FeedContent({
                 >
                   <span
                     className={cn(
-                      'grid shrink-0 place-items-center border border-border bg-secondary/80 transition-colors group-hover:border-primary/25 dark:bg-background/60',
+                      'bookmark-card-icon grid shrink-0 place-items-center border border-border bg-secondary/80 group-hover:border-primary/25 dark:bg-background/60',
                       compact ? 'size-9 rounded-lg' : 'size-11 rounded-xl',
                     )}
                   >
@@ -127,8 +141,9 @@ export function FeedContent({
                       </span>
                       {bookmark.isPinned ? (
                         <Star
+                          key="pinned-badge"
                           aria-label="常用书签"
-                          className="size-3.5 shrink-0 fill-current text-primary"
+                          className="star-pop size-3.5 shrink-0 fill-current text-primary"
                         />
                       ) : null}
                     </span>
@@ -198,13 +213,9 @@ export function FeedContent({
                 ) : null}
 
                 {actions.authed ? (
-                  <div
-                    className={cn(
-                      'flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2 sm:[@media(hover:hover)]:pointer-events-none sm:[@media(hover:hover)]:absolute sm:[@media(hover:hover)]:top-2.5 sm:[@media(hover:hover)]:right-2.5 sm:[@media(hover:hover)]:z-10 sm:[@media(hover:hover)]:gap-0.5 sm:[@media(hover:hover)]:rounded-xl sm:[@media(hover:hover)]:border sm:[@media(hover:hover)]:border-border sm:[@media(hover:hover)]:bg-popover/95 sm:[@media(hover:hover)]:p-1 sm:[@media(hover:hover)]:opacity-0 sm:[@media(hover:hover)]:shadow-md sm:[@media(hover:hover)]:backdrop-blur-md sm:[@media(hover:hover)]:transition-opacity sm:[@media(hover:hover)]:duration-150 sm:[@media(hover:hover)]:group-focus-within:pointer-events-auto sm:[@media(hover:hover)]:group-focus-within:opacity-100 sm:[@media(hover:hover)]:group-hover:pointer-events-auto sm:[@media(hover:hover)]:group-hover:opacity-100',
-                    )}
-                  >
+                  <div className="flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2 sm:hover-capable:pointer-events-none sm:hover-capable:absolute sm:hover-capable:top-2.5 sm:hover-capable:right-2.5 sm:hover-capable:z-10 sm:hover-capable:gap-0.5 sm:hover-capable:rounded-xl sm:hover-capable:border sm:hover-capable:border-border sm:hover-capable:bg-popover/95 sm:hover-capable:p-1 sm:hover-capable:opacity-0 sm:hover-capable:shadow-md sm:hover-capable:backdrop-blur-md sm:hover-capable:transition-opacity sm:hover-capable:duration-150 sm:hover-capable:group-focus-within:pointer-events-auto sm:hover-capable:group-focus-within:opacity-100 sm:hover-capable:group-hover:pointer-events-auto sm:hover-capable:group-hover:opacity-100">
                     <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
+                      className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
                       aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
                       aria-pressed={bookmark.isPinned}
                       title={bookmark.isPinned ? '取消常用' : '加入常用'}
@@ -212,12 +223,16 @@ export function FeedContent({
                       onClick={() => actions.onPin(bookmark)}
                     >
                       <Star
+                        key={bookmark.isPinned ? 'pinned' : 'unpinned'}
                         aria-hidden="true"
-                        className={cn('size-3.5', bookmark.isPinned && 'fill-current text-primary')}
+                        className={cn(
+                          'size-3.5',
+                          bookmark.isPinned && 'star-pop fill-current text-primary',
+                        )}
                       />
                     </FrontButton>
                     <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
+                      className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
                       aria-label={`编辑：${bookmark.title}`}
                       title="编辑书签"
                       onClick={() => actions.onEdit(bookmark)}
@@ -226,7 +241,7 @@ export function FeedContent({
                     </FrontButton>
                     {actions.onDelete ? (
                       <FrontButton
-                        className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:[@media(hover:hover)]:min-h-8 sm:[@media(hover:hover)]:w-8 sm:[@media(hover:hover)]:min-w-8"
+                        className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
                         aria-label={`删除：${bookmark.title}`}
                         title="移入回收站"
                         disabled={actions.pendingIds.has(bookmark.id)}
@@ -306,7 +321,7 @@ export function BookmarkSection({
           <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
           <h2
             tabIndex={-1}
-            className="min-w-0 text-lg font-semibold tracking-tight break-words sm:text-xl"
+            className="min-w-0 text-lg font-semibold tracking-tight wrap-break-word sm:text-xl"
           >
             {title}
           </h2>

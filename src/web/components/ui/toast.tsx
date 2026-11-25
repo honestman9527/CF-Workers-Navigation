@@ -1,5 +1,3 @@
-'use client';
-
 import { Toast as ToastPrimitive } from '@base-ui/react/toast';
 import {
   XIcon,
@@ -154,7 +152,7 @@ function ToastIcon({ type }: { type: string | undefined }) {
   }
 
   if (type === 'loading') {
-    icon = <Loader2Icon className="animate-spin" aria-hidden="true" />;
+    icon = <Loader2Icon className="motion-safe:animate-spin" aria-hidden="true" />;
   }
 
   if (!icon) {

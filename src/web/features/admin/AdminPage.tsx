@@ -55,6 +55,7 @@ import {
 import { Toaster } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { runViewTransition } from '@/lib/viewTransition';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
@@ -337,15 +338,20 @@ function AdminSidebarContent({
                       variant="ghost"
                       size="icon"
                       aria-label={isDark ? '切换亮色模式' : '切换暗色模式'}
-                      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                      onClick={(event) =>
+                        runViewTransition(() => setTheme(isDark ? 'light' : 'dark'), {
+                          kind: 'ripple',
+                          origin: event.currentTarget,
+                        })
+                      }
                       className="size-9 min-h-9 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground pointer-coarse:size-11"
                     />
                   }
                 >
                   {isDark ? (
-                    <Sun aria-hidden="true" className="size-4" />
+                    <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
                   ) : (
-                    <Moon aria-hidden="true" className="size-4" />
+                    <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
                   )}
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
@@ -504,6 +510,7 @@ export function AdminPage() {
         }
         className="admin-surface app-root min-h-dvh w-full max-w-full bg-background text-foreground"
       >
+        <div aria-hidden="true" className="scroll-progress-bar" />
         <a href="#admin-main" className="skip-link">
           跳至主内容
         </a>
@@ -511,7 +518,7 @@ export function AdminPage() {
           id="admin-sidebar"
           collapsible="icon"
           variant="sidebar"
-          className="top-[var(--safe-t)] bottom-[env(safe-area-inset-bottom)] h-auto border-border"
+          className="top-(--safe-t) bottom-[env(safe-area-inset-bottom)] h-auto border-border"
         >
           <AdminSidebarContent
             frontRoute={frontRoute}

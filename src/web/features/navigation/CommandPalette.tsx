@@ -585,7 +585,7 @@ export function CommandPalette({
             ref={listRef}
             role="listbox"
             aria-label="命令结果"
-            className="scrollbar-safe min-h-0 flex-1 scroll-fade-y overflow-y-auto overscroll-contain p-2"
+            className="scrollbar-safe min-h-0 flex-1 scroll-edge-fade overflow-y-auto overscroll-contain p-2"
           >
             {searchingRemote ? (
               <p role="status" className="px-3 py-2 text-xs text-muted-foreground">

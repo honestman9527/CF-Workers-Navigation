@@ -2,7 +2,7 @@ import type { ResolvedTheme, Theme } from '@shared';
 
 import { resolveTheme } from '@shared';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { themeAtom } from '@nav/features/settings/store';
 
@@ -44,7 +44,7 @@ export function useTheme() {
 
   const resolvedTheme = resolveTheme(theme, systemTheme === 'dark');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyTheme(theme, resolvedTheme);
   }, [theme, resolvedTheme]);
 

@@ -151,7 +151,7 @@ function TreeNode({
               ) : null}
               <span className="min-w-0 flex-1 truncate">{node.name}</span>
             </TooltipTrigger>
-            <TooltipContent side="right" className="break-words">
+            <TooltipContent side="right" className="wrap-break-word">
               {label}
             </TooltipContent>
           </Tooltip>
