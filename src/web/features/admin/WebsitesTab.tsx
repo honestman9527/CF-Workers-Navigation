@@ -218,7 +218,7 @@ export function WebsitesTab() {
             if (next) selectView(next.id);
           }}
           variant="outline"
-          size="sm"
+          size="default"
           spacing={0}
         >
           {VIEWS.map((item) => (
