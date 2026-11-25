@@ -3,7 +3,7 @@
 ## 环境要求
 
 - Node.js `>=24`
-- pnpm `>=11`
+- pnpm `>=12`
 - Cloudflare Workers 和 D1 账户
 
 本地 Worker 使用 Wrangler 开发服务器，默认地址为 `http://localhost:8787`。本地 D1 状态保存在 `.wrangler/state`。
@@ -119,6 +119,4 @@ pnpm exec wrangler d1 time-travel restore DB --bookmark=<BEFORE_MIGRATION_BOOKMA
 
 ## 静态资源与路由
 
-Web 构建输出为 `dist/web`，通过 Wrangler 的静态资源配置发布并使用 SPA 回退。`/api`、`/api/*` 和 `/health` 先交由 Worker 处理，其他页面和静态资源由 Cloudflare 静态资源路由响应。架构细节见[架构与服务边界](architecture.md)。
-
-构建生成静态资源 `_headers`，包含页面安全头、CSP 和带哈希文件名资源的 immutable 缓存规则；Worker 自行设置 API 安全头。发布时核对页面加载与 CSP 控制台报告，确认主题初始化脚本、字体和外部图片正常；静态资源的 `_headers` 不会自动作用于 Worker API 响应。
+Web 静态资源托管、SPA 回退及构建生成的 `_headers`（CSP 与资源缓存策略）见[架构与服务边界](architecture.md#运行时与代码边界)。发布时需核对页面加载与 CSP 控制台报告，确认主题初始化脚本、字体和外部图片正常；静态资源的 `_headers` 不会自动作用于 Worker API 响应。
