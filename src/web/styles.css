@@ -680,6 +680,131 @@
     --progress-bar-indeterminate-size: 35%;
     --progress-bar-indeterminate-duration: 1.4s;
   }
+  /* 书签拖拽排序手柄、抬升态、键盘拾取态与纯伪元素放置指示器。 */
+  :root.drag-reordering,
+  :root.drag-reordering * {
+    cursor: grabbing !important;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .drag-handle {
+    cursor: grab;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .drag-handle:is(:hover, :focus-visible) {
+    background-color: var(--accent);
+    color: var(--primary);
+  }
+  .drag-handle:active,
+  .drag-handle[aria-pressed='true'] {
+    cursor: grabbing;
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+  .sortable-item {
+    scroll-margin: 1rem;
+  }
+  .sortable-item:has(.drag-handle:focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .sortable-item[data-dragging='true'] {
+    position: relative;
+    z-index: 30;
+    translate: var(--drag-x, 0px) var(--drag-y, 0px);
+    scale: 1.02;
+    opacity: 0.96;
+    pointer-events: none;
+    transition: none;
+    animation: none;
+    box-shadow: 0 18px 36px -14px rgb(15 23 42 / 0.28);
+  }
+  .dark .sortable-item[data-dragging='true'] {
+    box-shadow: 0 20px 40px -14px rgb(0 0 0 / 0.6);
+  }
+  .bookmark-card[data-dragging='true']::before {
+    opacity: 0;
+  }
+  .sortable-item[data-grabbed='true'] {
+    position: relative;
+    z-index: 25;
+    opacity: 1;
+    scale: 1.015;
+    border-color: var(--primary);
+    box-shadow: 0 12px 28px -12px rgb(15 23 42 / 0.22);
+  }
+  .sortable-item[data-settling='true'] {
+    position: relative;
+    z-index: 25;
+  }
+  [data-drop] {
+    --drop-marker-color: var(--primary);
+    --drop-marker-size: 2px;
+    --drop-marker-ring: 8px;
+  }
+  [data-drop='horizontal']::before,
+  [data-drop='horizontal']::after,
+  [data-drop='vertical']::before,
+  [data-drop='vertical']::after {
+    content: '';
+    position: absolute;
+    z-index: 40;
+    pointer-events: none;
+  }
+  [data-drop='horizontal']::after {
+    left: var(--drop-x, 0px);
+    top: calc(var(--drop-y, 0px) - var(--drop-marker-size) / 2);
+    width: var(--drop-w, 0px);
+    height: var(--drop-marker-size);
+    border-radius: 9999px;
+    background: var(--drop-marker-color);
+  }
+  [data-drop='horizontal']::before {
+    left: calc(var(--drop-x, 0px) - var(--drop-marker-ring) / 2);
+    top: calc(var(--drop-y, 0px) - var(--drop-marker-ring) / 2);
+    width: var(--drop-marker-ring);
+    height: var(--drop-marker-ring);
+    border-radius: 9999px;
+    border: 2px solid var(--drop-marker-color);
+    background: var(--background);
+  }
+  [data-drop='vertical']::after {
+    left: calc(var(--drop-x, 0px) - var(--drop-marker-size) / 2);
+    top: var(--drop-y, 0px);
+    width: var(--drop-marker-size);
+    height: var(--drop-h, 0px);
+    border-radius: 9999px;
+    background: var(--drop-marker-color);
+  }
+  [data-drop='vertical']::before {
+    left: calc(var(--drop-x, 0px) - var(--drop-marker-ring) / 2);
+    top: calc(var(--drop-y, 0px) - var(--drop-marker-ring) / 2);
+    width: var(--drop-marker-ring);
+    height: var(--drop-marker-ring);
+    border-radius: 9999px;
+    border: 2px solid var(--drop-marker-color);
+    background: var(--background);
+  }
+  @media (forced-colors: active) {
+    [data-drop] {
+      --drop-marker-color: Highlight;
+    }
+  }
+  .bookmark-sort-list {
+    view-transition-scope: all;
+  }
+  .bookmark-sort-list[data-vt-sorting='true'] > li {
+    view-transition-name: match-element;
+    view-transition-class: bookmark-sort-item;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-group(.bookmark-sort-item) {
+      animation-duration: 0.24s;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
   .native-progress::-webkit-progress-bar {
     background: transparent;
   }

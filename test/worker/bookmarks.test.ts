@@ -48,7 +48,8 @@ describe('bookmarks api', () => {
       archivedAt: null,
       deletedAt: null,
     });
-    expect(created).not.toHaveProperty('sortOrder');
+    expect(created.sortOrder).toEqual(expect.any(Number));
+    expect(created.sortOrder).toBeGreaterThanOrEqual(0);
 
     const detail = await exports.default.fetch(`${API}/bookmarks/${created.id}`, {
       headers: adminHeaders,
@@ -504,7 +505,7 @@ describe('untagged bookmark filter', () => {
       expect.arrayContaining([empty.id, both.id]),
     );
     expect(ids((await listBookmarks('?untagged=true')).page)).not.toContain(tagged.id);
-    const uncategorized = ids((await listBookmarks('?category=uncategorized')).page);
+    const uncategorized = ids((await listBookmarks('?category=uncategorized&limit=100')).page);
     expect(uncategorized).toContain(tagged.id);
     expect(uncategorized).not.toContain(empty.id);
     expect(ids((await listBookmarks('?tag=untagged')).page)).toContain(tagged.id);
@@ -672,7 +673,7 @@ describe('direct category bookmark groups', () => {
     const own = await listBookmarks(
       `?category=${root.slug}&categoryOnly=true&tag=flatgroup&offset=0&limit=1`,
     );
-    expect(ids(own.page)).toEqual([later.id]);
+    expect(ids(own.page)).toEqual([direct.id]);
     expect(own.page.total).toBe(2);
     const search = await searchBookmarks('flatgroup', {
       category: root.slug,
@@ -686,13 +687,13 @@ describe('direct category bookmark groups', () => {
     );
     expect(response.status).toBe(200);
     const page = await response.json<BookmarkPage>();
-    expect(ids(page)).toEqual([later.id]);
+    expect(ids(page)).toEqual([direct.id]);
     expect(page.nextCursor).not.toBeNull();
     const nextResponse = await exports.default.fetch(
       `${API}/bookmarks?category=${root.slug}&categoryOnly=true&limit=1&cursor=${encodeURIComponent(page.nextCursor!)}`,
     );
     const nextPage = await nextResponse.json<BookmarkPage>();
-    expect(ids(nextPage)).toEqual([direct.id]);
+    expect(ids(nextPage)).toEqual([later.id]);
     expect(nextPage.nextCursor).toBeNull();
     expect(
       (await listBookmarks('?category=missing-flatgroup&categoryOnly=true')).page.items,
@@ -711,5 +712,204 @@ describe('direct category bookmark groups', () => {
       `${API}/bookmarks?category=${privateRoot.slug}&categoryOnly=true`,
     );
     expect((await hidden.json<BookmarkPage>()).items).toEqual([]);
+  });
+});
+
+describe('bookmark sorting and reorder', () => {
+  async function createCategory(name: string) {
+    const response = await exports.default.fetch(`${API}/categories`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name }),
+    });
+    expect(response.status).toBe(201);
+    return response.json<{ id: number; slug: string }>();
+  }
+
+  it('orders bookmarks inside a category by addition order and appends moved bookmarks', async () => {
+    const catA = await createCategory('SortCatA');
+    const catB = await createCategory('SortCatB');
+    const a1 = await createBookmark({
+      title: 'A1',
+      url: 'https://sort-a1.test',
+      categoryId: catA.id,
+    });
+    const a2 = await createBookmark({
+      title: 'A2',
+      url: 'https://sort-a2.test',
+      categoryId: catA.id,
+    });
+    const a3 = await createBookmark({
+      title: 'A3',
+      url: 'https://sort-a3.test',
+      categoryId: catA.id,
+    });
+    const b1 = await createBookmark({
+      title: 'B1',
+      url: 'https://sort-b1.test',
+      categoryId: catB.id,
+    });
+
+    expect([a1.sortOrder, a2.sortOrder, a3.sortOrder]).toEqual([0, 1, 2]);
+    expect(
+      (await listBookmarks(`?category=${catA.slug}&categoryOnly=true`)).page.items.map((i) => i.id),
+    ).toEqual([a1.id, a2.id, a3.id]);
+
+    // 编辑标题不改变 sortOrder
+    const edited = await exports.default.fetch(`${API}/bookmarks/${a1.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ title: 'A1 Updated', categoryId: catA.id }),
+    });
+    expect((await edited.json<Bookmark>()).sortOrder).toBe(0);
+
+    // 移动到新分类后追加到末尾
+    const moved = await exports.default.fetch(`${API}/bookmarks/${a2.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ categoryId: catB.id }),
+    });
+    expect((await moved.json<Bookmark>()).sortOrder).toBe(1);
+    expect(
+      (await listBookmarks(`?category=${catB.slug}&categoryOnly=true`)).page.items.map((i) => i.id),
+    ).toEqual([b1.id, a2.id]);
+  });
+
+  it('requires auth and validates reorder inputs without partial writes', async () => {
+    const cat1 = await createCategory('ReorderVal1');
+    const cat2 = await createCategory('ReorderVal2');
+    const bm1 = await createBookmark({
+      title: 'V1',
+      url: 'https://reorder-v1.test',
+      categoryId: cat1.id,
+    });
+    const bm2 = await createBookmark({
+      title: 'V2',
+      url: 'https://reorder-v2.test',
+      categoryId: cat1.id,
+    });
+    const bmOther = await createBookmark({
+      title: 'VO',
+      url: 'https://reorder-vo.test',
+      categoryId: cat2.id,
+    });
+    const bmArchived = await createBookmark({
+      title: 'VA',
+      url: 'https://reorder-va.test',
+      categoryId: cat1.id,
+    });
+    await exports.default.fetch(`${API}/bookmarks/${bmArchived.id}/archive`, {
+      method: 'POST',
+      headers: adminHeaders,
+    });
+
+    const unauthed = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [bm2.id, bm1.id] }),
+    });
+    expect(unauthed.status).toBe(401);
+
+    const empty = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [] }),
+    });
+    expect(empty.status).toBe(400);
+
+    const missing = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [bm2.id, 999999] }),
+    });
+    expect(missing.status).toBe(404);
+
+    const mixed = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [bm1.id, bmOther.id] }),
+    });
+    expect(mixed.status).toBe(400);
+
+    const archived = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [bm1.id, bmArchived.id] }),
+    });
+    expect(archived.status).toBe(400);
+
+    expect(
+      (await listBookmarks(`?category=${cat1.slug}&categoryOnly=true`)).page.items.map((i) => i.id),
+    ).toEqual([bm1.id, bm2.id]);
+  });
+
+  it('reorders bookmarks, preserves pagination slots, handles zeroed orders, and rejects invalid manual cursors', async () => {
+    const cat = await createCategory('ReorderSlots');
+    const items = [];
+    for (let index = 0; index < 5; index += 1) {
+      items.push(
+        await createBookmark({
+          title: `S${index}`,
+          url: `https://slot-${index}.test`,
+          categoryId: cat.id,
+        }),
+      );
+    }
+
+    // 仅重排前 3 项，后 2 项位置保持不变
+    const partial = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: [items[2].id, items[0].id, items[1].id] }),
+    });
+    expect(partial.status).toBe(204);
+
+    const page1 = await listBookmarks(`?category=${cat.slug}&categoryOnly=true&limit=3`);
+    expect(page1.page.items.map((i) => i.id)).toEqual([items[2].id, items[0].id, items[1].id]);
+    expect(page1.page.nextCursor).toBeTruthy();
+
+    const page2 = await listBookmarks(
+      `?category=${cat.slug}&categoryOnly=true&limit=3&cursor=${encodeURIComponent(page1.page.nextCursor!)}`,
+    );
+    expect(page2.page.items.map((i) => i.id)).toEqual([items[3].id, items[4].id]);
+    expect(page2.page.nextCursor).toBeNull();
+
+    const offsetPage = await listBookmarks(
+      `?category=${cat.slug}&categoryOnly=true&offset=1&limit=2`,
+    );
+    expect(offsetPage.page.items.map((i) => i.id)).toEqual([items[0].id, items[1].id]);
+
+    // 非法手动排序游标
+    const badCursor = btoa(JSON.stringify({ sortOrder: -1, id: 1 }))
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replace(/=+$/, '');
+    const invalidCursorResp = await exports.default.fetch(
+      `${API}/bookmarks?category=${cat.slug}&categoryOnly=true&cursor=${badCursor}`,
+      { headers: adminHeaders },
+    );
+    expect(invalidCursorResp.status).toBe(400);
+
+    // 模拟未分类书签重排及 D1 绑定参数边界（35 条 > REORDER_CHUNK_SIZE=30）
+    const bulkCat = await createCategory('ReorderBulk');
+    const bulk = [];
+    for (let index = 0; index < 35; index += 1) {
+      bulk.push(
+        await createBookmark({
+          title: `Bulk${index}`,
+          url: `https://bulk-sort-${index}.test`,
+          categoryId: bulkCat.id,
+        }),
+      );
+    }
+    const reversedIds = bulk.map((item) => item.id).reverse();
+    const bulkResp = await exports.default.fetch(`${API}/bookmarks/reorder`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ ids: reversedIds }),
+    });
+    expect(bulkResp.status).toBe(204);
+    const fetchedBulk = await listBookmarks(`?category=${bulkCat.slug}&categoryOnly=true&limit=50`);
+    expect(fetchedBulk.page.items.map((i) => i.id)).toEqual(reversedIds);
   });
 });

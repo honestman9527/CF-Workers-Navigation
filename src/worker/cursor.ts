@@ -1,6 +1,7 @@
 import { ServiceError } from './services/errors';
 
 type ListCursor = { createdAt: string; id: number };
+type ManualListCursor = { sortOrder: number; id: number };
 type SearchCursor = { rank: number; id: number };
 
 const textEncoder = new TextEncoder();
@@ -47,6 +48,28 @@ export function decodeListCursor(raw: string | undefined): ListCursor | null {
     throw new ServiceError(400, 'validation_error', 'Invalid cursor');
   }
   return { createdAt: value.createdAt, id };
+}
+
+export function encodeManualListCursor(value: ManualListCursor): string {
+  return encode(value);
+}
+
+export function decodeManualListCursor(raw: string | undefined): ManualListCursor | null {
+  if (!raw) return null;
+  const value = decode(raw);
+  const sortOrder = value.sortOrder;
+  const id = value.id;
+  if (
+    typeof sortOrder !== 'number' ||
+    !Number.isInteger(sortOrder) ||
+    sortOrder < 0 ||
+    typeof id !== 'number' ||
+    !Number.isInteger(id) ||
+    id <= 0
+  ) {
+    throw new ServiceError(400, 'validation_error', 'Invalid cursor');
+  }
+  return { sortOrder, id };
 }
 
 export function encodeSearchCursor(value: SearchCursor): string {

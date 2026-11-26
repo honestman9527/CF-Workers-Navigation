@@ -5,6 +5,7 @@ export const ENDPOINTS = {
   authLogout: `${API_V1_PREFIX}/auth/logout`,
   authMe: `${API_V1_PREFIX}/auth/me`,
   bookmarks: `${API_V1_PREFIX}/bookmarks`,
+  bookmarksReorder: `${API_V1_PREFIX}/bookmarks/reorder`,
   bookmarksSearch: `${API_V1_PREFIX}/bookmarks/search`,
   bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
   bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,

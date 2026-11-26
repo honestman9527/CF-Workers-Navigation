@@ -5,8 +5,8 @@
 ## 导出
 
 - 导出和预检接口都需要 `format=json` 或 `format=html`；导出不接受 `auto`。
-- JSON 导出使用 v2 格式，包含分类树、显式权限、书签字段、标签、置顶状态、归档/删除时间和导出时间。
-- HTML 导出使用 Netscape Bookmark 文件格式，保留分类层级、书签标题、URL，以及支持的图标、添加时间和描述。
+- JSON 导出使用 v2 格式，包含分类树、显式权限、书签字段、排序序号（`sortOrder`）、标签、置顶状态、归档/删除时间和导出时间。
+- HTML 导出使用 Netscape Bookmark 文件格式，保留分类层级、文件夹内书签排序、书签标题、URL，以及支持的图标、添加时间和描述。
 - Worker 按 300 条一批查询并流式生成文件；浏览器先请求导出预检，再直接下载响应。
 - 导出包括管理员可见的私有数据，也包括活动、归档和回收站状态的书签。
 
@@ -62,6 +62,7 @@ JSON v2 的分类通过 `slug` 和 `parentSlug` 表示层级；书签通过 `cat
       "categorySlug": "docs",
       "tags": ["Cloudflare"],
       "isPinned": true,
+      "sortOrder": 0,
       "addedAt": "2026-10-01T08:00:00.000Z",
       "archivedAt": null,
       "deletedAt": null

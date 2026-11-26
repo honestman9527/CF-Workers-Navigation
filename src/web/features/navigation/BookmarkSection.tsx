@@ -7,10 +7,25 @@ import type { Bookmark } from '@shared/api/types';
 import type { BookmarkFeedCache } from './bookmarkFeedCache';
 import type { BookmarkFeed } from './useBookmarkFeed';
 
-import { Folder, Hash, Inbox, LockKeyhole, Pencil, Star, Trash2 } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Folder,
+  GripVertical,
+  Hash,
+  Inbox,
+  LockKeyhole,
+  Pencil,
+  Star,
+  Trash2,
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { useSortableList } from '@/lib/sortable';
 import { cn } from '@/lib/utils';
+import { api, ApiError } from '@nav/api/client';
 import { categoryIcon } from '@nav/features/categories/icons';
 import { domainOf } from '@shared/search';
 
@@ -27,28 +42,175 @@ export type BookmarkActions = {
   onDelete?: (bookmark: Bookmark) => void;
   onSelectTag?: (tag: string) => void;
   onSelectCategory?: (slug: string) => void;
+  onNotice?: (message: string) => void;
+  onUnauthorized?: () => void;
 };
+
+export function SortModeToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <FrontButton
+      tone={active ? 'primary' : 'subtle'}
+      aria-pressed={active}
+      onClick={onToggle}
+      className="min-h-8 gap-1.5 rounded-lg px-2.5 text-xs pointer-coarse:min-h-11"
+    >
+      <ArrowUpDown aria-hidden="true" className="size-3.5" />
+      <span>{active ? '完成排序' : '排序'}</span>
+    </FrontButton>
+  );
+}
 
 export function FeedContent({
   feed,
   actions,
   highlighted = -1,
   showCategoryBadge = true,
+  reorderable = false,
+  sortMode = false,
   emptyMessage = '这里还没有网站',
 }: {
   feed: BookmarkFeed;
   actions: BookmarkActions;
   highlighted?: number;
   showCategoryBadge?: boolean;
+  reorderable?: boolean;
+  sortMode?: boolean;
   emptyMessage?: string;
 }) {
   const compact = actions.density === 'compact';
   const gridClass = compact
     ? 'grid grid-cols-1 gap-2.5 @sm:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5'
     : 'grid grid-cols-1 gap-3.5 @lg:grid-cols-2 @3xl:grid-cols-3 @6xl:grid-cols-4';
+  const canReorder = Boolean(reorderable && actions.authed && feed.items.length > 1);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const aliveRef = useRef(true);
+  const feedRef = useRef(feed);
+  const actionsRef = useRef(actions);
+
+  useEffect(() => {
+    feedRef.current = feed;
+  }, [feed]);
+
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  const handleOrderChange = useCallback((nextIds: number[], { commit }: { commit: boolean }) => {
+    const currentFeed = feedRef.current;
+    const previousIds = currentFeed.items.map((item) => item.id);
+    currentFeed.setOrder(nextIds);
+    if (!commit) return;
+
+    const requestKey = currentFeed.key;
+    setSavingOrder(true);
+    void api
+      .reorderBookmarks(nextIds)
+      .then(() => {
+        if (!aliveRef.current || feedRef.current.key !== requestKey) return;
+        actionsRef.current.onNotice?.('排序已保存');
+      })
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 401) {
+          actionsRef.current.onUnauthorized?.();
+          return;
+        }
+        if (!aliveRef.current || feedRef.current.key !== requestKey) return;
+        feedRef.current.setOrder(previousIds);
+        actionsRef.current.onNotice?.(error instanceof Error ? error.message : '排序保存失败');
+      })
+      .finally(() => {
+        if (aliveRef.current) setSavingOrder(false);
+      });
+  }, []);
+
+  const sortable = useSortableList({
+    items: feed.items,
+    enabled: canReorder && !savingOrder && !feed.loadingMore,
+    layout: 'grid',
+    getLabel: (item) => item.title,
+    onChangeOrder: handleOrderChange,
+  });
+
+  function applyPreset(preset: 'name' | 'createdAsc' | 'createdDesc') {
+    if (!canReorder || savingOrder || feed.loadingMore) return;
+    const sorted = [...feed.items];
+    if (preset === 'name') {
+      sorted.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hans-CN') || a.id - b.id);
+    } else if (preset === 'createdAsc') {
+      sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+    } else {
+      sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
+    }
+    const label =
+      preset === 'name'
+        ? '已按名称排序'
+        : preset === 'createdAsc'
+          ? '已按添加顺序排序'
+          : '已按最新添加排序';
+    sortable.animateReorder(
+      sorted.map((item) => item.id),
+      `${label}，共 ${sorted.length} 项`,
+    );
+  }
+
+  const ListTag = canReorder ? 'ol' : 'ul';
 
   return (
     <div className="@container">
+      {canReorder ? (
+        <p role="status" className="sr-only">
+          {sortable.announcement}
+        </p>
+      ) : null}
+      {canReorder && sortMode ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-secondary/55 px-3 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {feed.nextCursor ? (
+              <span className="text-muted-foreground">
+                仅对当前已加载的 {feed.items.length} 项排序，可先点击下方「展开更多」
+              </span>
+            ) : (
+              <>
+                <span className="mr-1 text-muted-foreground">一键排序：</span>
+                <FrontButton
+                  tone="subtle"
+                  disabled={savingOrder || feed.loadingMore}
+                  onClick={() => applyPreset('name')}
+                  className="min-h-8 rounded-lg px-2.5 text-xs pointer-coarse:min-h-11"
+                >
+                  按名称
+                </FrontButton>
+                <FrontButton
+                  tone="subtle"
+                  disabled={savingOrder || feed.loadingMore}
+                  onClick={() => applyPreset('createdAsc')}
+                  className="min-h-8 rounded-lg px-2.5 text-xs pointer-coarse:min-h-11"
+                >
+                  按添加顺序
+                </FrontButton>
+                <FrontButton
+                  tone="subtle"
+                  disabled={savingOrder || feed.loadingMore}
+                  onClick={() => applyPreset('createdDesc')}
+                  className="min-h-8 rounded-lg px-2.5 text-xs pointer-coarse:min-h-11"
+                >
+                  按最新添加
+                </FrontButton>
+              </>
+            )}
+          </div>
+          <span className="text-muted-foreground">
+            {savingOrder ? '保存排序中…' : '拖拽手柄或按空格使用方向键排序'}
+          </span>
+        </div>
+      ) : null}
       {feed.loading ? (
         <div role="status" aria-label="正在加载网站" className={gridClass}>
           {Array.from({ length: compact ? 6 : 4 }, (_, index) => (
@@ -63,7 +225,12 @@ export function FeedContent({
         </div>
       ) : null}
       {feed.items.length > 0 ? (
-        <ul className={gridClass}>
+        <ListTag
+          role={canReorder ? 'list' : undefined}
+          ref={canReorder ? sortable.setListRef : undefined}
+          onFocus={canReorder ? sortable.onListFocus : undefined}
+          className={cn(gridClass, canReorder && 'bookmark-sort-list relative')}
+        >
           {feed.items.map((bookmark, index) => {
             const tags = bookmark.tags ?? [];
             const visibleTags = tags.slice(0, 3);
@@ -72,14 +239,18 @@ export function FeedContent({
             const privateLabel = bookmark.visibility === 'private' ? '私有' : '继承私有';
             const hasMetaRow =
               isPrivate || Boolean(bookmark.categoryName) || visibleTags.length > 0;
+            const itemProps = canReorder ? sortable.getItemProps(bookmark.id) : undefined;
+            const handleProps = canReorder ? sortable.getHandleProps(bookmark, index) : undefined;
+            const isGrabbed = canReorder && sortable.grabbedId === bookmark.id;
 
             return (
               <li
                 key={bookmark.id}
+                {...itemProps}
                 data-density={compact ? 'compact' : 'comfortable'}
                 style={{ '--sibling-index': Math.min(index + 1, 12) } as CSSProperties}
                 onPointerMove={(event) => {
-                  if (event.pointerType !== 'mouse') return;
+                  if (event.pointerType !== 'mouse' || sortable.draggingId === bookmark.id) return;
                   const rect = event.currentTarget.getBoundingClientRect();
                   event.currentTarget.style.setProperty(
                     '--pointer-x',
@@ -92,6 +263,7 @@ export function FeedContent({
                 }}
                 className={cn(
                   'bookmark-card card-stagger-enter group relative flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-border bg-background/75 shadow-2xs hover:border-primary/40 hover:bg-card hover:shadow-md dark:bg-secondary/55 dark:hover:bg-card',
+                  canReorder && 'sortable-item',
                   compact ? 'gap-2 p-3' : 'gap-3 p-4',
                   highlighted === index &&
                     'border-primary bg-accent ring-2 ring-primary/25 dark:bg-accent',
@@ -213,49 +385,105 @@ export function FeedContent({
                 ) : null}
 
                 {actions.authed ? (
-                  <div className="flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2 sm:hover-capable:pointer-events-none sm:hover-capable:absolute sm:hover-capable:top-2.5 sm:hover-capable:right-2.5 sm:hover-capable:z-10 sm:hover-capable:gap-0.5 sm:hover-capable:rounded-xl sm:hover-capable:border sm:hover-capable:border-border sm:hover-capable:bg-popover/95 sm:hover-capable:p-1 sm:hover-capable:opacity-0 sm:hover-capable:shadow-md sm:hover-capable:backdrop-blur-md sm:hover-capable:transition-opacity sm:hover-capable:duration-150 sm:hover-capable:group-focus-within:pointer-events-auto sm:hover-capable:group-focus-within:opacity-100 sm:hover-capable:group-hover:pointer-events-auto sm:hover-capable:group-hover:opacity-100">
-                    <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
-                      aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
-                      aria-pressed={bookmark.isPinned}
-                      title={bookmark.isPinned ? '取消常用' : '加入常用'}
-                      disabled={actions.pendingIds.has(bookmark.id)}
-                      onClick={() => actions.onPin(bookmark)}
-                    >
-                      <Star
-                        key={bookmark.isPinned ? 'pinned' : 'unpinned'}
-                        aria-hidden="true"
-                        className={cn(
-                          'size-3.5',
-                          bookmark.isPinned && 'star-pop fill-current text-primary',
-                        )}
-                      />
-                    </FrontButton>
-                    <FrontButton
-                      className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
-                      aria-label={`编辑：${bookmark.title}`}
-                      title="编辑书签"
-                      onClick={() => actions.onEdit(bookmark)}
-                    >
-                      <Pencil aria-hidden="true" className="size-3.5" />
-                    </FrontButton>
-                    {actions.onDelete ? (
+                  <div
+                    className={cn(
+                      'flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2',
+                      canReorder && sortMode
+                        ? 'opacity-100'
+                        : 'sm:hover-capable:pointer-events-none sm:hover-capable:absolute sm:hover-capable:top-2.5 sm:hover-capable:right-2.5 sm:hover-capable:z-10 sm:hover-capable:gap-0.5 sm:hover-capable:rounded-xl sm:hover-capable:border sm:hover-capable:border-border sm:hover-capable:bg-popover/95 sm:hover-capable:p-1 sm:hover-capable:opacity-0 sm:hover-capable:shadow-md sm:hover-capable:backdrop-blur-md sm:hover-capable:transition-opacity sm:hover-capable:duration-150 sm:hover-capable:group-focus-within:pointer-events-auto sm:hover-capable:group-focus-within:opacity-100 sm:hover-capable:group-hover:pointer-events-auto sm:hover-capable:group-hover:opacity-100',
+                    )}
+                  >
+                    {canReorder && handleProps ? (
                       <FrontButton
-                        className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
-                        aria-label={`删除：${bookmark.title}`}
-                        title="移入回收站"
-                        disabled={actions.pendingIds.has(bookmark.id)}
-                        onClick={() => actions.onDelete?.(bookmark)}
+                        {...handleProps}
+                        title="拖拽或按空格调整顺序"
+                        className="drag-handle min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
                       >
-                        <Trash2 aria-hidden="true" className="size-3.5" />
+                        <GripVertical aria-hidden="true" className="size-3.5" />
                       </FrontButton>
                     ) : null}
+                    {canReorder && sortMode ? (
+                      <>
+                        <FrontButton
+                          ref={sortable.registerMoveButton(bookmark.id, -1)}
+                          className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
+                          aria-label={`前移：${bookmark.title}`}
+                          title="前移一位"
+                          disabled={index === 0 || savingOrder || feed.loadingMore}
+                          onClick={() => sortable.moveBy(bookmark.id, -1)}
+                        >
+                          <ChevronLeft aria-hidden="true" className="size-3.5" />
+                        </FrontButton>
+                        <FrontButton
+                          ref={sortable.registerMoveButton(bookmark.id, 1)}
+                          className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
+                          aria-label={`后移：${bookmark.title}`}
+                          title="后移一位"
+                          disabled={
+                            index === feed.items.length - 1 || savingOrder || feed.loadingMore
+                          }
+                          onClick={() => sortable.moveBy(bookmark.id, 1)}
+                        >
+                          <ChevronRight aria-hidden="true" className="size-3.5" />
+                        </FrontButton>
+                      </>
+                    ) : (
+                      <>
+                        <FrontButton
+                          className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
+                          aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
+                          aria-pressed={bookmark.isPinned}
+                          title={bookmark.isPinned ? '取消常用' : '加入常用'}
+                          disabled={actions.pendingIds.has(bookmark.id)}
+                          onClick={() => actions.onPin(bookmark)}
+                        >
+                          <Star
+                            key={bookmark.isPinned ? 'pinned' : 'unpinned'}
+                            aria-hidden="true"
+                            className={cn(
+                              'size-3.5',
+                              bookmark.isPinned && 'star-pop fill-current text-primary',
+                            )}
+                          />
+                        </FrontButton>
+                        <FrontButton
+                          className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
+                          aria-label={`编辑：${bookmark.title}`}
+                          title="编辑书签"
+                          onClick={() => actions.onEdit(bookmark)}
+                        >
+                          <Pencil aria-hidden="true" className="size-3.5" />
+                        </FrontButton>
+                        {actions.onDelete ? (
+                          <FrontButton
+                            className="min-h-11 min-w-11 rounded-lg px-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
+                            aria-label={`删除：${bookmark.title}`}
+                            title="移入回收站"
+                            disabled={actions.pendingIds.has(bookmark.id)}
+                            onClick={() => actions.onDelete?.(bookmark)}
+                          >
+                            <Trash2 aria-hidden="true" className="size-3.5" />
+                          </FrontButton>
+                        ) : null}
+                      </>
+                    )}
                   </div>
+                ) : null}
+                {canReorder && sortMode ? (
+                  <p
+                    aria-hidden="true"
+                    className={cn(
+                      'text-[11px] text-primary',
+                      isGrabbed ? 'block font-medium' : 'hidden group-focus-within:block',
+                    )}
+                  >
+                    {isGrabbed ? '方向键移动 · 空格放置 · Esc 取消' : '空格调整顺序'}
+                  </p>
                 ) : null}
               </li>
             );
           })}
-        </ul>
+        </ListTag>
       ) : null}
       {feed.loaded && feed.items.length === 0 ? (
         <p className="py-3 text-sm text-muted-foreground">{emptyMessage}</p>
@@ -292,6 +520,7 @@ export function BookmarkSection({
   feed,
   pinned = false,
   searching = false,
+  reorderable = false,
   highlighted,
   onClear,
 }: {
@@ -301,9 +530,12 @@ export function BookmarkSection({
   feed: BookmarkFeed;
   pinned?: boolean;
   searching?: boolean;
+  reorderable?: boolean;
   highlighted?: number;
   onClear: () => void;
 }) {
+  const [sortMode, setSortMode] = useState(false);
+  const canReorder = reorderable && actions.authed && feed.items.length > 1;
   const title =
     root?.name ??
     (selectedSlug === 'uncategorized' ? '未分类' : searching ? '全部书签' : '常用网站');
@@ -338,6 +570,9 @@ export function BookmarkSection({
               清除搜索与筛选
             </FrontButton>
           ) : null}
+          {canReorder ? (
+            <SortModeToggle active={sortMode} onToggle={() => setSortMode((prev) => !prev)} />
+          ) : null}
           {feed.loaded ? (
             <span className="rounded-lg bg-secondary/80 px-2.5 py-1 text-xs font-medium text-muted-foreground tabular-nums">
               {feed.items.length}
@@ -351,6 +586,8 @@ export function BookmarkSection({
         actions={actions}
         highlighted={searching ? highlighted : undefined}
         showCategoryBadge
+        reorderable={reorderable}
+        sortMode={sortMode && canReorder}
         emptyMessage={
           searching
             ? '没有找到匹配的网站，请调整关键词或筛选。'

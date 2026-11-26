@@ -7,13 +7,15 @@ import type {
 } from '../../shared/api/types';
 import type { Db } from '../types';
 
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
 import {
   decodeListCursor,
+  decodeManualListCursor,
   decodeSearchCursor,
   encodeListCursor,
+  encodeManualListCursor,
   encodeSearchCursor,
 } from '../cursor';
 import { bookmarks } from '../schema';
@@ -33,6 +35,7 @@ type BookmarkRow = {
   description: string | null;
   icon_url: string | null;
   is_pinned: number;
+  sort_order: number;
   category_id: number | null;
   category_name: string | null;
   category_slug: string | null;
@@ -90,6 +93,7 @@ function toDto(row: BookmarkRow): BookmarkDto {
     description: row.description,
     iconUrl: row.icon_url,
     isPinned: Boolean(row.is_pinned),
+    sortOrder: row.sort_order,
     categoryId: row.category_id,
     categorySlug: row.category_slug,
     categoryName: row.category_name,
@@ -196,7 +200,7 @@ const searchCountFrom = sql`
 `;
 
 const bookmarkColumns = sql`
-    b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned,
+    b.visibility, ${bookmarkEffectiveVisibility} AS effective_visibility, b.id, b.title, b.url, b.description, b.icon_url, b.is_pinned, b.sort_order,
     b.archived_at, b.deleted_at, b.created_at, b.updated_at,
     b.category_id, c.name AS category_name, c.slug AS category_slug,
     ${tagProjection} AS tag_names
@@ -216,29 +220,47 @@ const searchSelect = sql`
   SELECT ${bookmarkColumns}, page.rank AS rank ${bookmarkJoins}
 `;
 
+function usesManualOrder(options: BookmarkListOptions): boolean {
+  return Boolean(
+    options.category && (options.categoryOnly || options.category === UNCATEGORIZED_SLUG),
+  );
+}
+
 async function queryRows(
   db: Db,
   options: BookmarkListOptions & { id?: number } = {},
   authed: boolean,
 ): Promise<BookmarkRow[]> {
-  const cursor = decodeListCursor(options.cursor);
+  const manualOrder = options.id === undefined && usesManualOrder(options);
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const { cte, condition } = buildFilter(options, authed);
-  const cursorCondition = cursor
-    ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
-    : sql``;
+  let cursorCondition = sql``;
+  if (manualOrder) {
+    const cursor = decodeManualListCursor(options.cursor);
+    if (cursor) {
+      cursorCondition = sql`AND (b.sort_order > ${cursor.sortOrder} OR (b.sort_order = ${cursor.sortOrder} AND b.id > ${cursor.id}))`;
+    }
+  } else {
+    const cursor = decodeListCursor(options.cursor);
+    if (cursor) {
+      cursorCondition = sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`;
+    }
+  }
+  const orderBy = manualOrder
+    ? sql`ORDER BY b.sort_order ASC, b.id ASC`
+    : sql`ORDER BY b.created_at DESC, b.id DESC`;
   const idCondition = options.id === undefined ? sql`` : sql`AND b.id = ${options.id}`;
   return db.all<BookmarkRow>(sql`
     WITH bookmark_page AS MATERIALIZED (
       ${cte}
       SELECT b.id FROM bookmarks b
       WHERE 1 = 1 ${condition} ${cursorCondition} ${idCondition}
-      ORDER BY b.created_at DESC, b.id DESC
+      ${orderBy}
       LIMIT ${options.id === undefined ? limit + 1 : 1}
     )
     ${listSelect}
     GROUP BY b.id
-    ORDER BY b.created_at DESC, b.id DESC
+    ${orderBy}
   `);
 }
 
@@ -248,6 +270,10 @@ export async function listBookmarks(
   authed: boolean,
 ): Promise<BookmarkPage> {
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+  const manualOrder = usesManualOrder(options);
+  const orderBy = manualOrder
+    ? sql`ORDER BY b.sort_order ASC, b.id ASC`
+    : sql`ORDER BY b.created_at DESC, b.id DESC`;
 
   // 分页模式（携带 offset）：并行执行列表与计数查询，减少一次 RTT，游标置空。
   if (options.offset !== undefined) {
@@ -258,12 +284,12 @@ export async function listBookmarks(
           ${cte}
           SELECT b.id FROM bookmarks b
           WHERE 1 = 1 ${condition}
-          ORDER BY b.created_at DESC, b.id DESC
+          ${orderBy}
           LIMIT ${limit} OFFSET ${options.offset}
         )
         ${listSelect}
         GROUP BY b.id
-        ORDER BY b.created_at DESC, b.id DESC
+        ${orderBy}
       `),
       countByFilter(db, { cte, condition }, listCountFrom),
     ]);
@@ -277,7 +303,11 @@ export async function listBookmarks(
   return {
     items,
     nextCursor:
-      hasMore && last ? encodeListCursor({ createdAt: last.created_at, id: last.id }) : null,
+      hasMore && last
+        ? manualOrder
+          ? encodeManualListCursor({ sortOrder: last.sort_order, id: last.id })
+          : encodeListCursor({ createdAt: last.created_at, id: last.id })
+        : null,
   };
 }
 
@@ -376,11 +406,22 @@ async function assertNotDuplicate(db: Db, url: string, excludeId?: number) {
   }
 }
 
+async function nextBookmarkSortOrder(db: Db, categoryId: number | null): Promise<number> {
+  const [orderRow] = await db.all<{ next_order: number }>(sql`
+    SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
+    FROM bookmarks
+    WHERE ${categoryId === null ? sql`category_id IS NULL` : sql`category_id = ${categoryId}`}
+  `);
+  return Number(orderRow?.next_order ?? 0);
+}
+
 export async function createBookmark(db: Db, input: BookmarkWrite): Promise<BookmarkDto> {
   await assertNotDuplicate(db, input.url);
   if (input.categoryId !== undefined && input.categoryId !== null) {
     await assertCategoryExists(db, input.categoryId);
   }
+  const categoryId = input.categoryId ?? null;
+  const sortOrder = await nextBookmarkSortOrder(db, categoryId);
   const write = db
     .insert(bookmarks)
     .values({
@@ -389,7 +430,8 @@ export async function createBookmark(db: Db, input: BookmarkWrite): Promise<Book
       description: input.description,
       iconUrl: input.iconUrl,
       isPinned: input.isPinned,
-      categoryId: input.categoryId ?? null,
+      categoryId,
+      sortOrder,
       visibility:
         input.visibility ?? (await getDefaultVisibility(db, 'default_bookmark_visibility')),
       urlNormalized: normalizeUrl(input.url),
@@ -414,6 +456,7 @@ export async function updateBookmark(
   const [current] = await db
     .select({
       id: bookmarks.id,
+      categoryId: bookmarks.categoryId,
       archivedAt: bookmarks.archivedAt,
       deletedAt: bookmarks.deletedAt,
     })
@@ -427,6 +470,10 @@ export async function updateBookmark(
   if (input.categoryId !== undefined && input.categoryId !== null) {
     await assertCategoryExists(db, input.categoryId);
   }
+  const categoryChanged = input.categoryId !== undefined && input.categoryId !== current.categoryId;
+  const nextSortOrder = categoryChanged
+    ? await nextBookmarkSortOrder(db, input.categoryId ?? null)
+    : undefined;
   const activeCondition = and(
     eq(bookmarks.id, id),
     isNull(bookmarks.deletedAt),
@@ -444,6 +491,7 @@ export async function updateBookmark(
       ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
       ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+      ...(nextSortOrder !== undefined ? { sortOrder: nextSortOrder } : {}),
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(activeCondition)
@@ -504,4 +552,117 @@ export async function permanentlyDeleteBookmark(db: Db, id: number): Promise<voi
     .where(and(eq(bookmarks.id, id), sql`${bookmarks.deletedAt} IS NOT NULL`))
     .returning({ id: bookmarks.id });
   if (row.length === 0) throw new ServiceError(404, 'not_found', 'Bookmark not found');
+}
+
+// 每条 CASE WHEN 批量排序语句绑定 30 * 3 = 90 个参数（低于 D1 100 参数硬上限）。
+const REORDER_CHUNK_SIZE = 30;
+
+export async function reorderBookmarks(db: Db, ids: number[]): Promise<void> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) throw new ServiceError(400, 'validation_error', '至少需要一个书签');
+  if (unique.length > 500) {
+    throw new ServiceError(400, 'validation_error', '一次最多排序 500 个书签');
+  }
+
+  const rows: Array<{
+    id: number;
+    categoryId: number | null;
+    sortOrder: number;
+    archivedAt: string | null;
+    deletedAt: string | null;
+  }> = [];
+  for (let index = 0; index < unique.length; index += 100) {
+    rows.push(
+      ...(await db
+        .select({
+          id: bookmarks.id,
+          categoryId: bookmarks.categoryId,
+          sortOrder: bookmarks.sortOrder,
+          archivedAt: bookmarks.archivedAt,
+          deletedAt: bookmarks.deletedAt,
+        })
+        .from(bookmarks)
+        .where(inArray(bookmarks.id, unique.slice(index, index + 100)))),
+    );
+  }
+  if (rows.length !== unique.length) {
+    throw new ServiceError(404, 'not_found', '某些书签不存在');
+  }
+  if (rows.some((row) => row.archivedAt !== null || row.deletedAt !== null)) {
+    throw new ServiceError(400, 'validation_error', '只能对使用中的书签排序');
+  }
+  const categories = new Set(rows.map((row) => row.categoryId ?? null));
+  if (categories.size > 1) {
+    throw new ServiceError(400, 'validation_error', '只能对同一分类内的书签排序');
+  }
+
+  const categoryId = rows[0].categoryId ?? null;
+  const existingSorted = [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const slots = existingSorted.map((row) => row.sortOrder);
+  const strictlyIncreasing = slots.every((value, index) => index === 0 || value > slots[index - 1]);
+
+  const updates: Array<{ id: number; sortOrder: number }> = [];
+  if (strictlyIncreasing) {
+    const currentById = new Map(rows.map((row) => [row.id, row.sortOrder]));
+    for (let index = 0; index < unique.length; index += 1) {
+      const id = unique[index];
+      const nextOrder = slots[index];
+      if (currentById.get(id) !== nextOrder) {
+        updates.push({ id, sortOrder: nextOrder });
+      }
+    }
+  } else {
+    const allActive = await db
+      .select({ id: bookmarks.id, sortOrder: bookmarks.sortOrder })
+      .from(bookmarks)
+      .where(
+        and(
+          categoryId === null ? isNull(bookmarks.categoryId) : eq(bookmarks.categoryId, categoryId),
+          isNull(bookmarks.deletedAt),
+          isNull(bookmarks.archivedAt),
+        ),
+      )
+      .orderBy(bookmarks.sortOrder, bookmarks.id);
+
+    if (allActive.length <= 500) {
+      const targetSet = new Set(unique);
+      const currentById = new Map(allActive.map((row) => [row.id, row.sortOrder]));
+      let cursor = 0;
+      for (let index = 0; index < allActive.length; index += 1) {
+        const nextId = targetSet.has(allActive[index].id) ? unique[cursor++] : allActive[index].id;
+        if (currentById.get(nextId) !== index) {
+          updates.push({ id: nextId, sortOrder: index });
+        }
+      }
+    } else {
+      const currentById = new Map(rows.map((row) => [row.id, row.sortOrder]));
+      const base = slots[0];
+      for (let index = 0; index < unique.length; index += 1) {
+        const id = unique[index];
+        const nextOrder = base + index;
+        if (currentById.get(id) !== nextOrder) {
+          updates.push({ id, sortOrder: nextOrder });
+        }
+      }
+    }
+  }
+
+  if (updates.length === 0) return;
+
+  const statements = [];
+  for (let start = 0; start < updates.length; start += REORDER_CHUNK_SIZE) {
+    const chunk = updates.slice(start, start + REORDER_CHUNK_SIZE);
+    const cases = chunk.map((item) => sql`WHEN ${item.id} THEN ${item.sortOrder}`);
+    const chunkIds = chunk.map((item) => item.id);
+    statements.push(
+      db
+        .update(bookmarks)
+        .set({
+          sortOrder: sql`CASE ${bookmarks.id} ${sql.join(cases, sql` `)} END`,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(inArray(bookmarks.id, chunkIds)),
+    );
+  }
+  await db.batch(statements as [(typeof statements)[number], ...typeof statements]);
 }

@@ -326,7 +326,7 @@ describe('transfer api', () => {
     try {
       await env.DB.batch([
         env.DB.prepare(`CREATE TRIGGER fail_bookmark_batch BEFORE INSERT ON bookmarks
-          WHEN NEW.title = 'Double failure 9'
+          WHEN NEW.title = 'Double failure 8'
           BEGIN SELECT RAISE(ABORT, 'Bookmark batch failure'); END`),
         env.DB.prepare(`CREATE TRIGGER fail_tag_cleanup BEFORE INSERT ON tags
           BEGIN SELECT RAISE(ABORT, 'Tag cleanup failure'); END`),
@@ -350,7 +350,7 @@ describe('transfer api', () => {
         operation: 'import',
         phase: 'tags',
         requestId: expect.any(String),
-        counts: { bookmarksCreated: 9 },
+        counts: { bookmarksCreated: 8 },
         failures: [
           {
             role: 'operation',
@@ -365,7 +365,7 @@ describe('transfer api', () => {
         /double-failure|Double failure|Recovered|params:|INSERT INTO/i,
       );
       expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(
-        9,
+        8,
       );
       expect(
         await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count'),
@@ -382,7 +382,7 @@ describe('transfer api', () => {
       { method: 'POST', headers: adminHeaders, body: payload },
     );
     expect(retried.status).toBe(200);
-    expect(await retried.json()).toMatchObject({ bookmarksCreated: 4, bookmarksUpdated: 9 });
+    expect(await retried.json()).toMatchObject({ bookmarksCreated: 5, bookmarksUpdated: 8 });
     expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmark_tags').first('count')).toBe(
       13,
     );
@@ -747,7 +747,10 @@ describe('transfer api', () => {
       const db = drizzle(env.DB, {
         logger: {
           logQuery(query) {
-            if (query.includes('bookmark_page') && query.includes('b.created_at <')) {
+            if (
+              query.includes('bookmark_page') &&
+              (query.includes('b.created_at <') || query.includes('b.sort_order >'))
+            ) {
               throw new Error('Second export page failed');
             }
           },
@@ -900,6 +903,7 @@ describe('transfer api', () => {
       description: 'A description <with> & symbols',
       iconUrl: 'https://icons.example.com/rich.png',
       isPinned: true,
+      sortOrder: 0,
       categorySlug: 'backup-child',
       tags: ['Docs', 'Design'],
       archivedAt: '2026-09-02T11:12:13.123Z',
@@ -913,6 +917,7 @@ describe('transfer api', () => {
       description: null,
       iconUrl: null,
       isPinned: false,
+      sortOrder: 0,
       categorySlug: null,
       tags: [],
       archivedAt: null,
@@ -995,6 +1000,76 @@ describe('transfer api', () => {
     );
     const { items } = (await page.json()) as { items: Array<{ url: string }> };
     expect(items.some((bookmark) => bookmark.url.includes('import-child.example.com'))).toBe(true);
+  });
+
+  it('preserves custom bookmark order across JSON and HTML export/import roundtrips', async () => {
+    const catResp = await exports.default.fetch('https://example.com/api/v1/categories', {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: 'Ordered Export' }),
+    });
+    const cat = await catResp.json<{ id: number; slug: string }>();
+    const first = (await createBookmark({
+      title: 'First Added',
+      url: 'https://order-export-1.example.com',
+      categoryId: cat.id,
+    })) as { id: number };
+    const second = (await createBookmark({
+      title: 'Second Added',
+      url: 'https://order-export-2.example.com',
+      categoryId: cat.id,
+    })) as { id: number };
+    const third = (await createBookmark({
+      title: 'Third Added',
+      url: 'https://order-export-3.example.com',
+      categoryId: cat.id,
+    })) as { id: number };
+
+    const reorderResp = await exports.default.fetch(
+      'https://example.com/api/v1/bookmarks/reorder',
+      {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ ids: [third.id, first.id, second.id] }),
+      },
+    );
+    expect(reorderResp.status).toBe(204);
+
+    // HTML 文件夹内按自定义顺序导出
+    const htmlResp = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=html',
+      { headers: adminHeaders },
+    );
+    const htmlParsed = parseHtml(await htmlResp.text());
+    expect(htmlParsed.bookmarks.map((item) => item.title)).toEqual([
+      'Third Added',
+      'First Added',
+      'Second Added',
+    ]);
+
+    // JSON 导出后清空重建并导入，保留自定义顺序
+    const jsonResp = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/export?format=json',
+      { headers: adminHeaders },
+    );
+    const jsonText = await jsonResp.text();
+    await env.DB.prepare('DELETE FROM bookmarks').run();
+    await env.DB.prepare('DELETE FROM categories').run();
+    const reimport = await exports.default.fetch(
+      'https://example.com/api/v1/transfer/import?format=json',
+      { method: 'POST', headers: adminHeaders, body: jsonText },
+    );
+    expect(reimport.status).toBe(200);
+    const restoredList = await exports.default.fetch(
+      `https://example.com/api/v1/bookmarks?category=${cat.slug}&categoryOnly=true`,
+      { headers: adminHeaders },
+    );
+    const restoredPage = await restoredList.json<{ items: Array<{ title: string }> }>();
+    expect(restoredPage.items.map((item) => item.title)).toEqual([
+      'Third Added',
+      'First Added',
+      'Second Added',
+    ]);
   });
 });
 

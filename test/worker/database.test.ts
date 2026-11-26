@@ -4,10 +4,11 @@ import { describe, expect, it } from 'vitest';
 describe('database schema', () => {
   it('creates the reduced bookmark and tag schema with query indexes', async () => {
     const result = await env.DB.prepare(
-      `SELECT name FROM sqlite_schema WHERE type = 'index' AND name IN (?, ?, ?, ?, ?) ORDER BY name`,
+      `SELECT name FROM sqlite_schema WHERE type = 'index' AND name IN (?, ?, ?, ?, ?, ?) ORDER BY name`,
     )
       .bind(
         'bookmarks_category_status_created_idx',
+        'bookmarks_category_status_sort_idx',
         'bookmarks_pinned_created_idx',
         'bookmarks_status_created_idx',
         'bookmarks_url_normalized_deleted_idx',
@@ -17,6 +18,7 @@ describe('database schema', () => {
 
     expect(result.results.map((row) => row.name)).toEqual([
       'bookmarks_category_status_created_idx',
+      'bookmarks_category_status_sort_idx',
       'bookmarks_pinned_created_idx',
       'bookmarks_status_created_idx',
       'bookmarks_url_normalized_deleted_idx',
@@ -24,10 +26,10 @@ describe('database schema', () => {
     ]);
   });
 
-  it('keeps categories with bookmark lookup columns but visibility but no manual sorting', async () => {
+  it('keeps categories and bookmarks with lookup, visibility, and sorting columns', async () => {
     const columns = await env.DB.prepare(`PRAGMA table_info(bookmarks)`).all<{ name: string }>();
     expect(columns.results.some((column) => column.name === 'category_id')).toBe(true);
-    expect(columns.results.some((column) => column.name === 'sort_order')).toBe(false);
+    expect(columns.results.some((column) => column.name === 'sort_order')).toBe(true);
     expect(columns.results.some((column) => column.name === 'visibility')).toBe(true);
 
     const categoriesTable = await env.DB.prepare(

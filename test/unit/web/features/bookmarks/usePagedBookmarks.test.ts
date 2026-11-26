@@ -95,3 +95,24 @@ it('请求失败提供错误状态，重试成功清除错误', async () => {
   await act(() => result.refresh());
   expect(result.error).toBeNull();
 });
+it('支持 categoryOnly 过滤并在切换后回第一页，支持本地 setOrder 重排', async () => {
+  vi.mocked(api.getBookmarks).mockResolvedValue({
+    items: [
+      { id: 1, title: 'A', sortOrder: 0 },
+      { id: 2, title: 'B', sortOrder: 1 },
+    ] as never,
+    total: 2,
+    nextCursor: null,
+  });
+  props = { ...props, category: 'tools', categoryOnly: true, page: 1 };
+  await render();
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    expect.objectContaining({ category: 'tools', categoryOnly: true }),
+    expect.any(AbortSignal),
+  );
+  await act(() => {
+    result.setOrder([2, 1]);
+  });
+  expect(result.items.map((item) => item.id)).toEqual([2, 1]);
+  expect(result.items.map((item) => item.sortOrder)).toEqual([0, 1]);
+});

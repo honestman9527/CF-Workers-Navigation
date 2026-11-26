@@ -16,6 +16,7 @@ export type Bookmark = {
   description: string | null;
   iconUrl: string | null;
   isPinned: boolean;
+  sortOrder: number;
   categoryId: number | null;
   categorySlug: string | null;
   categoryName: string | null;

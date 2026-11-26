@@ -19,9 +19,9 @@ import { normalizeUrl } from './bookmarks';
 import { ServiceError } from './errors';
 
 // D1 limits the number of bound parameters per statement. Each bookmark insert
-// currently binds eleven values (including category_id and visibility), so nine rows stay below
-// the limit with headroom. Category inserts bind six values per row, so fifteen rows = 90 params.
-const INSERT_CHUNK_SIZE = 9;
+// currently binds twelve values (including category_id, sort_order, and visibility), so eight rows stay below
+// the limit with headroom (8 * 12 = 96). Category inserts bind six values per row, so fifteen rows = 90 params.
+const INSERT_CHUNK_SIZE = 8;
 const CATEGORY_INSERT_CHUNK_SIZE = 15;
 const UPDATE_CHUNK_SIZE = 25;
 const MATCH_CHUNK_SIZE = 90;
@@ -347,6 +347,30 @@ export async function importTransferData(
     summary.bookmarksCreated += 1;
   }
 
+  const existingBookmarkCategories = new Set<number | null>();
+  const nextOrderByCategory = new Map<number | null, number>();
+  if (inserts.length > 0) {
+    const orderRows = await db.all<{ categoryId: number | null; maxOrder: number | null }>(sql`
+      SELECT category_id AS categoryId, MAX(sort_order) AS maxOrder
+      FROM bookmarks
+      GROUP BY category_id
+    `);
+    for (const row of orderRows) {
+      const key = row.categoryId ?? null;
+      existingBookmarkCategories.add(key);
+      nextOrderByCategory.set(key, Number(row.maxOrder ?? -1) + 1);
+    }
+  }
+  const allocateSortOrder = (categoryId: number | null, explicit?: number): number => {
+    const currentNext = nextOrderByCategory.get(categoryId) ?? 0;
+    if (!existingBookmarkCategories.has(categoryId) && explicit !== undefined) {
+      nextOrderByCategory.set(categoryId, Math.max(currentNext, explicit + 1));
+      return explicit;
+    }
+    nextOrderByCategory.set(categoryId, currentNext + 1);
+    return currentNext;
+  };
+
   await withBookmarkTagWrites(
     db,
     async (replaceTags) => {
@@ -355,19 +379,23 @@ export async function importTransferData(
         const created = await db
           .insert(bookmarks)
           .values(
-            chunk.map((bookmark) => ({
-              title: bookmark.title,
-              url: bookmark.url,
-              description: bookmark.description ?? null,
-              iconUrl: bookmark.iconUrl ?? null,
-              isPinned: bookmark.isPinned ?? false,
-              categoryId: resolveCategoryId(bookmark),
-              visibility: bookmark.visibility ?? 'private',
-              archivedAt: bookmark.archivedAt ?? null,
-              deletedAt: bookmark.deletedAt ?? null,
-              createdAt: bookmark.addedAt ?? undefined,
-              urlNormalized: normalizeUrl(bookmark.url),
-            })),
+            chunk.map((bookmark) => {
+              const categoryId = resolveCategoryId(bookmark);
+              return {
+                title: bookmark.title,
+                url: bookmark.url,
+                description: bookmark.description ?? null,
+                iconUrl: bookmark.iconUrl ?? null,
+                isPinned: bookmark.isPinned ?? false,
+                sortOrder: allocateSortOrder(categoryId, bookmark.sortOrder),
+                categoryId,
+                visibility: bookmark.visibility ?? 'private',
+                archivedAt: bookmark.archivedAt ?? null,
+                deletedAt: bookmark.deletedAt ?? null,
+                createdAt: bookmark.addedAt ?? undefined,
+                urlNormalized: normalizeUrl(bookmark.url),
+              };
+            }),
           )
           .returning({ id: bookmarks.id })
           .catch((error) => {
@@ -396,6 +424,7 @@ export async function importTransferData(
               description: bookmark.description ?? null,
               iconUrl: bookmark.iconUrl ?? null,
               isPinned: bookmark.isPinned ?? false,
+              ...(bookmark.sortOrder !== undefined ? { sortOrder: bookmark.sortOrder } : {}),
               categoryId: resolveCategoryId(bookmark),
               ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
               archivedAt: bookmark.archivedAt ?? null,

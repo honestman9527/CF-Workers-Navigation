@@ -319,6 +319,8 @@ function NavigationSurface() {
     onDelete: (bookmark) => setPendingTrash(bookmark),
     onSelectTag: selectTagByName,
     onSelectCategory: (slug) => selectCategory(slug),
+    onNotice: setNotice,
+    onUnauthorized: unauthorized,
   };
   const targetAvailable =
     mode === 'site'
@@ -1027,6 +1029,7 @@ function NavigationSurface() {
                 selectedSlug={search.category}
                 pinned={!searching && !search.category}
                 searching={searching}
+                reorderable={search.category === 'uncategorized' && !searching}
                 actions={actions}
                 feed={results}
                 highlighted={highlighted}

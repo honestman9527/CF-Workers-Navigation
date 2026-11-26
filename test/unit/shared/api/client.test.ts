@@ -74,6 +74,25 @@ describe('nav shared api client', () => {
     );
   });
 
+  it('builds a reorderBookmarks request', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createApiClient({
+      baseUrl: 'https://nav.example.com',
+      getToken: () => 'secret',
+      fetch,
+    });
+
+    await client.reorderBookmarks([3, 1, 2]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('https://nav.example.com/api/v1/bookmarks/reorder');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ ids: [3, 1, 2] }));
+  });
+
   it('normalizes error responses at the shared seam', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ error: { code: 'forbidden', message: 'No access' } }), {

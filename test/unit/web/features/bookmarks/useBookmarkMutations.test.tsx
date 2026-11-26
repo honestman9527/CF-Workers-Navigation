@@ -26,6 +26,7 @@ const bookmark: Bookmark = {
   title: '网站',
   url: 'https://example.com',
   isPinned: false,
+  sortOrder: 0,
   tags: [],
   iconUrl: 'https://example.com/icon.png',
   description: null,

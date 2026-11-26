@@ -21,6 +21,7 @@ import {
   getBookmark,
   listBookmarks,
   permanentlyDeleteBookmark,
+  reorderBookmarks,
   restoreBookmark,
   searchBookmarks,
   updateBookmark,
@@ -47,6 +48,9 @@ const metadataQuerySchema = httpUrlSchema(2048);
 
 const viewSchema = z.enum(['active', 'archive', 'trash', 'all']).default('active');
 const slugQuerySchema = z.string().trim().min(1).max(64).optional();
+const reorderSchema = z.object({
+  ids: z.array(z.number().int().positive()).max(500),
+});
 const bookmarksRoutes = new Hono<AppEnv>();
 
 bookmarksRoutes.get('/search', async (c) => {
@@ -123,6 +127,18 @@ bookmarksRoutes.post('/', async (c) => {
       input.iconUrl = faviconUrlFor(input.url, await getSettings(c.get('db'))) || null;
     }
     return c.json(await createBookmark(c.get('db'), input), 201);
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
+});
+
+bookmarksRoutes.post('/reorder', async (c) => {
+  const body = await parseJson(c);
+  if (!body.ok) return body.response;
+  try {
+    const input = reorderSchema.parse(body.body);
+    await reorderBookmarks(c.get('db'), input.ids);
+    return c.body(null, 204);
   } catch (error) {
     return handleServiceError(c, error);
   }

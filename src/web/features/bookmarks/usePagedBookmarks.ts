@@ -1,6 +1,6 @@
 import type { Bookmark, BookmarkView } from '@shared/api/types';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@nav/api/client';
 
@@ -14,6 +14,7 @@ export const PAGE_SIZES = [10, 20, 50, 100] as const;
 export function usePagedBookmarks({
   view,
   category,
+  categoryOnly,
   tag,
   untagged,
   pinned,
@@ -26,6 +27,7 @@ export function usePagedBookmarks({
 }: {
   view: BookmarkView;
   category?: string;
+  categoryOnly?: boolean;
   tag?: string;
   untagged?: boolean;
   page?: number;
@@ -37,6 +39,7 @@ export function usePagedBookmarks({
   onError: (message: string) => void;
 }) {
   const [items, setItems] = useState<Bookmark[]>([]);
+  const itemsRef = useRef<Bookmark[]>([]);
   const [total, setTotal] = useState(0);
   const [localPage, setLocalPage] = useState(1);
   const page = controlledPage ?? localPage;
@@ -53,7 +56,7 @@ export function usePagedBookmarks({
   // 筛选条件或每页条数变化时回到第 1 页。
   useEffect(() => {
     if (controlledPage === undefined) setLocalPage(1);
-  }, [view, category, tag, untagged, pinned, query, pageSize, controlledPage]);
+  }, [view, category, categoryOnly, tag, untagged, pinned, query, pageSize, controlledPage]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,6 +69,7 @@ export function usePagedBookmarks({
           {
             view,
             category,
+            categoryOnly: categoryOnly || undefined,
             tag,
             untagged,
             pinned: pinned || undefined,
@@ -78,6 +82,7 @@ export function usePagedBookmarks({
           {
             view,
             category,
+            categoryOnly: categoryOnly || undefined,
             tag,
             untagged,
             pinned: pinned || undefined,
@@ -89,6 +94,7 @@ export function usePagedBookmarks({
     void request
       .then((result) => {
         if (controller.signal.aborted) return;
+        itemsRef.current = result.items;
         setItems(result.items);
         setTotal(result.total ?? result.items.length);
         // 越界收敛：本页为空且不在第 1 页时，跳到（可能缩小的）最后一页。
@@ -110,7 +116,32 @@ export function usePagedBookmarks({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [page, pageSize, view, category, tag, untagged, pinned, query, refreshKey]);
+  }, [page, pageSize, view, category, categoryOnly, tag, untagged, pinned, query, refreshKey]);
+
+  const setOrder = useCallback((nextIds: number[]): Bookmark[] => {
+    const current = itemsRef.current;
+    const byId = new Map(current.map((item) => [item.id, item]));
+    const seen = new Set<number>();
+    const reordered: Bookmark[] = [];
+    for (const id of nextIds) {
+      const item = byId.get(id);
+      if (item && !seen.has(id)) {
+        seen.add(id);
+        reordered.push(item);
+      }
+    }
+    for (const item of current) {
+      if (!seen.has(item.id)) reordered.push(item);
+    }
+    const slots = current.map((item) => item.sortOrder).sort((a, b) => a - b);
+    const nextItems = reordered.map((item, index) => ({
+      ...item,
+      sortOrder: slots[index] ?? index,
+    }));
+    itemsRef.current = nextItems;
+    setItems(nextItems);
+    return nextItems;
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -122,6 +153,7 @@ export function usePagedBookmarks({
     totalPages,
     loading,
     setPage,
+    setOrder,
     refresh: () => setRefreshKey((value) => value + 1),
   };
 }

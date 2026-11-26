@@ -1,4 +1,4 @@
-import type { BookmarkListOptions } from '@shared/api/types';
+import type { Bookmark, BookmarkListOptions } from '@shared/api/types';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -221,11 +221,39 @@ export function useBookmarkFeed({
     }
   }
 
+  const setOrder = useCallback(
+    (nextIds: number[]): Bookmark[] => {
+      const current = stateRef.current;
+      const byId = new Map(current.items.map((item) => [item.id, item]));
+      const seen = new Set<number>();
+      const reordered: Bookmark[] = [];
+      for (const id of nextIds) {
+        const item = byId.get(id);
+        if (item && !seen.has(id)) {
+          seen.add(id);
+          reordered.push(item);
+        }
+      }
+      for (const item of current.items) {
+        if (!seen.has(item.id)) reordered.push(item);
+      }
+      const slots = current.items.map((item) => item.sortOrder).sort((a, b) => a - b);
+      const nextItems = reordered.map((item, index) => ({
+        ...item,
+        sortOrder: slots[index] ?? index,
+      }));
+      publish({ ...current, items: nextItems });
+      return nextItems;
+    },
+    [publish],
+  );
+
   return {
     ...(state.key === key
       ? state
       : (cacheVisited && cache.get(key)) || { ...empty, key, loading: enabled }),
     loadMore,
+    setOrder,
     retry: () => {
       if (state.loaded) void loadMore();
       else {

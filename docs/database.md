@@ -9,6 +9,7 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 3. `0002_lucky_pretty_boy.sql` 加入分类和书签的公开/私有权限字段。
 4. `0003_category_depth.sql` 将深层分类提升为原一级下的二级，并安装两层写入约束。
 5. `0004_query_indexes.sql` 补充分类直属分页覆盖索引 `bookmarks_category_status_created_idx` 与回收站规范化 URL 部分索引 `bookmarks_url_normalized_deleted_idx`。
+6. `0005_bookmark_sort_order.sql` 为 `bookmarks` 新增 `sort_order` 列（按 `category_id` 分组、以 `created_at ASC, id ASC` 为现有记录回填序号），并安装覆盖索引 `bookmarks_category_status_sort_idx`。
 
 `categories.parent_id` 建立最多两层的树形层级；每个书签最多属于一个分类。书签与标签通过 `bookmark_tags` 多对多关联。删除书签是软删除，永久删除会移除记录；活动、归档和回收站状态由 `archived_at`、`deleted_at` 表示。
 
@@ -39,7 +40,7 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 
 按 [D1 官方限制](https://developers.cloudflare.com/d1/platform/limits/)，每条 SQL 最多 100 个绑定参数、100 KB SQL 文本，最长运行 30 秒；一次 Worker 调用的 D1 查询上限为 Free 50 次、Paid 1000 次。`batch()` 中每条 SQL 仍分别受参数和长度限制，不能用批处理掩盖超限查询。
 
-批量 ID 查询按绑定参数预算分块，为其他条件参数预留位置。分类排序最多接收 500 个 ID，存在性检查分块完成后按每 30 个分类一条 `CASE ... WHEN` 语句（≤ 90 参数）在单次 `batch()` 原子写入，避免产生 N 条独立更新或在后续 ID 无效时留下部分排序。导入新分类先按层分组（根分类/依赖已有父级 → 依赖新建根的子分类），每 15 行（90 参数）一次批量 `INSERT ... RETURNING` 写入并直接回填 `parent_id`。文件大小限制不等于数据库预算；大批量导入/导出还要控制 SQL 次数与每页关联数据的大小，按账户方案验证可处理的数据规模。
+批量 ID 查询按绑定参数预算分块，为其他条件参数预留位置。分类排序与书签排序最多分别接收 500 个 ID，校验分块完成后均按每 30 条记录一条 `CASE ... WHEN` 语句（≤ 90 参数）在单次 `batch()` 原子写入，避免产生 N 条独立更新或在后续 ID 无效时留下部分排序；书签局部重排保留原分页槽位。导入新分类先按层分组（根分类/依赖已有父级 → 依赖新建根的子分类），每 15 行（90 参数）一次批量 `INSERT ... RETURNING` 写入并直接回填 `parent_id`；导入新书签每 8 行（96 参数）一次批量写入。文件大小限制不等于数据库预算；大批量导入/导出还要控制 SQL 次数与每页关联数据的大小，按账户方案验证可处理的数据规模。
 
 标签替换 module 在内部按最多 100 条书签替换缓冲，标签及关联写入各按 40 行分块，并安全拆分超过容量的单次输入；调用者不负责计算标签 SQL 的参数预算。缓冲跨越书签插入或更新的小批次，避免每个小批次重复删除关联、创建标签和解析标签 ID。共享标签的代表性场景中，25 条新增书签的标签处理最多 4 次查询，100 条更新书签最多 6 次；这些预算不包含书签本体写入与导入预检，也不代表任意标签分布的总调用预算。
 

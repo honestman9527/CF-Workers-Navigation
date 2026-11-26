@@ -12,6 +12,7 @@ import { buttonWithText, click, mount } from '../../render';
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
+  setOrder: vi.fn(),
   query: vi.fn(),
   auth: { logout: vi.fn() },
   items: [] as Bookmark[],
@@ -26,6 +27,7 @@ vi.mock('@nav/api/client', () => ({
     getCategories: vi.fn(),
     updateBookmark: vi.fn(),
     createBookmark: vi.fn(),
+    reorderBookmarks: vi.fn(),
   },
   ApiError: class extends Error {},
 }));
@@ -44,9 +46,10 @@ vi.mock('@nav/features/bookmarks/usePagedBookmarks', () => ({
       items: mocks.items,
       loading: false,
       error: mocks.error,
-      total: 0,
+      total: mocks.items.length,
       page: 1,
       totalPages: 1,
+      setOrder: mocks.setOrder,
       refresh: mocks.refresh,
     };
   },
@@ -169,6 +172,7 @@ it('后台常用操作刷新页码列表，保留分类和标签索引', async (
     archivedAt: null,
     deletedAt: null,
     isPinned: false,
+    sortOrder: 0,
     visibility: 'public',
     effectiveVisibility: 'public',
     description: null,
@@ -209,6 +213,90 @@ it('后台编辑保存通过共同规则刷新内容和索引并关闭编辑器'
     expect(api.getCategories).toHaveBeenCalledTimes(2);
     expect(app.container.textContent).not.toContain('提交测试草稿');
     expect(pushToast).toHaveBeenCalledWith('书签已创建', 'success');
+  } finally {
+    await app.cleanup();
+  }
+});
+
+it('选中分类直属筛选后可上移排序并持久化，失败时自动回滚', async () => {
+  mocks.error = null;
+  vi.mocked(api.getCategories).mockResolvedValue([
+    {
+      id: 1,
+      name: '工具',
+      slug: 'tools',
+      parentId: null,
+      icon: null,
+      sortOrder: 0,
+      bookmarkCount: 1,
+      visibility: 'public',
+      effectiveVisibility: 'public',
+    },
+    {
+      id: 2,
+      name: '开发',
+      slug: 'dev',
+      parentId: 1,
+      icon: null,
+      sortOrder: 0,
+      bookmarkCount: 2,
+      visibility: 'public',
+      effectiveVisibility: 'public',
+    },
+  ]);
+  const makeRow = (id: number, title: string, sortOrder: number): Bookmark => ({
+    id,
+    title,
+    url: `https://site-${id}.example.com`,
+    tags: [],
+    categoryId: 2,
+    archivedAt: null,
+    deletedAt: null,
+    isPinned: false,
+    sortOrder,
+    visibility: 'public',
+    effectiveVisibility: 'public',
+    description: null,
+    iconUrl: null,
+    categorySlug: 'dev',
+    categoryName: '开发',
+    createdAt: '2026-10-01 00:00:00',
+    updatedAt: '2026-10-01 00:00:00',
+  });
+  mocks.items = [makeRow(10, '第一站', 0), makeRow(20, '第二站', 1)];
+  vi.mocked(api.reorderBookmarks).mockResolvedValueOnce(undefined);
+
+  const app = await mount(<WebsitesTab />);
+  try {
+    await click(buttonWithText(app.container, '使用中'));
+    await click(app.container.querySelector<HTMLElement>('[aria-label="筛选分类"]')!);
+    await click(
+      [...document.querySelectorAll<HTMLElement>('[role="treeitem"]')].find((btn) =>
+        btn.textContent?.includes('工具'),
+      )!,
+    );
+    // 含子分类的一级默认未开启仅直属，需勾选仅直属才启用排序
+    expect(app.container.textContent).toContain('勾选「仅直属」');
+    await click(
+      [...app.container.querySelectorAll<HTMLElement>('label')]
+        .find((el) => el.textContent?.includes('仅直属'))!
+        .querySelector<HTMLElement>('[role="checkbox"]')!,
+    );
+    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({
+      view: 'active',
+      category: 'tools',
+      categoryOnly: true,
+    });
+    await click(app.container.querySelector<HTMLElement>('[aria-label="上移：第二站"]')!);
+    expect(mocks.setOrder).toHaveBeenCalledWith([20, 10]);
+    expect(api.reorderBookmarks).toHaveBeenCalledWith([20, 10]);
+    expect(pushToast).toHaveBeenCalledWith('排序已更新', 'success');
+
+    // 失败时回滚顺序
+    vi.mocked(api.reorderBookmarks).mockRejectedValueOnce(new Error('保存失败'));
+    await click(app.container.querySelector<HTMLElement>('[aria-label="上移：第二站"]')!);
+    expect(mocks.setOrder).toHaveBeenLastCalledWith([10, 20]);
+    expect(pushToast).toHaveBeenLastCalledWith('保存失败', 'error');
   } finally {
     await app.cleanup();
   }

@@ -41,6 +41,7 @@ vi.mock('@nav/api/client', () => ({
     getTags: vi.fn(),
     getPublicSettings: vi.fn(),
     updateBookmark: vi.fn(),
+    reorderBookmarks: vi.fn(),
   },
   ApiError: class extends Error {},
 }));
@@ -54,6 +55,8 @@ const item = (id: number, title = `网站${id}`) =>
     description: '一个实用网站',
     iconUrl: null,
     isPinned: false,
+    sortOrder: id,
+    createdAt: `2026-01-0${Math.min(id, 9)}T00:00:00.000Z`,
   }) as Bookmark;
 const category = (id: number, slug: string, parentId: number | null = null) =>
   ({ id, slug, name: slug, parentId, sortOrder: id, bookmarkCount: 1 }) as Category;
@@ -601,4 +604,53 @@ it('快速切换一级取消全部分组请求，迟到响应不进入新内容�
   );
   expect(api.getBookmarks).toHaveBeenCalledTimes(10);
   expect(app.container.textContent).not.toContain('迟到旧内容');
+});
+
+it('登录后可在分类内开启排序模式、前移/后移、一键按名称排序及失败回滚，未登录不渲染排序控件', async () => {
+  vi.useRealTimers();
+  vi.mocked(api.getBookmarks).mockImplementation(async (options) => {
+    if (options?.category === '工具') {
+      return {
+        items: [item(1, 'Zeta'), item(2, 'Alpha')],
+        nextCursor: null,
+      };
+    }
+    return { items: [item(12)], nextCursor: null };
+  });
+
+  // 未登录时不显示任何排序按钮或手柄
+  auth.authed = false;
+  app = await mount(<Host initial={{ category: '工具' }} />);
+  const toolsGuest = app.container.querySelector('#section-category-工具-direct') as HTMLElement;
+  expect(toolsGuest.querySelector('button')).toBeNull();
+  await app.cleanup();
+
+  // 登录后可进入排序模式并持久化
+  auth.authed = true;
+  vi.mocked(api.reorderBookmarks).mockResolvedValue(undefined);
+  app = await mount(<Host initial={{ category: '工具' }} />);
+  const toolsAdmin = app.container.querySelector('#section-category-工具-direct') as HTMLElement;
+  expect(toolsAdmin.querySelector('[aria-label="调整顺序：Zeta"]')).not.toBeNull();
+
+  await click(buttonWithText(toolsAdmin, '排序'));
+  await click(toolsAdmin.querySelector<HTMLElement>('[aria-label="前移：Alpha"]')!);
+  expect(api.reorderBookmarks).toHaveBeenCalledWith([2, 1]);
+  expect([...toolsAdmin.querySelectorAll('li a')].map((a) => a.textContent)).toEqual([
+    expect.stringContaining('Alpha'),
+    expect.stringContaining('Zeta'),
+  ]);
+
+  // 失败时回滚顺序并提示错误
+  vi.mocked(api.reorderBookmarks).mockRejectedValueOnce(new Error('排序服务异常'));
+  await click(toolsAdmin.querySelector<HTMLElement>('[aria-label="前移：Zeta"]')!);
+  expect(api.reorderBookmarks).toHaveBeenLastCalledWith([1, 2]);
+  expect(app.container.textContent).toContain('排序服务异常');
+  expect([...toolsAdmin.querySelectorAll('li a')].map((a) => a.textContent)).toEqual([
+    expect.stringContaining('Alpha'),
+    expect.stringContaining('Zeta'),
+  ]);
+
+  // 一键按名称排序
+  await click(buttonWithText(toolsAdmin, '按最新添加'));
+  expect(api.reorderBookmarks).toHaveBeenLastCalledWith([2, 1]);
 });

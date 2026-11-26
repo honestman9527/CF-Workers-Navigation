@@ -3,8 +3,11 @@ import type { Bookmark, BookmarkInput, BookmarkView } from '@shared/api/types';
 import {
   Archive,
   ArchiveRestore,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Globe,
+  GripVertical,
   Pencil,
   Plus,
   Search,
@@ -13,7 +16,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ImageWithFallback } from '@/components/ImageWithFallback';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -39,8 +42,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { useSortableList } from '@/lib/sortable';
 import { cn } from '@/lib/utils';
-import { api } from '@nav/api/client';
+import { api, ApiError } from '@nav/api/client';
 import { pushToast } from '@nav/components/Toast';
 import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import {
@@ -101,11 +105,20 @@ export function WebsitesTab() {
   const [queryDraft, setQueryDraft] = useState('');
   const [query, setQuery] = useState('');
   const [categorySlug, setCategorySlug] = useState<string | undefined>(undefined);
+  const [categoryOnly, setCategoryOnly] = useState(false);
   const [tagSlug, setTagSlug] = useState<string | undefined>(undefined);
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [pageSize, setPageSize] = useState<number>(20);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmRequest | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   // 搜索防抖：250ms 后同步到查询条件。
   useEffect(() => {
@@ -114,17 +127,6 @@ export function WebsitesTab() {
     const timer = window.setTimeout(() => setQuery(draft), 250);
     return () => window.clearTimeout(timer);
   }, [queryDraft, query]);
-
-  const page = usePagedBookmarks({
-    view,
-    category: categorySlug,
-    tag: tagSlug,
-    pinned: pinnedOnly,
-    query,
-    pageSize,
-    onUnauthorized: handleUnauthorized,
-    onError: reportError,
-  });
 
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const {
@@ -143,6 +145,83 @@ export function WebsitesTab() {
     loading: categoriesLoading,
   } = useApiData(loadCategories, {
     onUnauthorized: handleUnauthorized,
+  });
+
+  const selectedCategory = useMemo(
+    () => categories?.find((item) => item.slug === categorySlug),
+    [categories, categorySlug],
+  );
+  const selectedHasChildren = Boolean(
+    selectedCategory && categories?.some((item) => item.parentId === selectedCategory.id),
+  );
+  const effectiveCategoryOnly = Boolean(
+    categorySlug && categorySlug !== UNCATEGORIZED_SLUG && (!selectedHasChildren || categoryOnly),
+  );
+
+  const page = usePagedBookmarks({
+    view,
+    category: categorySlug,
+    categoryOnly: effectiveCategoryOnly,
+    tag: tagSlug,
+    pinned: pinnedOnly,
+    query,
+    pageSize,
+    onUnauthorized: handleUnauthorized,
+    onError: reportError,
+  });
+
+  const canReorder =
+    view === 'active' &&
+    Boolean(categorySlug) &&
+    (categorySlug === UNCATEGORIZED_SLUG || effectiveCategoryOnly) &&
+    !query &&
+    !tagSlug &&
+    !pinnedOnly &&
+    page.items.length > 1 &&
+    !page.loading;
+
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const scopeSignature = `${view}|${categorySlug ?? ''}|${effectiveCategoryOnly}|${page.page}|${pageSize}`;
+  const scopeRef = useRef(scopeSignature);
+  scopeRef.current = scopeSignature;
+
+  const handleOrderChange = useCallback(
+    (nextIds: number[], { commit }: { commit: boolean }) => {
+      const previousIds = pageRef.current.items.map((item) => item.id);
+      pageRef.current.setOrder(nextIds);
+      if (!commit) return;
+
+      const requestScope = scopeRef.current;
+      setSavingOrder(true);
+      void api
+        .reorderBookmarks(nextIds)
+        .then(() => {
+          if (!aliveRef.current || scopeRef.current !== requestScope) return;
+          pushToast('排序已更新', 'success');
+        })
+        .catch((error: unknown) => {
+          if (error instanceof ApiError && error.status === 401) {
+            handleUnauthorized();
+            return;
+          }
+          if (!aliveRef.current || scopeRef.current !== requestScope) return;
+          pageRef.current.setOrder(previousIds);
+          pushToast(error instanceof Error ? error.message : '排序更新失败', 'error');
+        })
+        .finally(() => {
+          if (aliveRef.current) setSavingOrder(false);
+        });
+    },
+    [handleUnauthorized],
+  );
+
+  const sortable = useSortableList({
+    items: page.items,
+    enabled: canReorder && !savingOrder,
+    layout: 'vertical',
+    getLabel: (item) => item.title,
+    onChangeOrder: handleOrderChange,
   });
 
   const mutations = useBookmarkMutations({
@@ -260,9 +339,22 @@ export function WebsitesTab() {
         <CategoryFilter
           categories={categories ?? []}
           selectedSlug={categorySlug}
-          onSelect={setCategorySlug}
+          onSelect={(slug) => {
+            setCategorySlug(slug);
+            setCategoryOnly(false);
+          }}
           disabled={categoriesLoading && categories === null}
         />
+
+        {selectedHasChildren && view === 'active' ? (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+            <Checkbox
+              checked={categoryOnly}
+              onCheckedChange={(checked) => setCategoryOnly(checked === true)}
+            />
+            仅直属
+          </label>
+        ) : null}
 
         <SearchSelect
           value={tagSlug ?? ''}
@@ -290,10 +382,21 @@ export function WebsitesTab() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between px-0.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-0.5 text-xs text-muted-foreground">
         <span>
           {page.loading ? '加载中…' : page.error ? '加载失败' : `共 ${page.total} 条书签`}
         </span>
+        {canReorder ? (
+          <span>{savingOrder ? '保存排序中…' : '当前按分类顺序排列，可拖拽手柄或上下移调整'}</span>
+        ) : view === 'active' &&
+          selectedHasChildren &&
+          !categoryOnly &&
+          !query &&
+          !tagSlug &&
+          !pinnedOnly &&
+          !page.loading ? (
+          <span>勾选「仅直属」可调整该分类直属书签顺序</span>
+        ) : null}
       </div>
 
       {page.loading ? (
@@ -318,7 +421,15 @@ export function WebsitesTab() {
           <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或新建一个书签。</p>
         </div>
       ) : (
-        <div className="glass-surface overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+        <div
+          ref={canReorder ? sortable.setMarkerRef : undefined}
+          className="glass-surface relative overflow-hidden rounded-2xl border border-border bg-card shadow-soft"
+        >
+          {canReorder ? (
+            <p role="status" className="sr-only">
+              {sortable.announcement}
+            </p>
+          ) : null}
           {/* table-fixed + w-full：列宽固定、内容截断，避免横向滚动 */}
           <Table
             containerLabel="书签管理列表"
@@ -327,6 +438,11 @@ export function WebsitesTab() {
             <TableCaption className="sr-only">书签管理列表</TableCaption>
             <TableHeader className="hidden bg-muted/40 md:table-header-group">
               <TableRow className="border-border/60 hover:bg-transparent">
+                {canReorder ? (
+                  <TableHead scope="col" className="w-10 text-xs font-semibold">
+                    <span className="sr-only">排序</span>
+                  </TableHead>
+                ) : null}
                 <TableHead scope="col" className="text-xs font-semibold">
                   书签
                 </TableHead>
@@ -339,20 +455,51 @@ export function WebsitesTab() {
                 <TableHead scope="col" className="w-[5rem] text-center text-xs font-semibold">
                   状态
                 </TableHead>
-                <TableHead scope="col" className="w-[9rem] pr-4 text-right text-xs font-semibold">
+                <TableHead
+                  scope="col"
+                  className={cn(
+                    'pr-4 text-right text-xs font-semibold',
+                    canReorder ? 'w-[13rem]' : 'w-[9rem]',
+                  )}
+                >
                   操作
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="block md:table-row-group">
-              {page.items.map((bookmark) => {
+            <TableBody
+              ref={canReorder ? sortable.setListRef : undefined}
+              onFocus={canReorder ? sortable.onListFocus : undefined}
+              className="block md:table-row-group"
+            >
+              {page.items.map((bookmark, index) => {
                 const active = !bookmark.deletedAt && !bookmark.archivedAt;
+                const itemProps = canReorder ? sortable.getItemProps(bookmark.id) : undefined;
+                const handleProps = canReorder
+                  ? sortable.getHandleProps(bookmark, index)
+                  : undefined;
 
                 return (
                   <TableRow
                     key={bookmark.id}
-                    className="group grid grid-cols-[minmax(0,1fr)_auto] items-center border-border/50 px-2 py-2 md:table-row md:p-0"
+                    {...itemProps}
+                    className={cn(
+                      'group grid grid-cols-[minmax(0,1fr)_auto] items-center border-border/50 px-2 py-2 md:table-row md:p-0',
+                      canReorder && 'sortable-item',
+                    )}
                   >
+                    {canReorder && handleProps ? (
+                      <TableCell className="col-span-2 pb-0 md:w-10 md:py-3.5 md:pl-3">
+                        <Button
+                          {...handleProps}
+                          variant="ghost"
+                          size="icon-sm"
+                          title="拖拽或按空格调整顺序"
+                          className="drag-handle"
+                        >
+                          <GripVertical aria-hidden="true" className="size-4" />
+                        </Button>
+                      </TableCell>
+                    ) : null}
                     {/* 书签：favicon + 标题 + 网址（同一格内截断） */}
                     <TableCell className="min-w-0 py-3.5">
                       <div className="flex min-w-0 items-center gap-2.5">
@@ -423,6 +570,32 @@ export function WebsitesTab() {
                     {/* 操作 */}
                     <TableCell className="col-span-2 border-t border-border/30 py-1.5 pr-2 text-right md:border-0 md:py-3 md:pr-4">
                       <div className="flex items-center justify-end gap-0.5">
+                        {canReorder ? (
+                          <>
+                            <Button
+                              ref={sortable.registerMoveButton(bookmark.id, -1)}
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={index === 0 || savingOrder}
+                              onClick={() => sortable.moveBy(bookmark.id, -1)}
+                              aria-label={`上移：${bookmark.title}`}
+                              title="上移"
+                            >
+                              <ChevronUp aria-hidden="true" className="size-3.5" />
+                            </Button>
+                            <Button
+                              ref={sortable.registerMoveButton(bookmark.id, 1)}
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={index === page.items.length - 1 || savingOrder}
+                              onClick={() => sortable.moveBy(bookmark.id, 1)}
+                              aria-label={`下移：${bookmark.title}`}
+                              title="下移"
+                            >
+                              <ChevronDown aria-hidden="true" className="size-3.5" />
+                            </Button>
+                          </>
+                        ) : null}
                         {active ? (
                           <>
                             <Button

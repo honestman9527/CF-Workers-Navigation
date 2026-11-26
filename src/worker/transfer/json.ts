@@ -118,6 +118,12 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
         : undefined;
   const iconUrl = normalizeIconUrl(record.iconUrl);
   const isPinned = typeof record.isPinned === 'boolean' ? record.isPinned : undefined;
+  const sortOrder =
+    typeof record.sortOrder === 'number' &&
+    Number.isInteger(record.sortOrder) &&
+    record.sortOrder >= 0
+      ? record.sortOrder
+      : undefined;
   const addedAt = normalizeTimestamp(record.addedAt);
   const archivedAt = normalizeTimestamp(record.archivedAt);
   const deletedAt = normalizeTimestamp(record.deletedAt);
@@ -129,6 +135,7 @@ function normalizeBookmark(raw: unknown, index: number, errors: string[]): Trans
     description,
     iconUrl,
     isPinned,
+    ...(sortOrder !== undefined ? { sortOrder } : {}),
     categorySlug: normalizeCategorySlug(record.categorySlug),
     tags: normalizeTags(record.tags),
     archivedAt,

@@ -5,7 +5,12 @@ import type { Db } from '../types';
 
 import { sql } from 'drizzle-orm';
 
-import { decodeListCursor, encodeListCursor } from '../cursor';
+import {
+  decodeListCursor,
+  decodeManualListCursor,
+  encodeListCursor,
+  encodeManualListCursor,
+} from '../cursor';
 import {
   HTML_EXPORT_HEADER,
   serializeHtmlBookmark,
@@ -33,6 +38,7 @@ type ExportBookmarkRow = {
   description: string | null;
   icon_url: string | null;
   is_pinned: number;
+  sort_order: number;
   category_slug: string | null;
   archived_at: string | null;
   deleted_at: string | null;
@@ -70,6 +76,7 @@ function toTransferBookmark(row: ExportBookmarkRow): TransferBookmark {
     description: row.description,
     iconUrl: row.icon_url,
     isPinned: Boolean(row.is_pinned),
+    sortOrder: row.sort_order,
     categorySlug: row.category_slug,
     tags: Array.isArray(names)
       ? names.filter((name): name is string => typeof name === 'string')
@@ -87,25 +94,37 @@ async function readExportPage(
   categoryId?: number | null,
   log?: TransferLog,
 ): Promise<{ items: TransferBookmark[]; nextCursor: string | null }> {
-  const cursor = decodeListCursor(cursorValue);
+  const manualOrder = categoryId !== undefined;
   const categoryCondition =
     categoryId === undefined
       ? sql`1 = 1`
       : categoryId === null
         ? sql`b.category_id IS NULL`
         : sql`b.category_id = ${categoryId}`;
-  const cursorCondition = cursor
-    ? sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`
-    : sql``;
+  let cursorCondition = sql``;
+  if (manualOrder) {
+    const cursor = decodeManualListCursor(cursorValue);
+    if (cursor) {
+      cursorCondition = sql`AND (b.sort_order > ${cursor.sortOrder} OR (b.sort_order = ${cursor.sortOrder} AND b.id > ${cursor.id}))`;
+    }
+  } else {
+    const cursor = decodeListCursor(cursorValue);
+    if (cursor) {
+      cursorCondition = sql`AND (b.created_at < ${cursor.createdAt} OR (b.created_at = ${cursor.createdAt} AND b.id < ${cursor.id}))`;
+    }
+  }
+  const orderBy = manualOrder
+    ? sql`ORDER BY b.sort_order ASC, b.id ASC`
+    : sql`ORDER BY b.created_at DESC, b.id DESC`;
   const rows = await db.all<ExportBookmarkRow>(sql`
     WITH bookmark_page AS MATERIALIZED (
       SELECT b.id FROM bookmarks b
       WHERE ${categoryCondition} ${cursorCondition}
-      ORDER BY b.created_at DESC, b.id DESC
+      ${orderBy}
       LIMIT ${EXPORT_PAGE_SIZE + 1}
     )
     SELECT b.id, b.created_at, b.title, b.visibility, b.url, b.description,
-      b.icon_url, b.is_pinned, c.slug AS category_slug, b.archived_at, b.deleted_at,
+      b.icon_url, b.is_pinned, b.sort_order, c.slug AS category_slug, b.archived_at, b.deleted_at,
       COALESCE(json_group_array(CASE WHEN t.id IS NULL THEN NULL ELSE t.name END), '[]') AS tag_names
     FROM bookmarks b
     INNER JOIN bookmark_page page ON page.id = b.id
@@ -113,7 +132,7 @@ async function readExportPage(
     LEFT JOIN tags t ON t.id = bt.tag_id
     LEFT JOIN categories c ON c.id = b.category_id
     GROUP BY b.id
-    ORDER BY b.created_at DESC, b.id DESC
+    ${orderBy}
   `);
   const hasMore = rows.length > EXPORT_PAGE_SIZE;
   log?.count('bookmarksRead', Math.min(rows.length, EXPORT_PAGE_SIZE));
@@ -121,7 +140,11 @@ async function readExportPage(
   return {
     items: (hasMore ? rows.slice(0, EXPORT_PAGE_SIZE) : rows).map(toTransferBookmark),
     nextCursor:
-      hasMore && last ? encodeListCursor({ createdAt: last.created_at, id: last.id }) : null,
+      hasMore && last
+        ? manualOrder
+          ? encodeManualListCursor({ sortOrder: last.sort_order, id: last.id })
+          : encodeListCursor({ createdAt: last.created_at, id: last.id })
+        : null,
   };
 }
 

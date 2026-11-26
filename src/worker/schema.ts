@@ -49,6 +49,7 @@ export const bookmarks = sqliteTable(
     description: text('description'),
     iconUrl: text('icon_url'),
     isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
     archivedAt: text('archived_at'),
     deletedAt: text('deleted_at'),
     urlNormalized: text('url_normalized').notNull().default(''),
@@ -66,6 +67,13 @@ export const bookmarks = sqliteTable(
       table.deletedAt,
       table.archivedAt,
       table.createdAt,
+      table.id,
+    ),
+    index('bookmarks_category_status_sort_idx').on(
+      table.categoryId,
+      table.deletedAt,
+      table.archivedAt,
+      table.sortOrder,
       table.id,
     ),
     index('bookmarks_status_created_idx').on(

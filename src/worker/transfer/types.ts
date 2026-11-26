@@ -6,6 +6,7 @@ export type TransferBookmark = {
   description?: string | null;
   iconUrl?: string | null;
   isPinned?: boolean;
+  sortOrder?: number;
   categorySlug?: string | null;
   tags: string[];
   archivedAt?: string | null;

@@ -24,6 +24,7 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 | 书签 | `GET /bookmarks/search`                                             | 全文搜索               |
 | 书签 | `POST /bookmarks`                                                   | 新建                   |
 | 书签 | `GET /bookmarks/:id`、`PUT /bookmarks/:id`                          | 读取、更新             |
+| 书签 | `POST /bookmarks/reorder`                                           | 分类内书签排序         |
 | 书签 | `POST /bookmarks/:id/archive`、`POST /bookmarks/:id/restore`        | 归档、恢复             |
 | 书签 | `DELETE /bookmarks/:id`、`DELETE /bookmarks/:id/permanent`          | 软删除、永久删除       |
 | 书签 | `GET /bookmarks/metadata?url=...`、`GET /bookmarks/favicon?url=...` | 获取元数据和图标地址   |
@@ -44,7 +45,7 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 
 分类最多两层；新建到二级下、移动到二级下，或把含子分类的一级移入其他一级，均返回 `400 validation_error`，不改变分类。数据库约束检测到并发层级冲突也返回相同错误码。
 
-分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
+分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；书签排序（`POST /api/v1/bookmarks/reorder`）一次最多 500 个去重后的 ID，必须全部存在、处于使用中且属于同一分类（含同属未分类），按原位置槽位原子重排，输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
 
 元数据仅接受 HTTP/HTTPS URL。抓取超时为 8 秒，手动跟踪最多 5 次重定向并在每一跳拦截环回、私网、链路本地与云元数据主机；声明正文超过 5 MiB 时直接拒收，实际最多读取前 512 KiB 后解析，以限制内存并隔离远端流错误。命中私网保护、重定向超限、远端连接失败、正文中断或超时会返回 `partial: true` 的主机名及可用图标降级结果；重定向页面的相对图标与 canonical 地址按最终 URL 解析且仅保留 `http:`/`https:` 链接。
 
@@ -71,7 +72,7 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 | `cursor`       | 不透明游标；省略 `offset` 时用于连续翻页                                                                     |
 | `offset`       | 非负偏移量（上限 100000）；提供后切换为页码模式并返回 `total`                                                |
 
-列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
+单分类直属列表（`category` 且 `categoryOnly=true`）与未分类列表（`category=uncategorized`）按 `sort_order` 与 `id` 正序排列；其余列表按 `created_at` 与 `id` 倒序；搜索按相关度 rank 与 `id` 排序。带 `offset` 的响应包含 `items`、`total`，并将 `nextCursor` 设为 `null`。不带 `offset` 的响应包含 `items` 与 `nextCursor`，不计算总数。
 
 `mode=site|web`、`engine` 仅是前端状态，不作为 API 参数。Web URL、筛选优先级、旧地址映射及历史恢复见[使用与本地开发](usage.md#搜索与链接兼容)，分页选择与实现取舍见[架构与服务边界](architecture.md#分页与查询行为)。
 

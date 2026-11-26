@@ -82,6 +82,7 @@ export interface ApiClient {
   updateSettings(input: Partial<Settings>): Promise<Settings>;
   createBookmark(input: BookmarkInput): Promise<Bookmark>;
   updateBookmark(id: number, input: Partial<BookmarkInput>): Promise<Bookmark>;
+  reorderBookmarks(ids: number[]): Promise<void>;
   deleteBookmark(id: number): Promise<void>;
   archiveBookmark(id: number): Promise<Bookmark>;
   restoreBookmark(id: number): Promise<Bookmark>;
@@ -181,6 +182,12 @@ export function createApiClient(options: ClientOptions): ApiClient {
       return request<Bookmark>(options, `${ENDPOINTS.bookmarks}/${id}`, {
         method: 'PUT',
         body: JSON.stringify(input),
+      });
+    },
+    reorderBookmarks(ids) {
+      return request<void>(options, ENDPOINTS.bookmarksReorder, {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
       });
     },
     deleteBookmark(id) {
