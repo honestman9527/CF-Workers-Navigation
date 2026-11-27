@@ -48,7 +48,7 @@ export function NavigationMenu({
           <Menu.Popup className="front-surface glass-surface overlay-popup w-60 origin-(--transform-origin) rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl outline-none">
             <Menu.Group>
               <Menu.GroupLabel className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                明暗模式
+                主题
               </Menu.GroupLabel>
               <Menu.RadioGroup
                 value={theme}

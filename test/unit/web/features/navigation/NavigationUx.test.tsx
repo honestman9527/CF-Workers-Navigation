@@ -4,12 +4,7 @@ import type { NavigationSearch } from '@nav/features/navigation/search';
 // @vitest-environment jsdom
 import type { Bookmark, Category } from '@shared/api/types';
 
-import {
-  BG_OVERLAY_OPACITY_STORAGE_KEY,
-  FRONT_SIDEBAR_STORAGE_KEY,
-  PALETTE_STORAGE_KEY,
-  VIEW_DENSITY_STORAGE_KEY,
-} from '@shared';
+import { FRONT_SIDEBAR_STORAGE_KEY, PALETTE_STORAGE_KEY, VIEW_DENSITY_STORAGE_KEY } from '@shared';
 import { Provider, createStore } from 'jotai';
 import { act, useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -47,7 +42,9 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock('@nav/features/auth/useAuthContext', () => ({ useAuthContext: () => auth }));
-vi.mock('@nav/features/layout/BrandIcon', () => ({ BrandIcon: () => null }));
+vi.mock('@nav/features/layout/BrandIcon', () => ({
+  BrandIcon: () => <span data-testid="brand-icon" />,
+}));
 vi.mock('@nav/hooks/useTheme', () => ({
   useTheme: () => ({
     theme: themeState.theme,
@@ -352,11 +349,14 @@ it('管理员点击卡片删除弹出确认框，确认后移入回收站并刷�
   expect(app.container.textContent).toContain('已移入回收站，可在后台恢复');
 });
 
-it('移动端抽屉完整保留两级分类树折叠/展开、计数与选择跳转', async () => {
+it('移动端抽屉完整保留两级分类树折叠/展开、计数与选择跳转，底部使用统一单行工具栏', async () => {
   app = await mount(<Host />);
   await click(app.container.querySelector<HTMLElement>('[aria-label="打开分类导航"]')!);
   const drawer = document.querySelector<HTMLElement>('[aria-label="分类导航抽屉"]')!;
   expect(drawer).not.toBeNull();
+  expect(drawer.querySelector('[aria-label="管理员登录"]')?.textContent?.trim()).toBe('登录');
+  expect(drawer.querySelector('[aria-label="外观与主题设置"]')).not.toBeNull();
+  expect(drawer.querySelector('[aria-label="抽屉主题切换"]')).toBeNull();
 
   const toggle = drawer.querySelector<HTMLButtonElement>('[aria-label="展开 工程工具"]')!;
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
@@ -411,39 +411,33 @@ it('全局命令面板支持 Cmd/Ctrl+K 唤起、搜索书签、键盘回车跳�
   expect(localStorage.getItem(PALETTE_STORAGE_KEY)).toBe('emerald');
 });
 
-it('外观面板支持调节 4 套主题色与壁纸遮罩浓度并应用到根元素', async () => {
+it('统一主题与主题色菜单精简去除重复项并应用到根节点，背景遮罩偏好仍自动生效', async () => {
+  vi.useRealTimers();
   const store = createStore();
   store.set(paletteAtom, 'indigo');
   store.set(bgOverlayOpacityAtom, 0.72);
   app = await mount(<Host store={store} />);
   expect(document.documentElement.classList.contains('has-background')).toBe(true);
   expect(document.documentElement.style.getPropertyValue('--bg-overlay-opacity')).toBe('0.72');
+  // 移动端顶栏不再与 NavigationMenu 重复渲染外观按钮，仅侧栏保留统一入口
+  expect(app.container.querySelectorAll('[aria-label="外观与主题设置"]')).toHaveLength(1);
 
-  const triggers = app.container.querySelectorAll<HTMLButtonElement>(
-    '[aria-label="外观与配色设置"]',
-  );
-  await click(triggers[triggers.length - 1]!);
-  const popover = document.querySelector<HTMLElement>('[aria-label="外观设置"]')!;
-  expect(popover).not.toBeNull();
+  const trigger = app.container.querySelector<HTMLButtonElement>('[aria-label="外观与主题设置"]')!;
+  await click(trigger);
+  const menu = document.querySelector<HTMLElement>('[role="menu"][aria-label="外观与主题设置"]')!;
+  expect(menu).not.toBeNull();
+  expect(menu.querySelector('#front-bg-overlay-opacity')).toBeNull();
+  expect(menu.querySelector('[aria-label="视图密度"]')).toBeNull();
 
-  const amberRadio = [...popover.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((el) =>
+  const amberRadio = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((el) =>
     el.textContent?.includes('暖珀微光'),
   )!;
   await click(amberRadio);
   expect(document.documentElement.dataset.palette).toBe('amber');
-
-  const slider = popover.querySelector<HTMLInputElement>('#front-bg-overlay-opacity')!;
-  await act(() => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(slider, '85');
-    slider.dispatchEvent(new Event('change', { bubbles: true }));
-    slider.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  expect(store.get(bgOverlayOpacityAtom)).toBe(0.85);
-  expect(localStorage.getItem(BG_OVERLAY_OPACITY_STORAGE_KEY)).toBe('0.85');
-  expect(document.documentElement.style.getPropertyValue('--bg-overlay-opacity')).toBe('0.85');
+  expect(store.get(paletteAtom)).toBe('amber');
 });
 
-it('桌面侧边栏可折叠为紧凑图标栏并持久化，保留焦点且支持 Cmd/Ctrl+B 与命令面板切换', async () => {
+it('桌面侧边栏折叠时将 Logo 与展开按钮合二为一，保留焦点且支持 Cmd/Ctrl+B 与命令面板切换', async () => {
   const store = createStore();
   store.set(frontSidebarOpenAtom, true);
   app = await mount(<Host store={store} />);
@@ -465,9 +459,13 @@ it('桌面侧边栏可折叠为紧凑图标栏并持久化，保留焦点且支�
   expect(document.documentElement.dataset.frontSidebar).toBe('collapsed');
   expect(localStorage.getItem(FRONT_SIDEBAR_STORAGE_KEY)).toBe('false');
   expect(app.container.querySelector('nav[data-collapsed="true"]')).not.toBeNull();
+  // 折叠后不再保留独立的首页 Logo 链接，而是由合并按钮统一承载并保持焦点
+  expect(sidebar.querySelector('[aria-label="书签柜首页"]')).toBeNull();
   const expandedToggle = app.container.querySelector<HTMLButtonElement>(
     '[aria-label="展开侧边栏"]',
   )!;
+  expect(expandedToggle).toBe(toggle);
+  expect(expandedToggle.querySelector('[data-testid="brand-icon"]')).not.toBeNull();
   expect(expandedToggle.getAttribute('aria-expanded')).toBe('false');
   expect(document.activeElement).toBe(expandedToggle);
 

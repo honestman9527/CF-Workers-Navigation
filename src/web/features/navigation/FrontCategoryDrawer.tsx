@@ -1,17 +1,18 @@
-import type { Theme } from '@shared';
+import type { Palette, ResolvedTheme, Theme } from '@shared';
 
 import type { CategoryNode } from '@nav/features/categories/tree';
 
 import { Dialog } from '@base-ui/react/dialog';
-import { LayoutDashboard, LogIn, LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, Moon, Sun, X } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
+import { runViewTransition } from '@/lib/viewTransition';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 
+import { AppearancePopover } from './AppearancePopover';
 import { CategoryNavTree } from './CategoryNavTree';
 import { FrontButton } from './controls';
 
-/** 移动端 / 平板端（< lg）左侧滑出分类抽屉，完整保留两级分类树与快捷操作。 */
+/** 移动端 / 平板端（< lg）左侧滑出分类抽屉，底部工具栏与桌面展开态统一。 */
 export function FrontCategoryDrawer({
   open,
   onOpenChange,
@@ -23,7 +24,10 @@ export function FrontCategoryDrawer({
   searching,
   onSelectCategory,
   theme,
+  resolvedTheme,
   setTheme,
+  palette,
+  setPalette,
   authed,
   loggingOut,
   onAdmin,
@@ -40,13 +44,18 @@ export function FrontCategoryDrawer({
   searching: boolean;
   onSelectCategory: (slug?: string) => void;
   theme: Theme;
+  resolvedTheme?: ResolvedTheme;
   setTheme: (theme: Theme) => void;
+  palette: Palette;
+  setPalette: (palette: Palette) => void;
   authed: boolean;
   loggingOut: boolean;
   onAdmin: () => void;
   onLogin: () => void;
   onLogout: () => void;
 }) {
+  const isDark = resolvedTheme === 'dark';
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -90,74 +99,82 @@ export function FrontCategoryDrawer({
             />
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2.5 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <div
-              role="group"
-              aria-label="抽屉主题切换"
-              className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1"
-            >
-              {(
-                [
-                  { value: 'light', label: '亮色', icon: Sun },
-                  { value: 'dark', label: '暗色', icon: Moon },
-                  { value: 'system', label: '系统', icon: Monitor },
-                ] as const
-              ).map(({ value, label, icon: Icon }) => (
+          <div className="shrink-0 border-t border-border/70 px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="flex w-full items-center justify-between gap-1">
+              {authed ? (
                 <FrontButton
-                  key={value}
-                  aria-pressed={theme === value}
-                  onClick={() => setTheme(value)}
-                  className={cn(
-                    'min-h-9 gap-1.5 rounded-lg px-2 py-1 text-xs',
-                    theme === value
-                      ? 'bg-card font-semibold text-foreground shadow-2xs'
-                      : 'text-muted-foreground hover:bg-transparent hover:text-foreground',
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" />
-                  <span>{label}</span>
-                </FrontButton>
-              ))}
-            </div>
-            {authed ? (
-              <div className="grid grid-cols-2 gap-1.5">
-                <FrontButton
-                  tone="subtle"
+                  tone="quiet"
                   onClick={() => {
                     onOpenChange(false);
                     onAdmin();
                   }}
-                  className="min-h-10 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium"
+                  aria-label="管理后台"
+                  className="min-h-9 gap-2 rounded-xl px-2.5 text-xs font-medium pointer-coarse:min-h-11"
                 >
-                  <LayoutDashboard className="size-3.5 shrink-0" />
-                  <span>管理后台</span>
+                  <LayoutDashboard aria-hidden="true" className="size-4 shrink-0" />
+                  <span>后台</span>
                 </FrontButton>
+              ) : (
                 <FrontButton
-                  tone="subtle"
-                  disabled={loggingOut}
+                  tone="quiet"
                   onClick={() => {
                     onOpenChange(false);
-                    onLogout();
+                    onLogin();
                   }}
-                  className="min-h-10 justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                  aria-label="管理员登录"
+                  className="min-h-9 gap-2 rounded-xl px-2.5 text-xs font-medium pointer-coarse:min-h-11"
                 >
-                  <LogOut className="size-3.5 shrink-0" />
-                  <span>{loggingOut ? '退出中…' : '退出登录'}</span>
+                  <LogIn aria-hidden="true" className="size-4 shrink-0" />
+                  <span>登录</span>
                 </FrontButton>
+              )}
+
+              <div className="flex items-center gap-0.5">
+                <FrontButton
+                  tone="quiet"
+                  aria-label={isDark ? '切换亮色模式' : '切换暗色模式'}
+                  onClick={(event) =>
+                    runViewTransition(() => setTheme(isDark ? 'light' : 'dark'), {
+                      kind: 'ripple',
+                      origin: event.currentTarget,
+                    })
+                  }
+                  className="size-9 min-h-9 rounded-xl p-0 pointer-coarse:size-11"
+                >
+                  {isDark ? (
+                    <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
+                  ) : (
+                    <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
+                  )}
+                </FrontButton>
+
+                <AppearancePopover
+                  theme={theme}
+                  resolvedTheme={resolvedTheme}
+                  setTheme={setTheme}
+                  palette={palette}
+                  setPalette={setPalette}
+                  side="top"
+                  align="end"
+                  triggerClassName="size-9 min-h-9 rounded-xl pointer-coarse:size-11"
+                />
+
+                {authed ? (
+                  <FrontButton
+                    tone="quiet"
+                    aria-label="退出登录"
+                    disabled={loggingOut}
+                    onClick={() => {
+                      onOpenChange(false);
+                      onLogout();
+                    }}
+                    className="size-9 min-h-9 rounded-xl p-0 text-muted-foreground hover:bg-destructive/12 hover:text-destructive pointer-coarse:size-11"
+                  >
+                    <LogOut aria-hidden="true" className="size-4" />
+                  </FrontButton>
+                ) : null}
               </div>
-            ) : (
-              <FrontButton
-                tone="subtle"
-                onClick={() => {
-                  onOpenChange(false);
-                  onLogin();
-                }}
-                className="min-h-10 w-full justify-center gap-2 rounded-xl px-3 text-xs font-medium"
-              >
-                <LogIn className="size-3.5 shrink-0" />
-                <span>管理员登录</span>
-              </FrontButton>
-            )}
+            </div>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

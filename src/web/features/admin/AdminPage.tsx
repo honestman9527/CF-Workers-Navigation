@@ -130,8 +130,8 @@ function AdminSidebarContent({
   const isDark = resolvedTheme === 'dark';
   const currentPaletteLabel = PALETTE_OPTIONS.find((item) => item.id === palette)?.label;
   const appearanceTooltip = currentPaletteLabel
-    ? `外观与配色 · ${currentPaletteLabel}`
-    : '外观与配色';
+    ? `外观与主题 · ${currentPaletteLabel}`
+    : '外观与主题';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-between">
@@ -144,44 +144,30 @@ function AdminSidebarContent({
           <div
             className={cn(
               'flex w-full items-center gap-2',
-              collapsed ? 'flex-col' : 'justify-between',
+              collapsed ? 'justify-center' : 'justify-between',
             )}
           >
-            <Tooltip disabled={!collapsed}>
-              <TooltipTrigger
-                render={
-                  <Link
-                    to="/admin"
-                    onClick={() => setOpenMobile(false)}
-                    aria-label={collapsed ? '管理后台概览' : undefined}
-                    className={cn(
-                      'flex min-w-0 items-center rounded-xl text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
-                      collapsed ? 'grid size-11 place-items-center' : 'gap-3 px-2',
-                    )}
-                  />
-                }
+            {!collapsed ? (
+              <Link
+                key="admin-brand-link"
+                to="/admin"
+                onClick={() => setOpenMobile(false)}
+                className="flex min-w-0 items-center gap-3 rounded-xl px-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
               >
                 <BrandIcon className="size-9 shrink-0" />
-                {!collapsed ? (
-                  <div className="min-w-0">
-                    <strong className="block truncate font-display text-base font-semibold">
-                      管理后台
-                    </strong>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      书签柜设置与整理
-                    </span>
-                  </div>
-                ) : null}
-              </TooltipTrigger>
-              {collapsed ? (
-                <TooltipContent side="right" sideOffset={10}>
-                  管理后台
-                </TooltipContent>
-              ) : null}
-            </Tooltip>
+                <div className="min-w-0">
+                  <strong className="block truncate font-display text-base font-semibold">
+                    管理后台
+                  </strong>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    书签柜设置与整理
+                  </span>
+                </div>
+              </Link>
+            ) : null}
 
             {!isMobile ? (
-              <Tooltip disabled={!collapsed}>
+              <Tooltip key="admin-sidebar-toggle" disabled={!collapsed}>
                 <TooltipTrigger
                   render={
                     <Button
@@ -194,16 +180,28 @@ function AdminSidebarContent({
                       title={open ? '收起为图标栏 (⌘B / Ctrl+B)' : '展开侧边栏 (⌘B / Ctrl+B)'}
                       onClick={toggleSidebar}
                       className={cn(
-                        'shrink-0 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground',
-                        collapsed ? 'size-11' : 'size-9 min-h-9',
+                        'group relative shrink-0 rounded-xl p-0 text-muted-foreground hover:bg-secondary hover:text-foreground',
+                        collapsed ? 'grid size-11 place-items-center' : 'size-9 min-h-9',
                       )}
                     />
                   }
                 >
-                  {open ? (
-                    <PanelLeftClose aria-hidden="true" className="size-4" />
+                  {collapsed ? (
+                    <>
+                      <BrandIcon className="size-9 shrink-0 group-focus-visible:scale-90 group-focus-visible:opacity-0 motion-safe:transition-[opacity,transform] motion-safe:duration-150 hover-capable:group-hover:scale-90 hover-capable:group-hover:opacity-0" />
+                      <PanelLeftOpen
+                        aria-hidden="true"
+                        className="pointer-events-none absolute size-4.5 scale-90 text-foreground opacity-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-safe:transition-[opacity,transform] motion-safe:duration-150 hover-capable:group-hover:scale-100 hover-capable:group-hover:opacity-100"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-0.5 bottom-0.5 grid size-4 place-items-center rounded-full border border-border bg-popover text-foreground shadow-2xs hover-capable:hidden"
+                      >
+                        <PanelLeftOpen className="size-2.5" />
+                      </span>
+                    </>
                   ) : (
-                    <PanelLeftOpen aria-hidden="true" className="size-4" />
+                    <PanelLeftClose aria-hidden="true" className="size-4" />
                   )}
                 </TooltipTrigger>
                 {collapsed ? (

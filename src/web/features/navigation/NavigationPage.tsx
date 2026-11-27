@@ -83,7 +83,6 @@ function NavigationSurface() {
     density,
     setDensity,
     bgOverlayOpacity,
-    setBgOverlayOpacity,
     frontSidebarOpen: sidebarOpen,
     setFrontSidebarOpen: setSidebarOpen,
   } = useAppearance();
@@ -133,9 +132,6 @@ function NavigationSurface() {
     error: settingsError,
     retry: retrySettings,
   } = useSettings(unauthorized);
-  const hasBackground = Boolean(
-    settings?.backgroundImageEnabled && settings.backgroundImageUrl.trim(),
-  );
   useBackground(settings, bgOverlayOpacity);
   const loadCategories = useCallback((signal: AbortSignal) => api.getCategories(signal), []);
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
@@ -412,21 +408,6 @@ function NavigationSurface() {
           >
             <Command aria-hidden="true" className="size-4" />
           </FrontButton>
-          <AppearancePopover
-            theme={theme}
-            resolvedTheme={effectiveResolvedTheme}
-            setTheme={setTheme}
-            palette={palette}
-            setPalette={setPalette}
-            density={density}
-            setDensity={setDensity}
-            bgOverlayOpacity={bgOverlayOpacity}
-            setBgOverlayOpacity={setBgOverlayOpacity}
-            hasBackground={hasBackground}
-            side="bottom"
-            align="end"
-            compactTrigger
-          />
           {auth.authed ? (
             <FrontButton
               tone="subtle"
@@ -474,36 +455,32 @@ function NavigationSurface() {
             <div
               className={cn(
                 'flex w-full items-center gap-2',
-                sidebarOpen ? 'justify-between' : 'flex-col',
+                sidebarOpen ? 'justify-between' : 'justify-center',
               )}
             >
-              <FrontTooltip enabled={!sidebarOpen} content="书签柜首页">
+              {sidebarOpen ? (
                 <Link
+                  key="brand-link"
                   to="/"
                   search={{}}
-                  aria-label={sidebarOpen ? undefined : '书签柜首页'}
-                  className={cn(
-                    'flex min-w-0 items-center rounded-xl text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
-                    sidebarOpen ? 'gap-3 px-2' : 'grid size-11 place-items-center',
-                  )}
+                  className="flex min-w-0 items-center gap-3 rounded-xl px-2 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
                 >
                   <BrandIcon className="size-9 shrink-0" />
-                  {sidebarOpen ? (
-                    <div className="min-w-0">
-                      <strong className="block truncate font-display text-base font-semibold">
-                        书签柜
-                      </strong>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        网站导航与整理
-                      </span>
-                    </div>
-                  ) : null}
+                  <div className="min-w-0">
+                    <strong className="block truncate font-display text-base font-semibold">
+                      书签柜
+                    </strong>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      网站导航与整理
+                    </span>
+                  </div>
                 </Link>
-              </FrontTooltip>
+              ) : null}
 
               <FrontTooltip
+                key="sidebar-toggle"
                 enabled={!sidebarOpen}
-                content={sidebarOpen ? '收起为图标栏 (⌘B / Ctrl+B)' : '展开侧边栏 (⌘B / Ctrl+B)'}
+                content="展开侧边栏 (⌘B / Ctrl+B)"
               >
                 <FrontButton
                   aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
@@ -511,12 +488,27 @@ function NavigationSurface() {
                   aria-controls="front-sidebar"
                   title={sidebarOpen ? '收起为图标栏 (⌘B / Ctrl+B)' : '展开侧边栏 (⌘B / Ctrl+B)'}
                   onClick={toggleSidebar}
-                  className={cn('rounded-xl p-0', sidebarOpen ? 'size-9 min-h-9' : 'size-11')}
+                  className={cn(
+                    'group relative rounded-xl p-0',
+                    sidebarOpen ? 'size-9 min-h-9' : 'grid size-11 place-items-center',
+                  )}
                 >
                   {sidebarOpen ? (
                     <PanelLeftClose aria-hidden="true" className="size-4" />
                   ) : (
-                    <PanelLeftOpen aria-hidden="true" className="size-4" />
+                    <>
+                      <BrandIcon className="size-9 shrink-0 group-focus-visible:scale-90 group-focus-visible:opacity-0 motion-safe:transition-[opacity,transform] motion-safe:duration-150 hover-capable:group-hover:scale-90 hover-capable:group-hover:opacity-0" />
+                      <PanelLeftOpen
+                        aria-hidden="true"
+                        className="pointer-events-none absolute size-4.5 scale-90 text-foreground opacity-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-safe:transition-[opacity,transform] motion-safe:duration-150 hover-capable:group-hover:scale-100 hover-capable:group-hover:opacity-100"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute right-0.5 bottom-0.5 grid size-4 place-items-center rounded-full border border-border bg-popover text-foreground shadow-2xs hover-capable:hidden"
+                      >
+                        <PanelLeftOpen className="size-2.5" />
+                      </span>
+                    </>
                   )}
                 </FrontButton>
               </FrontTooltip>
@@ -617,14 +609,8 @@ function NavigationSurface() {
                   setTheme={setTheme}
                   palette={palette}
                   setPalette={setPalette}
-                  density={density}
-                  setDensity={setDensity}
-                  bgOverlayOpacity={bgOverlayOpacity}
-                  setBgOverlayOpacity={setBgOverlayOpacity}
-                  hasBackground={hasBackground}
                   side="top"
                   align="end"
-                  compactTrigger
                   showTooltip
                   tooltipSide="top"
                   tooltipOffset={8}
@@ -658,14 +644,8 @@ function NavigationSurface() {
                 setTheme={setTheme}
                 palette={palette}
                 setPalette={setPalette}
-                density={density}
-                setDensity={setDensity}
-                bgOverlayOpacity={bgOverlayOpacity}
-                setBgOverlayOpacity={setBgOverlayOpacity}
-                hasBackground={hasBackground}
                 side="right"
                 align="end"
-                compactTrigger
                 showTooltip
                 triggerClassName="size-11"
               />
@@ -1035,7 +1015,10 @@ function NavigationSurface() {
         searching={searching}
         onSelectCategory={selectCategory}
         theme={theme}
+        resolvedTheme={effectiveResolvedTheme}
         setTheme={setTheme}
+        palette={palette}
+        setPalette={setPalette}
         authed={auth.authed}
         loggingOut={loggingOut}
         onAdmin={goAdmin}

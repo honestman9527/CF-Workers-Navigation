@@ -102,7 +102,11 @@ it('底部返回前台并与前台风格一致，桌面收起为图标栏后保�
   const sidebar = app.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
   expect(sidebar.dataset.state).toBe('collapsed');
   expect(sidebar.dataset.collapsible).toBe('icon');
-  expect(document.activeElement).toBe(button('展开管理导航'));
+  expect(app.container.querySelector('a[aria-label="管理后台概览"]')).toBeNull();
+  const expandedToggle = button('展开管理导航');
+  expect(expandedToggle).toBe(toggle);
+  expect(expandedToggle.querySelector('img')).not.toBeNull();
+  expect(document.activeElement).toBe(expandedToggle);
   expect(app.container.querySelector('a[aria-label="书签"]')).not.toBeNull();
   expect(footer.querySelector('a[aria-label="返回前台"]')).not.toBeNull();
 
