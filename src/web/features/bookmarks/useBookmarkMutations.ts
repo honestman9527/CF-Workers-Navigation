@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@nav/api/client';
 
 export type BookmarkChange =
-  | { kind: 'created' | 'updated' | 'pinned' | 'archived' | 'restored'; bookmark: Bookmark }
+  | { kind: 'created' | 'updated' | 'copied' | 'archived' | 'restored'; bookmark: Bookmark }
   | { kind: 'trashed' | 'deleted'; id: number };
 
 type BookmarkMutationEffects = {
@@ -58,10 +58,8 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
       const change = await write();
       if (mounted.current) {
         effects.current.onContentChange(change);
-        if (change.kind !== 'pinned') {
-          effects.current.invalidateTags();
-          effects.current.invalidateCategories();
-        }
+        effects.current.invalidateTags();
+        effects.current.invalidateCategories();
       }
       effects.current.onSuccess(change);
       return change;
@@ -81,14 +79,16 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
     return change.bookmark;
   }
 
-  async function togglePin(bookmark: Bookmark) {
+  async function copyToCategory(bookmark: Bookmark, categoryId: number | null): Promise<boolean> {
     try {
       await commit(bookmark.id, async () => ({
-        kind: 'pinned',
-        bookmark: await api.updateBookmark(bookmark.id, { isPinned: !bookmark.isPinned }),
+        kind: 'copied',
+        bookmark: await api.copyBookmark(bookmark.id, categoryId),
       }));
+      return true;
     } catch (error) {
       effects.current.onError(error instanceof Error ? error.message : '操作失败，请重试');
+      return false;
     }
   }
 
@@ -113,5 +113,5 @@ export function useBookmarkMutations(options: BookmarkMutationEffects) {
     }
   }
 
-  return { save, togglePin, changeState, pendingIds };
+  return { save, copyToCategory, changeState, pendingIds };
 }

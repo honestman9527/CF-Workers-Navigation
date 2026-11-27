@@ -47,7 +47,7 @@ describe('transfer api', () => {
       env.DB.prepare('DELETE FROM bookmark_tags'),
       env.DB.prepare('DELETE FROM bookmarks'),
       env.DB.prepare('DELETE FROM tags'),
-      env.DB.prepare('DELETE FROM categories'),
+      env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
     ]);
   });
 
@@ -90,10 +90,12 @@ describe('transfer api', () => {
     const data = (await response.json()) as {
       version: number;
       bookmarks: Array<{ url: string; tags: string[] }>;
-      categories?: unknown;
+      categories?: Array<{ systemKey?: string | null }>;
     };
     expect(data.version).toBe(2);
-    expect(data.categories).toEqual([]);
+    expect(data.categories).toEqual([
+      expect.objectContaining({ name: '常用', slug: 'common', systemKey: 'common' }),
+    ]);
     expect(data.bookmarks.find((bookmark) => bookmark.url.includes('tagged'))?.tags).toEqual([
       '开发',
       '常用',
@@ -439,7 +441,7 @@ describe('transfer api', () => {
     expect(before).toHaveLength(5);
 
     await env.DB.prepare('DELETE FROM bookmarks').run();
-    await env.DB.prepare('DELETE FROM categories').run();
+    await env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL').run();
     const restored = await requestImport(backup);
     expect(restored.status).toBe(200);
     expect(await restored.json()).toMatchObject({ bookmarksCreated: 5, bookmarksSkipped: 0 });
@@ -614,7 +616,11 @@ describe('transfer api', () => {
       },
     );
     expect(response.status).toBe(400);
-    expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM categories').first('count')).toBe(0);
+    expect(
+      await env.DB.prepare(
+        'SELECT COUNT(*) AS count FROM categories WHERE system_key IS NULL',
+      ).first('count'),
+    ).toBe(0);
     expect(await env.DB.prepare('SELECT COUNT(*) AS count FROM bookmarks').first('count')).toBe(0);
   });
 
@@ -769,7 +775,7 @@ describe('transfer api', () => {
             requestId: 'failed-stream',
             phase: 'stream',
             outcome: 'failed',
-            counts: { categoriesRead: 0, bookmarksRead: 300 },
+            counts: { categoriesRead: 1, bookmarksRead: 300 },
           }),
         );
       } finally {
@@ -902,7 +908,6 @@ describe('transfer api', () => {
       url: 'https://rich-backup.example.com/path#hash',
       description: 'A description <with> & symbols',
       iconUrl: 'https://icons.example.com/rich.png',
-      isPinned: true,
       sortOrder: 0,
       categorySlug: 'backup-child',
       tags: ['Docs', 'Design'],
@@ -916,7 +921,6 @@ describe('transfer api', () => {
       url: 'https://empty-backup.example.com',
       description: null,
       iconUrl: null,
-      isPinned: false,
       sortOrder: 0,
       categorySlug: null,
       tags: [],
@@ -948,7 +952,10 @@ describe('transfer api', () => {
     expect(Object.keys(data).sort()).toEqual(['bookmarks', 'categories', 'exportedAt', 'version']);
     expect(data.version).toBe(2);
     expect(Number.isFinite(Date.parse(data.exportedAt))).toBe(true);
-    expect(data.categories).toEqual(categories);
+    expect(data.categories).toEqual([
+      expect.objectContaining({ name: '常用', slug: 'common', systemKey: 'common' }),
+      ...categories,
+    ]);
     expect(data.bookmarks).toHaveLength(2);
     for (const expected of [rich, empty]) {
       const record = data.bookmarks.find((bookmark) => bookmark.url === expected.url);
@@ -957,6 +964,90 @@ describe('transfer api', () => {
         tags: expected.tags.toSorted(),
       });
     }
+  });
+
+  it('round-trips duplicate URLs across categories, maps renamed common category, and migrates legacy isPinned backups privately', async () => {
+    const postImport = (body: string) =>
+      exports.default.fetch('https://example.com/api/v1/transfer/import?format=json', {
+        method: 'POST',
+        headers: adminHeaders,
+        body,
+      });
+    const legacy = {
+      version: 2,
+      categories: [
+        { name: '工作私有', slug: 'work-private', visibility: 'private' },
+        { name: '常用', slug: 'common', visibility: 'public' },
+      ],
+      bookmarks: [
+        {
+          title: 'Secret Pinned',
+          url: 'https://shared-roundtrip.example.com',
+          visibility: 'public',
+          isPinned: true,
+          categorySlug: 'work-private',
+          tags: ['Sec'],
+        },
+        {
+          title: 'In Common Already',
+          url: 'https://in-common-already.example.com',
+          visibility: 'public',
+          isPinned: true,
+          categorySlug: 'common',
+          tags: ['Fast'],
+        },
+      ],
+    };
+    const imported = await postImport(JSON.stringify(legacy));
+    expect(imported.status).toBe(200);
+    // Secret Pinned in work-private + synthesized copy in common + In Common Already in common = 3
+    expect(await imported.json<ImportSummary>()).toMatchObject({ bookmarksCreated: 3 });
+
+    const catsRes = await exports.default.fetch('https://example.com/api/v1/categories', {
+      headers: adminHeaders,
+    });
+    const cats =
+      await catsRes.json<Array<{ id: number; slug: string; systemKey: string | null }>>();
+    const commonCat = cats.find((c) => c.systemKey === 'common')!;
+    expect(cats.filter((c) => c.systemKey === 'common')).toHaveLength(1);
+
+    const commonPage = await (
+      await exports.default.fetch(
+        `https://example.com/api/v1/bookmarks?category=${commonCat.slug}&categoryOnly=true`,
+        { headers: adminHeaders },
+      )
+    ).json<{ items: Array<{ title: string; url: string; visibility: string }> }>();
+    const copiedSecret = commonPage.items.find((i) => i.title === 'Secret Pinned');
+    expect(copiedSecret).toMatchObject({
+      url: 'https://shared-roundtrip.example.com',
+      visibility: 'private',
+    });
+
+    // 重命名内置「常用」后导出、清空非系统分类并再导入，不会生成第二个系统分类且保留同 URL 跨分类副本
+    await exports.default.fetch(`https://example.com/api/v1/categories/${commonCat.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: '精选导航' }),
+    });
+    const exportedText = await (
+      await exports.default.fetch('https://example.com/api/v1/transfer/export?format=json', {
+        headers: adminHeaders,
+      })
+    ).text();
+    await env.DB.prepare('DELETE FROM bookmarks').run();
+    await env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL').run();
+    // 改名目标内置分类以验证按 systemKey='common' 映射到不同 slug 的目标分类
+    await exports.default.fetch(`https://example.com/api/v1/categories/${commonCat.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: '目标常用' }),
+    });
+    const reimport = await postImport(exportedText);
+    expect(reimport.status).toBe(200);
+    expect(await reimport.json<ImportSummary>()).toMatchObject({
+      bookmarksCreated: 3,
+      bookmarksSkipped: 0,
+    });
   });
 
   it('imports a category tree and restores bookmark assignment', async () => {
@@ -1054,7 +1145,7 @@ describe('transfer api', () => {
     );
     const jsonText = await jsonResp.text();
     await env.DB.prepare('DELETE FROM bookmarks').run();
-    await env.DB.prepare('DELETE FROM categories').run();
+    await env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL').run();
     const reimport = await exports.default.fetch(
       'https://example.com/api/v1/transfer/import?format=json',
       { method: 'POST', headers: adminHeaders, body: jsonText },

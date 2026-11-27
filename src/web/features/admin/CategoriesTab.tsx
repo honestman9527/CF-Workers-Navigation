@@ -3,6 +3,7 @@ import type { Category, Visibility } from '@shared/api/types';
 import { Check, ChevronRight, Folder, FolderPlus, Plus, X } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -33,6 +34,7 @@ import {
   useVisibilityDefaults,
 } from '@nav/features/visibility/VisibilityField';
 import { useApiData } from '@nav/hooks/useApiData';
+import { COMMON_CATEGORY_SYSTEM_KEY } from '@shared/category-rules';
 
 import { CATEGORY_ICON_KEYS, categoryIcon } from '../categories/icons';
 import {
@@ -379,6 +381,11 @@ export function CategoriesTab() {
               >
                 {node.name}
               </span>
+              {node.systemKey === COMMON_CATEGORY_SYSTEM_KEY ? (
+                <Badge variant="secondary" className="shrink-0 self-center text-[11px]">
+                  内置
+                </Badge>
+              ) : null}
               <span className="hidden truncate text-xs text-muted-foreground sm:inline">
                 /{node.slug}
               </span>
@@ -430,7 +437,7 @@ export function CategoriesTab() {
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-3xl font-semibold tracking-tight">分类管理</h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          分类是书签的树形归属。删除分类后子分类自动上移一级，内含书签转为未分类。书签数统计为「直属
+          分类是书签的树形归属；内置「常用」分类不可删除或降级为子分类。删除普通分类后子分类自动上移一级，内含书签转为未分类（与未分类同网址的书签将自动移入回收站）。书签数统计为「直属
           / 含子类总数」。
         </p>
       </div>
@@ -521,7 +528,7 @@ export function CategoriesTab() {
         title={confirmDelete ? `删除分类「${confirmDelete.name}」？` : ''}
         description={
           confirmDeleteMeta
-            ? `将 ${confirmDeleteMeta.children} 个子分类上移一级，${confirmDeleteMeta.bookmarks} 个书签变为未分类。此操作不会删除书签，原有私有保护将保留，且不可直接撤销。`
+            ? `将 ${confirmDeleteMeta.children} 个子分类上移一级，${confirmDeleteMeta.bookmarks} 个直属书签转为未分类（若与未分类存在相同网址，冲突书签将自动移入回收站）。此操作会保留原有私有保护，且不可直接撤销。`
             : undefined
         }
         confirmLabel="删除"

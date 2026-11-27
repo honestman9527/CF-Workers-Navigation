@@ -1,11 +1,11 @@
-import type { Visibility } from '../../shared/api/types';
+import type { CategorySystemKey, Visibility } from '../../shared/api/types';
 import type { Category as CategoryDto, CategoryInput } from '../../shared/api/types';
 import type { Db } from '../types';
 
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import { UNCATEGORIZED_SLUG } from '../../shared/api/types';
-import { CATEGORY_DEPTH_MESSAGE } from '../../shared/category-rules';
+import { CATEGORY_DEPTH_MESSAGE, SYSTEM_CATEGORY_MESSAGE } from '../../shared/category-rules';
 import { bookmarks, categories } from '../schema';
 import { getDefaultVisibility } from '../settings';
 import { slugify } from '../slug';
@@ -24,6 +24,7 @@ type CategoryRow = {
   effective_visibility: Visibility;
   id: number;
   parent_id: number | null;
+  system_key: CategorySystemKey | null;
   name: string;
   slug: string;
   icon: string | null;
@@ -37,6 +38,7 @@ function toDto(row: CategoryRow): CategoryDto {
     visibility: row.visibility,
     effectiveVisibility: row.effective_visibility,
     parentId: row.parent_id,
+    systemKey: row.system_key,
     name: row.name,
     slug: row.slug,
     icon: row.icon,
@@ -70,7 +72,7 @@ function normalizeName(input: string | undefined, label: string): string {
 
 function categorySelect(authed = true) {
   return sql`
-    SELECT c.visibility, ${categoryEffectiveVisibility} AS effective_visibility, c.id, c.parent_id, c.name, c.slug, c.icon, c.sort_order,
+    SELECT c.visibility, ${categoryEffectiveVisibility} AS effective_visibility, c.id, c.parent_id, c.system_key, c.name, c.slug, c.icon, c.sort_order,
       COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL ${authed ? sql`` : sql`AND ${publicBookmarkCondition}`} THEN 1 END) AS bookmark_count
     FROM categories c
     LEFT JOIN bookmarks b ON b.category_id = c.id
@@ -190,7 +192,12 @@ export async function updateCategory(
   input: CategoryWrite,
 ): Promise<CategoryDto> {
   const [current] = await db
-    .select({ id: categories.id, slug: categories.slug, parentId: categories.parentId })
+    .select({
+      id: categories.id,
+      slug: categories.slug,
+      parentId: categories.parentId,
+      systemKey: categories.systemKey,
+    })
     .from(categories)
     .where(eq(categories.id, id));
   if (!current) throw new ServiceError(404, 'not_found', '分类不存在');
@@ -213,6 +220,9 @@ export async function updateCategory(
 
   if (input.parentId !== undefined) {
     const targetParent = input.parentId;
+    if (current.systemKey !== null && targetParent !== null) {
+      throw new ServiceError(400, 'validation_error', SYSTEM_CATEGORY_MESSAGE);
+    }
     if (targetParent !== null) {
       if (targetParent === id) {
         throw new ServiceError(400, 'validation_error', '不能移动到自身内部');
@@ -240,12 +250,15 @@ export async function updateCategory(
 
 export async function deleteCategory(db: Db, id: number): Promise<void> {
   const [current] = await db
-    .select({ id: categories.id })
+    .select({ id: categories.id, systemKey: categories.systemKey })
     .from(categories)
     .where(eq(categories.id, id));
   if (!current) throw new ServiceError(404, 'not_found', '分类不存在');
+  if (current.systemKey !== null) {
+    throw new ServiceError(400, 'validation_error', SYSTEM_CATEGORY_MESSAGE);
+  }
 
-  // Protect inherited privacy and read parent_id atomically inside one batch before deleting.
+  // 在删除分类前的单次原子批次内：上移子分类并固化私有权限；与未分类 URL 冲突的书签软删进回收站；其余书签转入未分类并顺接排序。
   await db.batch([
     db
       .update(categories)
@@ -255,10 +268,26 @@ export async function deleteCategory(db: Db, id: number): Promise<void> {
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
       .where(eq(categories.parentId, id)),
+    db.update(bookmarks).set({
+      categoryId: null,
+      deletedAt: sql`CURRENT_TIMESTAMP`,
+      visibility: sql`CASE WHEN ${bookmarks.categoryId} IN ${privateCategoryIds} THEN 'private' ELSE ${bookmarks.visibility} END`,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    }).where(sql`
+        ${bookmarks.categoryId} = ${id}
+        AND ${bookmarks.deletedAt} IS NULL
+        AND EXISTS (
+          SELECT 1 FROM bookmarks uncat
+          WHERE uncat.category_id IS NULL
+            AND uncat.deleted_at IS NULL
+            AND uncat.url_normalized = ${bookmarks.urlNormalized}
+        )
+      `),
     db
       .update(bookmarks)
       .set({
         categoryId: null,
+        sortOrder: sql`${bookmarks.sortOrder} + COALESCE((SELECT MAX(sort_order) + 1 FROM bookmarks WHERE category_id IS NULL), 0)`,
         visibility: sql`CASE WHEN ${bookmarks.categoryId} IN ${privateCategoryIds} THEN 'private' ELSE ${bookmarks.visibility} END`,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })

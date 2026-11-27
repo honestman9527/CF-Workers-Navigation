@@ -10,6 +10,7 @@ export type SelectOption = {
   depth?: number;
   parentValue?: string;
   private?: boolean;
+  disabled?: boolean;
   hint?: string;
 };
 

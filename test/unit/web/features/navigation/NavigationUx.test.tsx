@@ -63,6 +63,7 @@ vi.mock('@nav/api/client', () => ({
     getTags: vi.fn(),
     getPublicSettings: vi.fn(),
     updateBookmark: vi.fn(),
+    copyBookmark: vi.fn(),
     reorderBookmarks: vi.fn(),
     deleteBookmark: vi.fn(),
   },
@@ -78,7 +79,6 @@ function makeBookmark(overrides: Partial<Bookmark> = {}): Bookmark {
     url: 'https://developers.cloudflare.com',
     description: '边缘计算与 Workers 官方文档',
     iconUrl: null,
-    isPinned: true,
     sortOrder: 0,
     visibility: 'public',
     effectiveVisibility: 'public',
@@ -98,6 +98,7 @@ function makeCategory(overrides: Partial<Category> = {}): Category {
   return {
     id: 1,
     parentId: null,
+    systemKey: null,
     name: '工程工具',
     slug: 'tools',
     icon: null,
@@ -155,6 +156,15 @@ beforeEach(() => {
     },
   );
   vi.mocked(api.getCategories).mockResolvedValue([
+    makeCategory({
+      id: 10,
+      name: '常用',
+      slug: 'common',
+      systemKey: 'common',
+      icon: 'Star',
+      sortOrder: 0,
+      bookmarkCount: 2,
+    }),
     makeCategory({ id: 1, name: '工程工具', slug: 'tools', bookmarkCount: 1 }),
     makeCategory({
       id: 2,
@@ -218,7 +228,21 @@ it('支持舒适/紧凑视图密度切换并持久化到 localStorage', async ()
 });
 
 it('卡片展示最多 3 个可点击标签微章、所属分类与私有标识，点击标签触发站内筛选', async () => {
-  app = await mount(<Host />);
+  vi.mocked(api.searchBookmarks).mockResolvedValueOnce({
+    items: [
+      makeBookmark(),
+      makeBookmark({
+        id: 2,
+        title: '内部控制台',
+        url: 'https://internal.example.com',
+        visibility: 'private',
+        effectiveVisibility: 'private',
+        tags: ['Ops'],
+      }),
+    ],
+    nextCursor: null,
+  });
+  app = await mount(<Host initial={{ mode: 'site', q: 'Cloudflare' }} />);
   const firstCard = app.container.querySelectorAll('li')[0]!;
   expect(firstCard.textContent).toContain('开发文档');
   expect(firstCard.textContent).toContain('Workers');
@@ -232,6 +256,53 @@ it('卡片展示最多 3 个可点击标签微章、所属分类与私有标识�
 
   await click(buttonWithText(firstCard, 'Workers'));
   expect(route.search).toMatchObject({ mode: 'site', tag: 'workers' });
+});
+
+it('管理员可通过卡片复制到分类，禁选当前分类并显示继承私有提示与一键复制到常用', async () => {
+  vi.useRealTimers();
+  auth.authed = true;
+  vi.mocked(api.getBookmarks).mockResolvedValue({
+    items: [
+      makeBookmark({
+        id: 1,
+        title: 'Cloudflare Docs',
+        categoryId: 2,
+        categorySlug: 'dev',
+        categoryName: '开发文档',
+        visibility: 'public',
+        effectiveVisibility: 'private',
+      }),
+    ],
+    nextCursor: null,
+  });
+  vi.mocked(api.copyBookmark).mockResolvedValue(
+    makeBookmark({
+      id: 100,
+      categoryId: 10,
+      categorySlug: 'common',
+      categoryName: '常用',
+      visibility: 'private',
+      effectiveVisibility: 'private',
+    }),
+  );
+
+  app = await mount(<Host initial={{ category: 'dev' }} />);
+  await click(
+    app.container.querySelector<HTMLElement>('[aria-label="复制到分类：Cloudflare Docs"]')!,
+  );
+  const popup = document.querySelector<HTMLElement>(
+    '[aria-label="复制「Cloudflare Docs」到分类"]',
+  )!;
+  expect(popup).not.toBeNull();
+  expect(popup.textContent).toContain('继承了私有权限');
+  const currentOption = [...popup.querySelectorAll<HTMLElement>('[role="treeitem"]')].find((el) =>
+    el.textContent?.includes('开发文档'),
+  )!;
+  expect(currentOption.getAttribute('aria-disabled')).toBe('true');
+
+  await click(buttonWithText(popup, '复制到「常用」'));
+  expect(api.copyBookmark).toHaveBeenCalledWith(1, 10);
+  expect(app.container.textContent).toContain('已复制到「常用」');
 });
 
 it('管理员点击卡片删除弹出确认框，确认后移入回收站并刷新列表', async () => {

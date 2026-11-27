@@ -10,6 +10,7 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 4. `0003_category_depth.sql` 将深层分类提升为原一级下的二级，并安装两层写入约束。
 5. `0004_query_indexes.sql` 补充分类直属分页覆盖索引 `bookmarks_category_status_created_idx` 与回收站规范化 URL 部分索引 `bookmarks_url_normalized_deleted_idx`。
 6. `0005_bookmark_sort_order.sql` 为 `bookmarks` 新增 `sort_order` 列（按 `category_id` 分组、以 `created_at ASC, id ASC` 为现有记录回填序号），并安装覆盖索引 `bookmarks_category_status_sort_idx`。
+7. `0006_common_category_and_scoped_url.sql` 将全局 URL 唯一索引替换为按分类与未分类分别去重的两个部分唯一索引；为 `categories` 新增 `system_key` 列与唯一索引、接管或创建默认置顶的内置「常用」一级分类（`system_key = 'common'`），将原活动置顶书签按有效私有权限保护复制入内置「常用」，并安装防止删除或降级的保护触发器；保留弃用列 `bookmarks.is_pinned` 以兼容滚动发布。
 
 `categories.parent_id` 建立最多两层的树形层级；每个书签最多属于一个分类。书签与标签通过 `bookmark_tags` 多对多关联。删除书签是软删除，永久删除会移除记录；活动、归档和回收站状态由 `archived_at`、`deleted_at` 表示。
 
@@ -17,11 +18,11 @@ Drizzle 表结构定义位于 `src/worker/schema.ts`。当前 D1 结构由 `migr
 
 ## 索引与触发器
 
-规范化 URL 对未删除书签建立唯一索引，因此同一 URL 可在旧记录进入回收站后重新添加。分类、标签、状态和置顶查询使用相应的 D1 索引。
+规范化 URL 对未删除书签建立按分类作用域的部分唯一索引（`bookmarks_category_url_normalized_idx` 限定 `(category_id, url_normalized) WHERE deleted_at IS NULL AND category_id IS NOT NULL`，`bookmarks_uncategorized_url_normalized_idx` 限定 `(url_normalized) WHERE deleted_at IS NULL AND category_id IS NULL`），允许不同分类及未分类保有相同网址的独立书签副本，同时禁止同分类或未分类内部重复；旧记录进入回收站后可重新添加到对应作用域。`bookmarks.is_pinned` 物理列在 `0006` 阶段继续保留以支持滚动发布期间旧 Worker 读取，业务代码不再读写或暴露。分类、标签与状态查询使用相应的 D1 索引。
 
 `bookmarks_fts` 使用 FTS5 索引标题、描述和 URL，由数据库触发器随书签增删改同步。表结构变更时需检查相关索引与触发器，不能只修改 Drizzle schema。
 
-`categories_depth_insert` 与 `categories_depth_update` 拒绝非根父级、自引用，以及把含子分类的分类移入其他一级；固定标记 `category_depth_limit` 由 Worker 映射为校验错误。Drizzle 不表达这些触发器，schema 保留对应迁移注释。
+`categories_depth_insert` 与 `categories_depth_update` 拒绝非根父级、自引用，以及把含子分类的分类移入其他一级；固定标记 `category_depth_limit` 由 Worker 映射为校验错误。`categories_system_insert`、`categories_system_update` 与 `categories_system_delete` 拒绝内置系统分类（`system_key IS NOT NULL`）被删除、降级为二级或篡改 `system_key`；固定标记 `system_category_protected` 由 Worker 映射为校验错误。Drizzle 不表达这些触发器，schema 保留对应迁移注释。
 
 `0003` 先快照原树的根、深度、有效私有状态和遍历顺序，校验每个节点可从根到达；循环或失效父链会中止迁移。三级及更深节点保留 ID、slug 和书签关联，挂到原根下，按原树顺序追加到原二级之后；失去私有祖先保护的提升节点显式设为私有。原根为私有时继续继承，不额外固化原来公开的节点。完成归整后再安装约束，迁移作为原子批次验证。
 

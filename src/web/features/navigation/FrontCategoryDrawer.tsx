@@ -18,6 +18,7 @@ export function FrontCategoryDrawer({
   roots,
   totals,
   activeRoot,
+  defaultRootSlug,
   selectedCategory,
   searching,
   onSelectCategory,
@@ -34,6 +35,7 @@ export function FrontCategoryDrawer({
   roots: CategoryNode[];
   totals: Map<number, number>;
   activeRoot?: string;
+  defaultRootSlug?: string;
   selectedCategory?: string;
   searching: boolean;
   onSelectCategory: (slug?: string) => void;
@@ -78,6 +80,7 @@ export function FrontCategoryDrawer({
               roots={roots}
               totals={totals}
               activeRoot={activeRoot}
+              defaultRootSlug={defaultRootSlug}
               selectedCategory={selectedCategory}
               searching={searching}
               onSelectCategory={(slug) => {

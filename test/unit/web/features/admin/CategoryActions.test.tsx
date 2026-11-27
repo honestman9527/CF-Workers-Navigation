@@ -13,6 +13,7 @@ const category: Category = {
   name: '源分类',
   slug: 'source',
   parentId: null,
+  systemKey: null,
   icon: null,
   sortOrder: 0,
   bookmarkCount: 0,
@@ -127,4 +128,29 @@ it('二级没有新建子分类入口，叶子移动只列出合法一级目标'
   )!;
   await click(target);
   expect(callbacks.onMove).toHaveBeenCalledWith(3);
+});
+
+it('内置分类隐藏移动和删除菜单项，保留新建子分类、重命名、排序和访问权限', async () => {
+  const systemCategory: Category = {
+    ...category,
+    id: 9,
+    name: '常用',
+    slug: 'common',
+    systemKey: 'common',
+  };
+  app = await mount(
+    <CategoryActions
+      category={systemCategory}
+      categories={[systemCategory]}
+      excludedIds={new Set([9])}
+      busy={false}
+      {...callbacks}
+    />,
+  );
+  expect(app.container.querySelector('[title="新建子分类"]')).not.toBeNull();
+  expect(app.container.querySelector('[aria-label="重命名 常用"]')).not.toBeNull();
+  await click(app.container.querySelector('[aria-label="常用 的更多操作"]')!);
+  expect(
+    [...document.querySelectorAll('[role="menuitem"]')].map((node) => node.textContent?.trim()),
+  ).toEqual(['上移', '下移', '访问权限']);
 });

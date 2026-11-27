@@ -132,22 +132,225 @@ describe('bookmarks api', () => {
       headers: adminHeaders,
     });
     expect(invalidLimit.status).toBe(400);
-
-    const invalidPinned = await exports.default.fetch(`${API}/bookmarks?pinned=maybe`, {
-      headers: adminHeaders,
-    });
-    expect(invalidPinned.status).toBe(400);
   });
 
-  it('rejects duplicate active URLs after normalization', async () => {
-    await createBookmark({ title: 'First', url: 'https://duplicate.example.com/path/' });
-    const duplicate = await exports.default.fetch(`${API}/bookmarks`, {
+  it('rejects duplicate active URLs within the same category or uncategorized while allowing cross-category copies', async () => {
+    const catResp = await exports.default.fetch(`${API}/categories`, {
       method: 'POST',
       headers: adminHeaders,
-      body: JSON.stringify({ title: 'Second', url: 'https://DUPLICATE.example.com/path#section' }),
+      body: JSON.stringify({ name: 'ScopeCatA' }),
+    });
+    const catA = await catResp.json<{ id: number }>();
+    const catBResp = await exports.default.fetch(`${API}/categories`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: 'ScopeCatB' }),
+    });
+    const catB = await catBResp.json<{ id: number }>();
+
+    // 未分类内部去重
+    const uncat = await createBookmark({
+      title: 'Uncat First',
+      url: 'https://duplicate.example.com/path/',
+      tags: ['UncatTag'],
+    });
+    const uncatDup = await exports.default.fetch(`${API}/bookmarks`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        title: 'Uncat Second',
+        url: 'https://DUPLICATE.example.com/path#section',
+      }),
+    });
+    expect(uncatDup.status).toBe(409);
+
+    // 不同分类允许相同 URL 且标签写入互不干扰
+    const inA = await createBookmark({
+      title: 'In Cat A',
+      url: 'https://DUPLICATE.example.com/path#a',
+      categoryId: catA.id,
+      tags: ['TagA'],
+    });
+    const inB = await createBookmark({
+      title: 'In Cat B',
+      url: 'https://duplicate.example.com/path',
+      categoryId: catB.id,
+      tags: ['TagB'],
+    });
+    expect(inA.tags).toEqual(['TagA']);
+    expect(inB.tags).toEqual(['TagB']);
+    expect((await listBookmarks(`/${uncat.id}`.replace('/', '?limit=100'))).page).toBeDefined();
+    const uncatReloaded = await (
+      await exports.default.fetch(`${API}/bookmarks/${uncat.id}`, { headers: adminHeaders })
+    ).json<Bookmark>();
+    const inAReloaded = await (
+      await exports.default.fetch(`${API}/bookmarks/${inA.id}`, { headers: adminHeaders })
+    ).json<Bookmark>();
+    expect(uncatReloaded.tags).toEqual(['UncatTag']);
+    expect(inAReloaded.tags).toEqual(['TagA']);
+
+    // 同分类内新建冲突
+    const inADup = await exports.default.fetch(`${API}/bookmarks`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({
+        title: 'In Cat A Dup',
+        url: 'https://duplicate.example.com/path/',
+        categoryId: catA.id,
+      }),
+    });
+    expect(inADup.status).toBe(409);
+
+    // 编辑切换分类冲突，以及编辑修改 URL 冲突
+    const moveConflict = await exports.default.fetch(`${API}/bookmarks/${inB.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ categoryId: catA.id }),
+    });
+    expect(moveConflict.status).toBe(409);
+
+    const otherInA = await createBookmark({
+      title: 'Other In A',
+      url: 'https://other-in-a.example.com',
+      categoryId: catA.id,
+    });
+    const urlUpdateConflict = await exports.default.fetch(`${API}/bookmarks/${otherInA.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ url: 'https://duplicate.example.com/path' }),
+    });
+    expect(urlUpdateConflict.status).toBe(409);
+
+    // 站内搜索原样返回各分类副本
+    const search = await searchBookmarks('duplicate.example.com');
+    const searchIds = search.page?.items.map((item) => item.id) ?? [];
+    expect(searchIds).toEqual(expect.arrayContaining([uncat.id, inA.id, inB.id]));
+  });
+
+  it('copies a bookmark to another category or uncategorized, prevents duplicates, and preserves inherited privacy', async () => {
+    const publicTarget = await (
+      await exports.default.fetch(`${API}/categories`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ name: 'CopyPublicTarget', visibility: 'public' }),
+      })
+    ).json<{ id: number; slug: string }>();
+    const privateSourceCat = await (
+      await exports.default.fetch(`${API}/categories`, {
+        method: 'POST',
+        headers: adminHeaders,
+        body: JSON.stringify({ name: 'CopyPrivateSource', visibility: 'private' }),
+      })
+    ).json<{ id: number }>();
+
+    const source = await createBookmark({
+      title: 'Copy Source',
+      url: 'https://copy-source.example.com',
+      description: 'Desc',
+      categoryId: privateSourceCat.id,
+      visibility: 'public',
+      tags: ['CopyTag1', 'CopyTag2'],
+    });
+    expect(source.effectiveVisibility).toBe('private');
+
+    // 未登录禁止复制
+    const unauthed = await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId: publicTarget.id }),
+    });
+    expect(unauthed.status).toBe(401);
+
+    // 复制到公开分类时自动固化 visibility='private' 并保留标签与末尾 sortOrder
+    await createBookmark({
+      title: 'Existing In Target',
+      url: 'https://existing-target.example.com',
+      categoryId: publicTarget.id,
+    });
+    const copied = await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ categoryId: publicTarget.id }),
+    });
+    expect(copied.status).toBe(201);
+    const copiedDto = await copied.json<Bookmark>();
+    expect(copiedDto).toMatchObject({
+      title: 'Copy Source',
+      url: 'https://copy-source.example.com',
+      description: 'Desc',
+      categoryId: publicTarget.id,
+      visibility: 'private',
+      effectiveVisibility: 'private',
+      sortOrder: 1,
+    });
+    expect(copiedDto.tags.toSorted()).toEqual(['CopyTag1', 'CopyTag2']);
+
+    // 同一目标再次复制冲突 409；复制到自身所属分类 400
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({ categoryId: publicTarget.id }),
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({ categoryId: privateSourceCat.id }),
+        })
+      ).status,
+    ).toBe(400);
+
+    // 复制到未分类成功
+    const copiedUncat = await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+      method: 'POST',
+      headers: adminHeaders,
+      body: JSON.stringify({ categoryId: null }),
+    });
+    expect(copiedUncat.status).toBe(201);
+    expect(await copiedUncat.json<Bookmark>()).toMatchObject({
+      categoryId: null,
+      visibility: 'private',
     });
 
-    expect(duplicate.status).toBe(409);
+    // 目标分类或源书签不存在 → 404
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${source.id}/copy`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({ categoryId: 999999 }),
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/999999/copy`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({ categoryId: null }),
+        })
+      ).status,
+    ).toBe(404);
+
+    // 归档或回收站书签不可复制 → 400
+    await exports.default.fetch(`${API}/bookmarks/${copiedDto.id}/archive`, {
+      method: 'POST',
+      headers: adminHeaders,
+    });
+    expect(
+      (
+        await exports.default.fetch(`${API}/bookmarks/${copiedDto.id}/copy`, {
+          method: 'POST',
+          headers: adminHeaders,
+          body: JSON.stringify({ categoryId: null }),
+        })
+      ).status,
+    ).toBe(400);
   });
 
   it('allows replacing a deleted URL and reports a conflict when restoring the old record', async () => {
@@ -280,22 +483,15 @@ describe('bookmark pagination and filters', () => {
     expect(page.page.total).toBeUndefined();
   });
 
-  it('combines tag, pinned, and status filters', async () => {
-    const pinned = await createBookmark({
-      title: 'Pinned React',
-      url: 'https://pinned-react.example.com',
-      isPinned: true,
-      tags: ['React'],
-    });
-    await createBookmark({
-      title: 'Unpinned React',
-      url: 'https://unpinned-react.example.com',
+  it('combines tag and status filters', async () => {
+    const active = await createBookmark({
+      title: 'Active React',
+      url: 'https://active-react.example.com',
       tags: ['React'],
     });
     const archived = await createBookmark({
       title: 'Archived React',
       url: 'https://archived-react.example.com',
-      isPinned: true,
       tags: ['React'],
     });
     await exports.default.fetch(`${API}/bookmarks/${archived.id}/archive`, {
@@ -303,11 +499,10 @@ describe('bookmark pagination and filters', () => {
       headers: adminHeaders,
     });
 
-    const filtered = await listBookmarks('?tag=react&pinned=1');
-    expect(filtered.page.items.map(({ id }) => id)).toEqual([pinned.id]);
+    const filtered = await listBookmarks('?tag=react');
+    expect(filtered.page.items.map(({ id }) => id)).toEqual([active.id]);
     const archive = await listBookmarks('?view=archive&tag=react');
     expect(archive.page.items.map(({ id }) => id)).toContain(archived.id);
-    expect(archive.page.items[0]?.isPinned).toBe(false);
   });
 
   it('lists tags with active bookmark counts', async () => {
@@ -445,16 +640,10 @@ describe('bookmark search', () => {
     expect(new Set(ids).size).toBe(3);
   });
 
-  it('applies view, tag, and pinned filters to search', async () => {
-    const pinned = await createBookmark({
+  it('applies view and tag filters to search', async () => {
+    const activeBm = await createBookmark({
       title: 'Filtered Search Shared',
-      url: 'https://filtered-search-pinned.example.com',
-      tags: ['SearchFilter'],
-      isPinned: true,
-    });
-    await createBookmark({
-      title: 'Filtered Search Shared',
-      url: 'https://filtered-search-unpinned.example.com',
+      url: 'https://filtered-search-active.example.com',
       tags: ['SearchFilter'],
     });
     const archived = await createBookmark({
@@ -469,9 +658,8 @@ describe('bookmark search', () => {
 
     const active = await searchBookmarks('filtered', {
       tag: 'searchfilter',
-      pinned: '1',
     });
-    expect(active.page?.items.map(({ id }) => id)).toEqual([pinned.id]);
+    expect(active.page?.items.map(({ id }) => id)).toEqual([activeBm.id]);
     const archive = await searchBookmarks('filtered', {
       view: 'archive',
       tag: 'searchfilter',

@@ -1,6 +1,6 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
 
-import { ChevronRight, Inbox, LockKeyhole, Star } from 'lucide-react';
+import { ChevronRight, Inbox, LockKeyhole } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -18,8 +18,8 @@ export function CategoryNavTree({
   roots,
   totals,
   activeRoot,
+  defaultRootSlug,
   selectedCategory,
-  searching,
   onSelectCategory,
   collapsed = false,
   label = '分类导航',
@@ -27,6 +27,7 @@ export function CategoryNavTree({
   roots: CategoryNode[];
   totals: Map<number, number>;
   activeRoot?: string;
+  defaultRootSlug?: string;
   selectedCategory?: string;
   searching: boolean;
   onSelectCategory: (slug?: string) => void;
@@ -49,6 +50,10 @@ export function CategoryNavTree({
     });
   }, [activeRootNode]);
 
+  function selectRoot(slug: string) {
+    onSelectCategory(slug === defaultRootSlug ? undefined : slug);
+  }
+
   function toggleRoot(id: number) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -65,22 +70,6 @@ export function CategoryNavTree({
         data-collapsed="true"
         className="scrollbar-rail flex flex-1 scroll-edge-fade flex-col items-center gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain py-1"
       >
-        <FrontTooltip content="常用">
-          <FrontButton
-            aria-label="常用"
-            aria-current={!selectedCategory && !searching ? 'location' : undefined}
-            onClick={() => onSelectCategory()}
-            className={cn(
-              'size-11 rounded-xl p-0',
-              !selectedCategory && !searching
-                ? 'bg-accent font-semibold text-primary hover:bg-accent'
-                : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
-            )}
-          >
-            <Star aria-hidden="true" className="size-4 shrink-0" />
-          </FrontButton>
-        </FrontTooltip>
-
         {roots.map((root) => {
           const Icon = categoryIcon(root.icon);
           const isActive = activeRoot === root.slug;
@@ -99,7 +88,7 @@ export function CategoryNavTree({
               <FrontButton
                 aria-label={isPrivate ? `${root.name}（私有分类）` : root.name}
                 aria-current={isActive ? 'location' : undefined}
-                onClick={() => onSelectCategory(root.slug)}
+                onClick={() => selectRoot(root.slug)}
                 className={cn(
                   'relative size-11 rounded-xl p-0',
                   isActive
@@ -147,20 +136,6 @@ export function CategoryNavTree({
         分类工作台
       </div>
       <div className="flex flex-col gap-1">
-        <FrontButton
-          aria-current={!selectedCategory && !searching ? 'location' : undefined}
-          onClick={() => onSelectCategory()}
-          className={cn(
-            'min-h-10 w-full justify-start gap-2.5 px-3 text-sm whitespace-nowrap',
-            !selectedCategory && !searching
-              ? 'bg-accent font-semibold text-primary hover:bg-accent'
-              : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
-          )}
-        >
-          <Star aria-hidden="true" className="size-4 shrink-0" />
-          常用
-        </FrontButton>
-
         {roots.map((root) => {
           const Icon = categoryIcon(root.icon);
           const isActive = activeRoot === root.slug;
@@ -194,7 +169,7 @@ export function CategoryNavTree({
                 <div className="relative flex min-w-0 flex-1 items-center">
                   <FrontButton
                     aria-current={isActive ? 'location' : undefined}
-                    onClick={() => onSelectCategory(root.slug)}
+                    onClick={() => selectRoot(root.slug)}
                     className={cn(
                       'min-h-10 min-w-0 flex-1 justify-start gap-2.5 px-2.5 text-sm whitespace-nowrap',
                       count > 0 && 'pr-9',

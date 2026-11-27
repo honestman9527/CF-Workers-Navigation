@@ -16,16 +16,11 @@ export function createBookmarkFeedCache() {
   const reads = new Set<Map<number, Bookmark>>();
   const snapshots = new Map<string, FeedState>();
   let contentVersion = 0;
-  let commonVersion = 0;
   return {
     snapshots,
-    invalidate(version: number, pinnedVersion: number) {
+    invalidate(version: number) {
       if (contentVersion !== version) snapshots.clear();
-      else if (commonVersion !== pinnedVersion) {
-        for (const key of snapshots.keys()) if (JSON.parse(key)[3]) snapshots.delete(key);
-      }
       contentVersion = version;
-      commonVersion = pinnedVersion;
     },
     subscribe(listener: (bookmark: Bookmark) => void) {
       listeners.add(listener);

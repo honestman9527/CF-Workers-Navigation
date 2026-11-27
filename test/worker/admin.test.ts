@@ -70,7 +70,7 @@ describe('admin api', () => {
     expect(stats.bookmarks.active).toBe(2);
     expect(stats.bookmarks.archived).toBe(1);
     expect(stats.bookmarks.trash).toBe(1);
-    expect(stats.categories).toBe(1);
+    expect(stats.categories).toBe(2);
     expect(stats.tags).toBe(1);
     expect(active.id).toBeGreaterThan(0);
     expect(tag.id).toBeGreaterThan(0);

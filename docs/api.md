@@ -24,6 +24,7 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 | 书签 | `GET /bookmarks/search`                                             | 全文搜索               |
 | 书签 | `POST /bookmarks`                                                   | 新建                   |
 | 书签 | `GET /bookmarks/:id`、`PUT /bookmarks/:id`                          | 读取、更新             |
+| 书签 | `POST /bookmarks/:id/copy`                                          | 复制到指定分类或未分类 |
 | 书签 | `POST /bookmarks/reorder`                                           | 分类内书签排序         |
 | 书签 | `POST /bookmarks/:id/archive`、`POST /bookmarks/:id/restore`        | 归档、恢复             |
 | 书签 | `DELETE /bookmarks/:id`、`DELETE /bookmarks/:id/permanent`          | 软删除、永久删除       |
@@ -43,7 +44,9 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 
 `POST /transfer/import` 成功返回 `ImportSummary`：`bookmarksCreated`、`bookmarksSkipped`、`bookmarksUpdated`、`categoriesFlattened` 和 `errors`。`categoriesFlattened` 为本次新分类中因超过两层而被提升的数量，不作为错误；完整格式与兼容规则见[导入与导出](import-export.md#导入)。
 
-分类最多两层；新建到二级下、移动到二级下，或把含子分类的一级移入其他一级，均返回 `400 validation_error`，不改变分类。数据库约束检测到并发层级冲突也返回相同错误码。
+分类最多两层；新建到二级下、移动到二级下，或把含子分类的一级移入其他一级，均返回 `400 validation_error`，不改变分类。数据库约束检测到并发层级冲突也返回相同错误码。`systemKey = 'common'` 的内置「常用」分类支持改名、修改图标、更改权限、调整顶层排序及新增二级子分类，但禁止删除或移动到其他分类下（服务层与数据库触发器均返回 `400 validation_error`）。
+
+同一网址可在不同分类（含未分类）保留独立副本，但在同一分类或同在未分类下不可重复（新增、改址、跨分类移动或恢复冲突返回 `409 conflict`）。`POST /api/v1/bookmarks/:id/copy` 接受 `{ categoryId: number | null }`，校验活动状态、不同目标分类及目标查重后复制标签并追加到目标分类末尾，返回 `201` 新书签；若源书签因上级私有分类而有效私有，复制到公开分类时自动将副本显式权限固化为 `private`。删除普通分类时，若所含书签与未分类已有网址冲突，冲突书签原子软删除进回收站并保留继承私有保护，其余书签转为未分类。
 
 分类排序一次最多 500 个去重后的 ID，必须全部存在且属于同一父分类；书签排序（`POST /api/v1/bookmarks/reorder`）一次最多 500 个去重后的 ID，必须全部存在、处于使用中且属于同一分类（含同属未分类），按原位置槽位原子重排，输入错误不留下部分排序。分块验证与原子写入的查询预算见[数据库与迁移](database.md#d1-查询预算)。
 
@@ -67,7 +70,6 @@ API 响应包含 `X-Request-Id`、`X-Content-Type-Options: nosniff`、`X-Frame-O
 | `categoryOnly` | `true`/`1` 仅匹配 `category` 的直属书签；默认或 `false`/`0` 包含后代。无 `category` 时不限制，未分类行为不变 |
 | `tag`          | 标签 slug；与其他 API 筛选条件可组合                                                                         |
 | `untagged`     | `true`/`1` 只匹配无标签书签，`false`/`0` 关闭筛选                                                            |
-| `pinned`       | `true`/`1` 只匹配置顶书签                                                                                    |
 | `limit`        | 每页 1–100 条，默认 24                                                                                       |
 | `cursor`       | 不透明游标；省略 `offset` 时用于连续翻页                                                                     |
 | `offset`       | 非负偏移量（上限 100000）；提供后切换为页码模式并返回 `total`                                                |

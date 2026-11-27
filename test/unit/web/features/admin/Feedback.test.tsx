@@ -37,6 +37,7 @@ const category = {
   name: '现有分类',
   slug: 'existing',
   parentId: null,
+  systemKey: null,
   icon: null,
   sortOrder: 0,
   bookmarkCount: 2,
@@ -66,7 +67,7 @@ const cases = [
     Component: OverviewTab,
     load: () => vi.mocked(api.getAdminStats),
     data: {
-      bookmarks: { total: 8, active: 5, archived: 2, trash: 1, pinned: 2 },
+      bookmarks: { total: 8, active: 5, archived: 2, trash: 1 },
       categories: 1,
       tags: 1,
     },

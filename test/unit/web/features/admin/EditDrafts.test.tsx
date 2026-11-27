@@ -45,6 +45,7 @@ beforeEach(() => {
       name: '旧分类',
       slug: 'old',
       parentId: null,
+      systemKey: null,
       icon: null,
       sortOrder: 0,
       bookmarkCount: 0,

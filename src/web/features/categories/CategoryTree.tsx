@@ -18,6 +18,7 @@ import { ancestorIds, buildCategoryTree, type CategoryNode } from './tree';
 export function CategoryTree({
   categories,
   selectedSlug,
+  disabledSlug,
   onSelect,
   compact = false,
   showLevel = false,
@@ -27,6 +28,8 @@ export function CategoryTree({
 }: {
   categories: Category[];
   selectedSlug?: string;
+  /** 禁用且不可选择的分类 slug（例如复制到分类时的当前所属分类）。 */
+  disabledSlug?: string;
   onSelect: (slug: string) => void;
   /** 显示 LV1/LV2… 层级徽标。 */
   showLevel?: boolean;
@@ -66,14 +69,23 @@ export function CategoryTree({
       {includeUncategorized ? (
         <button
           type="button"
-          onClick={() => onSelect(UNCATEGORIZED_SLUG)}
+          aria-disabled={disabledSlug === UNCATEGORIZED_SLUG ? true : undefined}
+          onClick={() => {
+            if (disabledSlug !== UNCATEGORIZED_SLUG) onSelect(UNCATEGORIZED_SLUG);
+          }}
           className={cn(
-            'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
+            'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition',
+            disabledSlug === UNCATEGORIZED_SLUG
+              ? 'cursor-not-allowed text-muted-foreground/60'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             selectedSlug === UNCATEGORIZED_SLUG && 'bg-primary/10 font-medium text-primary',
           )}
         >
           <FolderPlus className="size-3.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">未分类</span>
+          {disabledSlug === UNCATEGORIZED_SLUG ? (
+            <span className="shrink-0 text-xs text-muted-foreground">当前</span>
+          ) : null}
         </button>
       ) : null}
       {tree.map((node) => (
@@ -84,6 +96,7 @@ export function CategoryTree({
           depth={0}
           expanded={expanded}
           selectedSlug={selectedSlug}
+          disabledSlug={disabledSlug}
           showLevel={showLevel}
           showCount={showCount}
           onSelect={onSelect}
@@ -100,6 +113,7 @@ function TreeNode({
   depth,
   expanded,
   selectedSlug,
+  disabledSlug,
   showLevel,
   showCount,
   onSelect,
@@ -110,6 +124,7 @@ function TreeNode({
   depth: number;
   expanded: Set<number>;
   selectedSlug?: string;
+  disabledSlug?: string;
   showLevel: boolean;
   showCount: boolean;
   onSelect: (slug: string) => void;
@@ -118,6 +133,7 @@ function TreeNode({
   const hasChildren = node.children.length > 0;
   const isExpanded = expanded.has(node.id);
   const isSelected = selectedSlug === node.slug;
+  const isDisabled = disabledSlug === node.slug;
   const Icon = categoryIcon(node.icon);
 
   if (compact) {
@@ -189,6 +205,7 @@ function TreeNode({
                 depth={depth + 1}
                 expanded={expanded}
                 selectedSlug={selectedSlug}
+                disabledSlug={disabledSlug}
                 showLevel={false}
                 showCount={showCount}
                 onSelect={onSelect}
@@ -206,10 +223,16 @@ function TreeNode({
       <div className="flex items-center gap-0.5 pr-1">
         <button
           type="button"
-          onClick={() => onSelect(node.slug)}
+          aria-disabled={isDisabled ? true : undefined}
+          onClick={() => {
+            if (!isDisabled) onSelect(node.slug);
+          }}
           aria-current={isSelected ? 'page' : undefined}
           className={cn(
-            'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
+            'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition',
+            isDisabled
+              ? 'cursor-not-allowed text-muted-foreground/60'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             depth > 0 && 'py-1.5 text-xs',
             isSelected && 'bg-primary/10 font-medium text-primary',
           )}
@@ -222,6 +245,7 @@ function TreeNode({
           />
           <span className="min-w-0 flex-1 truncate">{node.name}</span>
           <VisibilityBadge item={node} />
+          {isDisabled ? <span className="shrink-0 text-xs text-muted-foreground">当前</span> : null}
           {showLevel ? (
             <span className="shrink-0 rounded bg-muted px-1 font-mono text-xs leading-4 text-muted-foreground/80">
               LV{depth + 1}
@@ -260,6 +284,7 @@ function TreeNode({
               depth={depth + 1}
               expanded={expanded}
               selectedSlug={selectedSlug}
+              disabledSlug={disabledSlug}
               showLevel={showLevel}
               showCount={showCount}
               onSelect={onSelect}

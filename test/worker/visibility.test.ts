@@ -38,9 +38,8 @@ async function fixture() {
   const visible = await bookmark('visible', {
     categoryId: open.id,
     tags: ['Shared'],
-    isPinned: true,
   });
-  const loose = await bookmark('loose', { isPinned: true });
+  const loose = await bookmark('loose');
   const ownPrivate = await bookmark('own-private', {
     categoryId: open.id,
     visibility: 'private',
@@ -49,7 +48,6 @@ async function fixture() {
   const inherited = await bookmark('inherited', {
     categoryId: grandchild.id,
     tags: ['Secret'],
-    isPinned: true,
   });
   const archived = await bookmark('archived', { tags: ['ArchiveOnly'] });
   await write(`/bookmarks/${archived.id}/archive`, {});
@@ -72,11 +70,13 @@ async function fixture() {
 
 describe('mixed visibility', () => {
   beforeEach(async () => {
-    await env.DB.batch(
-      ['bookmark_tags', 'bookmarks', 'categories', 'tags', 'settings'].map((table) =>
-        env.DB.prepare(`DELETE FROM ${table}`),
-      ),
-    );
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM bookmark_tags'),
+      env.DB.prepare('DELETE FROM bookmarks'),
+      env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
+      env.DB.prepare('DELETE FROM tags'),
+      env.DB.prepare('DELETE FROM settings'),
+    ]);
   });
   it('filters lists, search, both pagination modes and private details in SQL', async () => {
     const f = await fixture();
@@ -107,8 +107,8 @@ describe('mixed visibility', () => {
   it('filters category trees, direct counts and tags', async () => {
     const f = await fixture();
     const categories = await (await request('/categories')).json<Category[]>();
-    expect(categories).toHaveLength(1);
-    expect(categories[0]).toMatchObject({
+    expect(categories).toHaveLength(2);
+    expect(categories.find((item) => item.id === f.open.id)).toMatchObject({
       id: f.open.id,
       bookmarkCount: 1,
       effectiveVisibility: 'public',
@@ -123,7 +123,6 @@ describe('mixed visibility', () => {
       ['untagged=true', [f.loose.id]],
       ['tag=secret', []],
       ['tag=shared', [f.visible.id]],
-      ['pinned=true', [f.loose.id, f.visible.id]],
     ] as const) {
       for (const prefix of ['/bookmarks?', '/bookmarks/search?q=Matrix&']) {
         const result = await page(`${prefix}${filter}&offset=0`);
@@ -172,6 +171,7 @@ describe('mixed visibility', () => {
       ['/bookmarks', 'POST'],
       ['/bookmarks/1', 'PUT'],
       ['/bookmarks/1', 'DELETE'],
+      ['/bookmarks/1/copy', 'POST'],
       ['/bookmarks/1/archive', 'POST'],
       ['/bookmarks/1/restore', 'POST'],
       ['/bookmarks/1/permanent', 'DELETE'],
@@ -267,14 +267,14 @@ describe('mixed visibility', () => {
       await request('/transfer/export?format=json', { headers: admin })
     ).json<TransferData>();
     expect(exported.version).toBe(2);
-    expect(exported.categories?.[0].visibility).toBe('private');
+    expect(exported.categories?.find((item) => item.slug === 'secret')?.visibility).toBe('private');
     expect(
       exported.bookmarks.find((item) => item.title === 'Matrix private-child')?.visibility,
     ).toBe('public');
     await env.DB.batch([
       env.DB.prepare('DELETE FROM bookmark_tags'),
       env.DB.prepare('DELETE FROM bookmarks'),
-      env.DB.prepare('DELETE FROM categories'),
+      env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
     ]);
     expect((await write('/transfer/import?format=json', exported)).status).toBe(200);
     expect((await page()).items.map((item) => item.title)).toEqual(['Matrix public']);
@@ -292,16 +292,31 @@ describe('mixed visibility', () => {
   it('preserves existing permissions on old imports and rejects invalid permissions', async () => {
     const hidden = await category('Hidden', { visibility: 'private' });
     const b = await bookmark('existing', { categoryId: hidden.id });
+    const legacyPrivate = await bookmark('legacy-private', { visibility: 'private' });
     const legacy = {
       version: 1,
       categories: [{ name: 'Hidden', slug: hidden.slug }],
-      bookmarks: [{ title: 'Updated', url: b.url }],
+      bookmarks: [
+        { title: 'Updated', url: b.url, categorySlug: hidden.slug },
+        { title: 'Updated Private', url: legacyPrivate.url },
+      ],
     };
     expect((await write('/transfer/import?format=json&strategy=update', legacy)).status).toBe(200);
     expect((await request(`/bookmarks/${b.id}`)).status).toBe(404);
+    expect((await request(`/bookmarks/${legacyPrivate.id}`)).status).toBe(404);
     expect(await (await request(`/bookmarks/${b.id}`, { headers: admin })).json()).toMatchObject({
+      title: 'Updated',
+      categoryId: hidden.id,
+      visibility: 'public',
+      effectiveVisibility: 'private',
+    });
+    expect(
+      await (await request(`/bookmarks/${legacyPrivate.id}`, { headers: admin })).json(),
+    ).toMatchObject({
+      title: 'Updated Private',
       categoryId: null,
       visibility: 'private',
+      effectiveVisibility: 'private',
     });
     expect(
       (

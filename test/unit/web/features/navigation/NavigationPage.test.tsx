@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { NavigationSearch } from '@nav/features/navigation/search';
 // @vitest-environment jsdom
-import type { Bookmark, Category } from '@shared/api/types';
+import type { Bookmark, Category, CategorySystemKey } from '@shared/api/types';
 
 import { Provider, createStore } from 'jotai';
 import { act, useState } from 'react';
@@ -41,6 +41,7 @@ vi.mock('@nav/api/client', () => ({
     getTags: vi.fn(),
     getPublicSettings: vi.fn(),
     updateBookmark: vi.fn(),
+    copyBookmark: vi.fn(),
     reorderBookmarks: vi.fn(),
   },
   ApiError: class extends Error {},
@@ -54,12 +55,15 @@ const item = (id: number, title = `网站${id}`) =>
     url: `https://site${id}.com`,
     description: '一个实用网站',
     iconUrl: null,
-    isPinned: false,
     sortOrder: id,
     createdAt: `2026-01-0${Math.min(id, 9)}T00:00:00.000Z`,
   }) as Bookmark;
-const category = (id: number, slug: string, parentId: number | null = null) =>
-  ({ id, slug, name: slug, parentId, sortOrder: id, bookmarkCount: 1 }) as Category;
+const category = (
+  id: number,
+  slug: string,
+  parentId: number | null = null,
+  systemKey: CategorySystemKey | null = null,
+) => ({ id, slug, name: slug, parentId, systemKey, sortOrder: id, bookmarkCount: 1 }) as Category;
 
 function Host({ initial = {} }: { initial?: NavigationSearch }) {
   const [store] = useState(createStore);
@@ -97,6 +101,7 @@ beforeEach(() => {
     },
   );
   vi.mocked(api.getCategories).mockResolvedValue([
+    { ...category(10, 'common', null, 'common'), name: '常用', icon: 'Star', sortOrder: 0 },
     category(1, '工具'),
     category(2, '开发', 1),
     category(3, '阅读'),
@@ -119,11 +124,9 @@ beforeEach(() => {
         ? []
         : [
             item(
-              options?.pinned
-                ? 1
-                : ({ 工具: 2, 阅读: 3, 开发: 12, 前端: 14, React: 15, 博客: 16 }[
-                    options?.category ?? ''
-                  ] ?? 2),
+              { common: 1, 工具: 2, 阅读: 3, 开发: 12, 前端: 14, React: 15, 博客: 16 }[
+                options?.category ?? ''
+              ] ?? 2,
             ),
           ],
     nextCursor: null,
@@ -147,10 +150,14 @@ async function submit() {
   );
 }
 
-it('默认只展示常用，一级下所有二级同时平铺，其他一级不取数', async () => {
+it('默认只展示内置常用，一级下所有二级同时平铺，其他一级不取数', async () => {
   app = await mount(<Host />);
   expect(api.getBookmarks).toHaveBeenCalledTimes(1);
-  expect(app.container.querySelector('#section-common')?.textContent).toContain('网站1');
+  expect(api.getBookmarks).toHaveBeenCalledWith(
+    expect.objectContaining({ category: 'common', categoryOnly: true }),
+    expect.any(AbortSignal),
+  );
+  expect(app.container.querySelector('#section-category-common')?.textContent).toContain('网站1');
   const nav = app.container.querySelector('[aria-label="分类导航"]') as HTMLElement;
   await click(buttonWithText(nav, '工具'));
   const tools = app.container.querySelector('#section-category-工具') as HTMLElement;
@@ -164,7 +171,7 @@ it('默认只展示常用，一级下所有二级同时平铺，其他一级不�
   expect(tools.textContent).toContain('网站14');
   expect(tools.textContent).toContain('网站15');
   expect(tools.querySelector('button')).toBeNull();
-  expect(app.container.querySelector('#section-common')).toBeNull();
+  expect(app.container.querySelector('#section-category-common')).toBeNull();
   expect(app.container.querySelector('#section-category-阅读')).toBeNull();
   expect(
     vi
@@ -179,22 +186,29 @@ it('默认只展示常用，一级下所有二级同时平铺，其他一级不�
   ]);
 });
 
-it('常用切换更新当前条目，分类不重新请求，进入常用读取最新列表', async () => {
+it('复制到常用刷新分类数据，点击内置常用保留干净根路由并展示最新列表', async () => {
+  vi.useRealTimers();
   auth.authed = true;
   const bookmark = item(2);
-  vi.mocked(api.updateBookmark).mockResolvedValue({ ...bookmark, isPinned: true });
+  vi.mocked(api.copyBookmark).mockResolvedValue({
+    ...bookmark,
+    id: 99,
+    categoryId: 10,
+    categorySlug: 'common',
+    categoryName: '常用',
+  });
   app = await mount(<Host initial={{ category: '工具' }} />);
-  const requests = vi.mocked(api.getBookmarks).mock.calls.length;
-  await click(app.container.querySelector('[aria-label="加入常用：网站2"]')!);
-  expect(api.getBookmarks).toHaveBeenCalledTimes(requests);
-  expect(api.getCategories).toHaveBeenCalledOnce();
-  expect(api.getTags).toHaveBeenCalledOnce();
-  expect(app.container.querySelector('[aria-label="取消常用：网站2"]')).not.toBeNull();
+  await click(app.container.querySelector('[aria-label="复制到分类：网站2"]')!);
+  await click(buttonWithText(document.body, '复制到「常用」'));
+  expect(api.copyBookmark).toHaveBeenCalledWith(2, 10);
+  expect(api.getCategories).toHaveBeenCalledTimes(2);
+  expect(api.getTags).toHaveBeenCalledTimes(2);
   await click(
     buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '常用'),
   );
+  expect(route.search.category).toBeUndefined();
   expect(api.getBookmarks).toHaveBeenLastCalledWith(
-    expect.objectContaining({ pinned: true, category: undefined }),
+    expect.objectContaining({ category: 'common', categoryOnly: true }),
     expect.any(AbortSignal),
   );
 });
@@ -207,7 +221,7 @@ it('设置首载失败提供原地重试，恢复时保留搜索输入与已加�
   );
   const input = app.container.querySelector('input')!;
   await fill(input, 'example.com');
-  const section = app.container.querySelector('#section-common');
+  const section = app.container.querySelector('#section-category-common');
   let resolve!: (value: Awaited<ReturnType<typeof api.getPublicSettings>>) => void;
   vi.mocked(api.getPublicSettings).mockImplementationOnce(
     () =>
@@ -232,7 +246,7 @@ it('设置首载失败提供原地重试，恢复时保留搜索输入与已加�
   expect(app.container.querySelector('#search-engine')?.textContent).toContain('自定搜索');
   expect(app.container.querySelector('input')).toBe(input);
   expect(input.value).toBe('example.com');
-  expect(app.container.querySelector('#section-common')).toBe(section);
+  expect(app.container.querySelector('#section-category-common')).toBe(section);
   expect(section?.textContent).toContain('网站1');
 });
 
@@ -254,14 +268,16 @@ it('站内查询网址不打开网页；网页模式保留输入且不请求站�
 
 it('搜索与清空保留分类节点和已加载内容，不重复请求常用', async () => {
   app = await mount(<Host />);
-  const section = app.container.querySelector('#section-common');
+  expect(app.container.querySelector('#section-category-common')?.textContent).toContain('网站1');
+  const nav = app.container.querySelector('[aria-label="分类导航"]')!;
   const count = vi.mocked(api.getBookmarks).mock.calls.length;
   await fill(app.container.querySelector('input')!, 'React');
   await settle();
   expect(app.container.querySelector('[aria-label="站内搜索结果"]')).not.toBeNull();
   await click(app.container.querySelector('[aria-label="清除搜索"]')!);
   await settle();
-  expect(app.container.querySelector('#section-common')).toBe(section);
+  expect(app.container.querySelector('[aria-label="分类导航"]')).toBe(nav);
+  expect(app.container.querySelector('#section-category-common')?.textContent).toContain('网站1');
   expect(api.getBookmarks).toHaveBeenCalledTimes(count);
 });
 
@@ -470,22 +486,17 @@ it('后退前进恢复当前分类、筛选与滚动，不重新请求已缓存�
   expect(api.getBookmarks).toHaveBeenCalledTimes(count);
 });
 
-it('常用更新后的新读取采用服务端记录，不被本页旧覆盖遮蔽', async () => {
-  auth.authed = true;
-  vi.mocked(api.updateBookmark).mockResolvedValue({ ...item(2), isPinned: true });
-  app = await mount(<Host initial={{ category: '工具' }} />);
-  const section = app.container.querySelector<HTMLElement>('#section-category-工具')!;
-  await click(section.querySelector<HTMLElement>('[aria-label="加入常用：网站2"]')!);
+it('切换分类采用服务端最新记录，不被本页旧覆盖遮蔽', async () => {
   vi.mocked(api.getBookmarks).mockResolvedValue({
-    items: [{ ...item(2, '服务端新版'), isPinned: false }],
+    items: [item(2, '服务端新版')],
     nextCursor: null,
   });
+  app = await mount(<Host initial={{ category: '工具' }} />);
   await click(
     buttonWithText(app.container.querySelector('[aria-label="分类导航"]') as HTMLElement, '阅读'),
   );
   const nextSection = app.container.querySelector('#section-category-阅读')!;
   expect(nextSection.textContent).toContain('服务端新版');
-  expect(nextSection.querySelector('[aria-label="加入常用：服务端新版"]')).not.toBeNull();
 });
 
 it('常用中搜索明确显示全库，清空回常用，未知分类回默认并提示', async () => {
@@ -493,11 +504,11 @@ it('常用中搜索明确显示全库，清空回常用，未知分类回默认�
   expect(app.container.querySelector('h2')?.textContent).toBe('全部书签');
   expect(api.searchBookmarks).toHaveBeenLastCalledWith(
     'React',
-    expect.objectContaining({ pinned: undefined, category: undefined }),
+    expect.objectContaining({ category: undefined }),
     expect.any(AbortSignal),
   );
   await click(buttonWithText(app.container, '清除搜索与筛选'));
-  expect(app.container.querySelector('h2')?.textContent).toBe('常用网站');
+  expect(app.container.querySelector('h2')?.textContent).toBe('常用');
   await act(() => route.setSearch({ category: 'missing' }));
   expect(route.search.category).toBeUndefined();
   expect(app.container.textContent).toContain('分类不存在或无权访问');
@@ -518,7 +529,7 @@ it('搜索去抖等待期间切换分类仍保留输入，并在新分类内查�
   );
 });
 
-it('默认常用与分类索引并行加载，不因索引延迟阻塞书签', async () => {
+it('默认首页等待分类解析后加载内置常用，无可见分类时优雅降级未分类', async () => {
   let finish!: (value: Category[]) => void;
   vi.mocked(api.getCategories).mockImplementationOnce(
     () =>
@@ -527,10 +538,14 @@ it('默认常用与分类索引并行加载，不因索引延迟阻塞书签', a
       }),
   );
   app = await mount(<Host />);
-  expect(api.getBookmarks).toHaveBeenCalledOnce();
-  expect(app.container.querySelector('#section-common')?.textContent).toContain('网站1');
+  expect(api.getBookmarks).not.toHaveBeenCalled();
   await act(() => finish([]));
   expect(api.getBookmarks).toHaveBeenCalledOnce();
+  expect(api.getBookmarks).toHaveBeenLastCalledWith(
+    expect.objectContaining({ category: 'uncategorized' }),
+    expect.any(AbortSignal),
+  );
+  expect(app.container.querySelector('#section-uncategorized h2')?.textContent).toBe('未分类');
 });
 
 it('分组独立追加与重试，空二级保留标题，返回一级恢复追加内容', async () => {

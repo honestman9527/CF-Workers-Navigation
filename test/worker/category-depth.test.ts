@@ -18,9 +18,10 @@ async function category(name: string, parentId?: number) {
 const migration = () => env.TEST_MIGRATIONS.find((item) => item.name.startsWith('0003'))!;
 beforeEach(async () => {
   await env.DB.batch([
-    ...['bookmark_tags', 'bookmarks', 'categories', 'tags', 'settings'].map((table) =>
+    ...['bookmark_tags', 'bookmarks', 'tags', 'settings'].map((table) =>
       env.DB.prepare(`DELETE FROM ${table}`),
     ),
+    env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
     env.DB.prepare('DROP TRIGGER IF EXISTS categories_depth_insert'),
     env.DB.prepare('DROP TRIGGER IF EXISTS categories_depth_update'),
     ...migration()

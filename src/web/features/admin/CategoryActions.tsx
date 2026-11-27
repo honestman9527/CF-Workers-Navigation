@@ -50,6 +50,7 @@ export function CategoryActions({
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const moveRequested = useRef(false);
+  const isSystem = category.systemKey !== null;
   const moveExcludedIds = useMemo(
     () =>
       categories.some((item) => item.parentId === category.id)
@@ -119,36 +120,44 @@ export function CategoryActions({
               <LockKeyhole />
               访问权限
             </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={busy}
-              onClick={() => {
-                moveRequested.current = true;
-                setMenuOpen(false);
-              }}
-            >
-              <FolderInput />
-              移动
-            </DropdownMenuItem>
+            {!isSystem ? (
+              <DropdownMenuItem
+                disabled={busy}
+                onClick={() => {
+                  moveRequested.current = true;
+                  setMenuOpen(false);
+                }}
+              >
+                <FolderInput />
+                移动
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem variant="destructive" disabled={busy} onClick={() => onDelete()}>
-              <Trash2 />
-              删除
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
+          {!isSystem ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem variant="destructive" disabled={busy} onClick={() => onDelete()}>
+                  <Trash2 />
+                  删除
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      <CategoryMovePicker
-        categories={categories}
-        excludedIds={moveExcludedIds}
-        value={category.parentId}
-        disabled={busy}
-        onChange={onMove}
-        open={moveOpen}
-        onOpenChange={setMoveOpen}
-        anchorRef={anchorRef}
-      />
+      {!isSystem ? (
+        <CategoryMovePicker
+          categories={categories}
+          excludedIds={moveExcludedIds}
+          value={category.parentId}
+          disabled={busy}
+          onChange={onMove}
+          open={moveOpen}
+          onOpenChange={setMoveOpen}
+          anchorRef={anchorRef}
+        />
+      ) : null}
     </div>
   );
 }

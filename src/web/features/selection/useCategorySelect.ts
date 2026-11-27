@@ -96,7 +96,7 @@ export function useCategorySelect({ options, value, onChange, disabled }: Search
     setFocused(option.value);
   }
   function select(option: SelectOption) {
-    if (disabled) return;
+    if (disabled || option.disabled) return;
     onChange(option.value);
     changeOpen(false);
   }
@@ -161,6 +161,7 @@ export function useCategorySelect({ options, value, onChange, disabled }: Search
         'aria-posinset': position.index,
         'aria-setsize': position.size,
         'aria-selected': value === option.value,
+        'aria-disabled': option.disabled ? true : undefined,
         'aria-expanded': children.has(option.value)
           ? searching || expanded.has(option.value)
           : undefined,

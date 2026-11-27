@@ -17,7 +17,6 @@ export function usePagedBookmarks({
   categoryOnly,
   tag,
   untagged,
-  pinned,
   query,
   pageSize,
   page: controlledPage,
@@ -32,7 +31,6 @@ export function usePagedBookmarks({
   untagged?: boolean;
   page?: number;
   onPageChange?: (page: number) => void;
-  pinned: boolean;
   query: string;
   pageSize: number;
   onUnauthorized: () => void;
@@ -56,7 +54,7 @@ export function usePagedBookmarks({
   // 筛选条件或每页条数变化时回到第 1 页。
   useEffect(() => {
     if (controlledPage === undefined) setLocalPage(1);
-  }, [view, category, categoryOnly, tag, untagged, pinned, query, pageSize, controlledPage]);
+  }, [view, category, categoryOnly, tag, untagged, query, pageSize, controlledPage]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -72,7 +70,6 @@ export function usePagedBookmarks({
             categoryOnly: categoryOnly || undefined,
             tag,
             untagged,
-            pinned: pinned || undefined,
             offset,
             limit: pageSize,
           },
@@ -85,7 +82,6 @@ export function usePagedBookmarks({
             categoryOnly: categoryOnly || undefined,
             tag,
             untagged,
-            pinned: pinned || undefined,
             offset,
             limit: pageSize,
           },
@@ -116,7 +112,7 @@ export function usePagedBookmarks({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [page, pageSize, view, category, categoryOnly, tag, untagged, pinned, query, refreshKey]);
+  }, [page, pageSize, view, category, categoryOnly, tag, untagged, query, refreshKey]);
 
   const setOrder = useCallback((nextIds: number[]): Bookmark[] => {
     const current = itemsRef.current;

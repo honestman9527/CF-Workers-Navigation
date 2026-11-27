@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { api, ApiError } from '@nav/api/client';
 import { ImageWithFallback } from '@nav/components/ImageWithFallback';
 import { flattenCategoryTree } from '@nav/features/categories/tree';
+import { COMMON_CATEGORY_SYSTEM_KEY } from '@shared/category-rules';
 import { domainOf } from '@shared/search';
 
 type PaletteEntry = {
@@ -148,6 +149,7 @@ export function CommandPalette({
   onOpenChange,
   roots,
   totals,
+  defaultRootSlug,
   recentBookmarks,
   theme,
   resolvedTheme,
@@ -170,6 +172,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
   roots: CategoryNode[];
   totals: Map<number, number>;
+  defaultRootSlug?: string;
   recentBookmarks: Bookmark[];
   theme: Theme;
   resolvedTheme?: ResolvedTheme;
@@ -299,31 +302,21 @@ export function CommandPalette({
     }));
 
     const categoryEntries: PaletteEntry[] = [];
-    if (matches('常用', '星标', 'pinned', 'common')) {
-      categoryEntries.push({
-        id: 'cat-common',
-        group: 'categories',
-        title: '常用',
-        subtitle: '查看置顶常用网站',
-        iconKind: 'star',
-        onSelect: () => {
-          onSelectCategory();
-          onOpenChange(false);
-        },
-      });
-    }
     for (const { node, path, count } of flatCategories) {
-      if (!matches(node.name, node.slug, path)) continue;
+      const isCommon = node.systemKey === COMMON_CATEGORY_SYSTEM_KEY;
+      if (!matches(node.name, node.slug, path, isCommon ? '常用 星标 common' : undefined)) {
+        continue;
+      }
       categoryEntries.push({
         id: `cat-${node.id}`,
         group: 'categories',
         title: node.name,
-        subtitle: node.depth > 0 ? path : '一级分类',
+        subtitle: node.depth > 0 ? path : isCommon ? '内置常用分类' : '一级分类',
         badge: count > 0 ? `${count} 项` : undefined,
         privateItem: node.effectiveVisibility === 'private',
-        iconKind: 'folder',
+        iconKind: isCommon ? 'star' : 'folder',
         onSelect: () => {
-          onSelectCategory(node.slug);
+          onSelectCategory(node.slug === defaultRootSlug ? undefined : node.slug);
           onOpenChange(false);
         },
       });
@@ -477,6 +470,7 @@ export function CommandPalette({
     remoteItems,
     recentBookmarks,
     flatCategories,
+    defaultRootSlug,
     authed,
     sidebarOpen,
     onToggleSidebar,

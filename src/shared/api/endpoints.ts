@@ -6,6 +6,7 @@ export const ENDPOINTS = {
   authMe: `${API_V1_PREFIX}/auth/me`,
   bookmarks: `${API_V1_PREFIX}/bookmarks`,
   bookmarksReorder: `${API_V1_PREFIX}/bookmarks/reorder`,
+  bookmarksCopy: (id: number) => `${API_V1_PREFIX}/bookmarks/${id}/copy`,
   bookmarksSearch: `${API_V1_PREFIX}/bookmarks/search`,
   bookmarksMetadata: `${API_V1_PREFIX}/bookmarks/metadata`,
   bookmarksFavicon: `${API_V1_PREFIX}/bookmarks/favicon`,

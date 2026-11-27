@@ -8,7 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
-// parent_id 的两层约束由 0003_category_depth.sql 的触发器维护。
+// parent_id 的两层约束由 0003_category_depth.sql 的触发器维护；system_key 的内置保护由 0006_common_category_and_scoped_url.sql 的触发器维护。
 export const categories = sqliteTable(
   'categories',
   {
@@ -19,6 +19,7 @@ export const categories = sqliteTable(
     parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id, {
       onDelete: 'cascade',
     }),
+    systemKey: text('system_key'),
     name: text('name').notNull(),
     slug: text('slug').notNull(),
     icon: text('icon'),
@@ -32,6 +33,9 @@ export const categories = sqliteTable(
   },
   (table) => [
     uniqueIndex('categories_slug_idx').on(table.slug),
+    uniqueIndex('categories_system_key_idx')
+      .on(table.systemKey)
+      .where(sql`${table.systemKey} IS NOT NULL`),
     index('categories_parent_sort_idx').on(table.parentId, table.sortOrder),
   ],
 );
@@ -48,6 +52,7 @@ export const bookmarks = sqliteTable(
     url: text('url').notNull(),
     description: text('description'),
     iconUrl: text('icon_url'),
+    /** @deprecated 仅保留以兼容滚动发布，业务不再读写。 */
     isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     archivedAt: text('archived_at'),
@@ -82,16 +87,12 @@ export const bookmarks = sqliteTable(
       table.createdAt,
       table.id,
     ),
-    index('bookmarks_pinned_created_idx').on(
-      table.isPinned,
-      table.deletedAt,
-      table.archivedAt,
-      table.createdAt,
-      table.id,
-    ),
-    uniqueIndex('bookmarks_url_normalized_idx')
+    uniqueIndex('bookmarks_category_url_normalized_idx')
+      .on(table.categoryId, table.urlNormalized)
+      .where(sql`${table.deletedAt} IS NULL AND ${table.categoryId} IS NOT NULL`),
+    uniqueIndex('bookmarks_uncategorized_url_normalized_idx')
       .on(table.urlNormalized)
-      .where(sql`${table.deletedAt} IS NULL`),
+      .where(sql`${table.deletedAt} IS NULL AND ${table.categoryId} IS NULL`),
     index('bookmarks_url_normalized_deleted_idx')
       .on(table.urlNormalized)
       .where(sql`${table.deletedAt} IS NOT NULL`),

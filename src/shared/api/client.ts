@@ -82,6 +82,7 @@ export interface ApiClient {
   updateSettings(input: Partial<Settings>): Promise<Settings>;
   createBookmark(input: BookmarkInput): Promise<Bookmark>;
   updateBookmark(id: number, input: Partial<BookmarkInput>): Promise<Bookmark>;
+  copyBookmark(id: number, categoryId: number | null): Promise<Bookmark>;
   reorderBookmarks(ids: number[]): Promise<void>;
   deleteBookmark(id: number): Promise<void>;
   archiveBookmark(id: number): Promise<Bookmark>;
@@ -111,7 +112,6 @@ export function createApiClient(options: ClientOptions): ApiClient {
     getBookmarks(listOptions, signal) {
       const path = `${ENDPOINTS.bookmarks}${buildQuery({
         ...listOptions,
-        pinned: listOptions?.pinned ? 1 : undefined,
       })}`;
       return request<BookmarkPage>(options, path, { signal });
     },
@@ -182,6 +182,12 @@ export function createApiClient(options: ClientOptions): ApiClient {
       return request<Bookmark>(options, `${ENDPOINTS.bookmarks}/${id}`, {
         method: 'PUT',
         body: JSON.stringify(input),
+      });
+    },
+    copyBookmark(id, categoryId) {
+      return request<Bookmark>(options, ENDPOINTS.bookmarksCopy(id), {
+        method: 'POST',
+        body: JSON.stringify({ categoryId }),
       });
     },
     reorderBookmarks(ids) {

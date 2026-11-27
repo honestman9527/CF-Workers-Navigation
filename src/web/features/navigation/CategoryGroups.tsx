@@ -17,14 +17,12 @@ export function CategoryGroups({
   selectedSlug,
   actions,
   version,
-  pinnedVersion,
   onUnauthorized,
 }: {
   root: CategoryNode;
   selectedSlug?: string;
   actions: BookmarkActions;
   version: number;
-  pinnedVersion: number;
   onUnauthorized: () => void;
 }) {
   const Icon = categoryIcon(root.icon);
@@ -57,7 +55,6 @@ export function CategoryGroups({
             selected={selectedSlug === category.slug && category.id !== root.id}
             actions={actions}
             version={version}
-            pinnedVersion={pinnedVersion}
             onUnauthorized={onUnauthorized}
           />
         ))}
@@ -74,7 +71,6 @@ function CategoryGroup({
   selected,
   actions,
   version,
-  pinnedVersion,
   onUnauthorized,
 }: {
   category: CategoryNode;
@@ -84,7 +80,6 @@ function CategoryGroup({
   selected: boolean;
   actions: BookmarkActions;
   version: number;
-  pinnedVersion: number;
   onUnauthorized: () => void;
 }) {
   const [sortMode, setSortMode] = useState(false);
@@ -94,7 +89,6 @@ function CategoryGroup({
     coordinator: actions.cache,
     cacheVisited: true,
     version,
-    pinnedVersion,
     onUnauthorized,
   });
   const title = direct ? '直属书签' : category.name;

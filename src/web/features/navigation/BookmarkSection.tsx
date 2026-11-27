@@ -2,7 +2,7 @@ import type { ViewDensity } from '@shared';
 import type { CSSProperties } from 'react';
 
 import type { CategoryNode } from '@nav/features/categories/tree';
-import type { Bookmark } from '@shared/api/types';
+import type { Bookmark, Category } from '@shared/api/types';
 
 import type { BookmarkFeedCache } from './bookmarkFeedCache';
 import type { BookmarkFeed } from './useBookmarkFeed';
@@ -17,7 +17,6 @@ import {
   Inbox,
   LockKeyhole,
   Pencil,
-  Star,
   Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -31,14 +30,16 @@ import { domainOf } from '@shared/search';
 
 import { categorySectionId } from './categoryBrowse';
 import { FrontButton } from './controls';
+import { FrontBookmarkCopyPicker } from './FrontBookmarkCopyPicker';
 
 export type BookmarkActions = {
   authed: boolean;
   density?: ViewDensity;
   pendingIds: ReadonlySet<number>;
+  categories: Category[];
   cache: BookmarkFeedCache;
   onEdit: (bookmark: Bookmark) => void;
-  onPin: (bookmark: Bookmark) => void;
+  onCopy: (bookmark: Bookmark, categoryId: number | null) => Promise<boolean> | void;
   onDelete?: (bookmark: Bookmark) => void;
   onSelectTag?: (tag: string) => void;
   onSelectCategory?: (slug: string) => void;
@@ -311,13 +312,6 @@ export function FeedContent({
                       >
                         {bookmark.title}
                       </span>
-                      {bookmark.isPinned ? (
-                        <Star
-                          key="pinned-badge"
-                          aria-label="常用书签"
-                          className="star-pop size-3.5 shrink-0 fill-current text-primary"
-                        />
-                      ) : null}
                     </span>
                     <span
                       className={cn('mt-1 block truncate text-xs leading-4 text-muted-foreground')}
@@ -390,7 +384,7 @@ export function FeedContent({
                       'flex shrink-0 items-center justify-end gap-1 border-t border-border/70 pt-2',
                       canReorder && sortMode
                         ? 'opacity-100'
-                        : 'sm:hover-capable:pointer-events-none sm:hover-capable:absolute sm:hover-capable:top-2.5 sm:hover-capable:right-2.5 sm:hover-capable:z-10 sm:hover-capable:gap-0.5 sm:hover-capable:rounded-xl sm:hover-capable:border sm:hover-capable:border-border sm:hover-capable:bg-popover/95 sm:hover-capable:p-1 sm:hover-capable:opacity-0 sm:hover-capable:shadow-md sm:hover-capable:backdrop-blur-md sm:hover-capable:transition-opacity sm:hover-capable:duration-150 sm:hover-capable:group-focus-within:pointer-events-auto sm:hover-capable:group-focus-within:opacity-100 sm:hover-capable:group-hover:pointer-events-auto sm:hover-capable:group-hover:opacity-100',
+                        : 'sm:hover-capable:pointer-events-none sm:hover-capable:absolute sm:hover-capable:top-2.5 sm:hover-capable:right-2.5 sm:hover-capable:z-10 sm:hover-capable:gap-0.5 sm:hover-capable:rounded-xl sm:hover-capable:border sm:hover-capable:border-border sm:hover-capable:bg-popover/95 sm:hover-capable:p-1 sm:hover-capable:opacity-0 sm:hover-capable:shadow-md sm:hover-capable:backdrop-blur-md sm:hover-capable:transition-opacity sm:hover-capable:duration-150 sm:hover-capable:group-focus-within:pointer-events-auto sm:hover-capable:group-focus-within:opacity-100 sm:hover-capable:group-hover:pointer-events-auto sm:hover-capable:group-hover:opacity-100 sm:hover-capable:has-[[data-popup-open]]:pointer-events-auto sm:hover-capable:has-[[data-popup-open]]:opacity-100',
                     )}
                   >
                     {canReorder && handleProps ? (
@@ -429,23 +423,12 @@ export function FeedContent({
                       </>
                     ) : (
                       <>
-                        <FrontButton
-                          className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
-                          aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
-                          aria-pressed={bookmark.isPinned}
-                          title={bookmark.isPinned ? '取消常用' : '加入常用'}
+                        <FrontBookmarkCopyPicker
+                          bookmark={bookmark}
+                          categories={actions.categories}
                           disabled={actions.pendingIds.has(bookmark.id)}
-                          onClick={() => actions.onPin(bookmark)}
-                        >
-                          <Star
-                            key={bookmark.isPinned ? 'pinned' : 'unpinned'}
-                            aria-hidden="true"
-                            className={cn(
-                              'size-3.5',
-                              bookmark.isPinned && 'star-pop fill-current text-primary',
-                            )}
-                          />
-                        </FrontButton>
+                          onCopy={(categoryId) => actions.onCopy(bookmark, categoryId)}
+                        />
                         <FrontButton
                           className="min-h-11 min-w-11 rounded-lg px-0 sm:hover-capable:min-h-8 sm:hover-capable:w-8 sm:hover-capable:min-w-8"
                           aria-label={`编辑：${bookmark.title}`}
@@ -518,7 +501,6 @@ export function BookmarkSection({
   selectedSlug,
   actions,
   feed,
-  pinned = false,
   searching = false,
   reorderable = false,
   highlighted,
@@ -528,7 +510,6 @@ export function BookmarkSection({
   selectedSlug?: string;
   actions: BookmarkActions;
   feed: BookmarkFeed;
-  pinned?: boolean;
   searching?: boolean;
   reorderable?: boolean;
   highlighted?: number;
@@ -536,10 +517,8 @@ export function BookmarkSection({
 }) {
   const [sortMode, setSortMode] = useState(false);
   const canReorder = reorderable && actions.authed && feed.items.length > 1;
-  const title =
-    root?.name ??
-    (selectedSlug === 'uncategorized' ? '未分类' : searching ? '全部书签' : '常用网站');
-  const Icon = pinned ? Star : root ? categoryIcon(root.icon) : Inbox;
+  const title = root?.name ?? (selectedSlug === 'uncategorized' ? '未分类' : '全部书签');
+  const Icon = root ? categoryIcon(root.icon) : Inbox;
   return (
     <section
       id={categorySectionId(
@@ -589,11 +568,7 @@ export function BookmarkSection({
         reorderable={reorderable}
         sortMode={sortMode && canReorder}
         emptyMessage={
-          searching
-            ? '没有找到匹配的网站，请调整关键词或筛选。'
-            : pinned
-              ? '将网站加入常用，即可在这里快速打开。'
-              : '这个分类还没有网站。'
+          searching ? '没有找到匹配的网站，请调整关键词或筛选。' : '这个分类还没有网站。'
         }
       />
     </section>

@@ -7,6 +7,8 @@ export const UNCATEGORIZED_SLUG = 'uncategorized';
 
 export type Visibility = 'public' | 'private';
 
+export type CategorySystemKey = 'common';
+
 export type Bookmark = {
   visibility: Visibility;
   effectiveVisibility: Visibility;
@@ -15,7 +17,6 @@ export type Bookmark = {
   url: string;
   description: string | null;
   iconUrl: string | null;
-  isPinned: boolean;
   sortOrder: number;
   categoryId: number | null;
   categorySlug: string | null;
@@ -33,7 +34,6 @@ export type BookmarkInput = {
   url: string;
   description?: string | null;
   iconUrl?: string | null;
-  isPinned?: boolean;
   categoryId?: number | null;
   tags?: string[];
 };
@@ -48,7 +48,6 @@ export type BookmarkListOptions = {
   tag?: string;
   /** 仅返回没有任何标签的书签。 */
   untagged?: boolean;
-  pinned?: boolean;
   cursor?: string;
   limit?: number;
   /** 分页模式：提供 offset 时按「页码 + 总数」返回（total 字段），否则维持游标分页。 */
@@ -69,6 +68,7 @@ export type Category = {
   effectiveVisibility: Visibility;
   id: number;
   parentId: number | null;
+  systemKey: CategorySystemKey | null;
   name: string;
   slug: string;
   icon: string | null;

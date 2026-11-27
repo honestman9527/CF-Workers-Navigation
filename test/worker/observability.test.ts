@@ -11,11 +11,12 @@ const db = drizzle(env.DB);
 const headers = { Authorization: 'Bearer dev-password', 'Content-Type': 'application/json' };
 
 beforeEach(async () => {
-  await env.DB.batch(
-    ['bookmark_tags', 'bookmarks', 'tags', 'categories'].map((table) =>
+  await env.DB.batch([
+    ...['bookmark_tags', 'bookmarks', 'tags'].map((table) =>
       env.DB.prepare(`DELETE FROM ${table}`),
     ),
-  );
+    env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
+  ]);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -70,7 +71,7 @@ it.each(['json', 'html'] as const)(
         operation: 'export',
         format,
         outcome: 'success',
-        counts: { categoriesRead: 0, bookmarksRead: 1 },
+        counts: { categoriesRead: 1, bookmarksRead: 1 },
       }),
     ]);
     expect(JSON.stringify(terminal)).not.toMatch(/private title|private\.example/);

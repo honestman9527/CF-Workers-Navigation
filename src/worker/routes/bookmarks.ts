@@ -16,6 +16,7 @@ import {
 import { faviconUrlFor, fetchBookmarkMetadata } from '../metadata';
 import {
   archiveBookmark,
+  copyBookmark,
   createBookmark,
   deleteBookmark,
   getBookmark,
@@ -35,7 +36,6 @@ const bookmarkInputSchema = z.object({
   url: httpUrlSchema(2048),
   description: z.string().max(2000).nullable().optional(),
   iconUrl: httpUrlSchema(2048).nullable().optional(),
-  isPinned: z.boolean().optional(),
   categoryId: z.number().int().positive().nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(30).optional(),
 });
@@ -51,6 +51,9 @@ const slugQuerySchema = z.string().trim().min(1).max(64).optional();
 const reorderSchema = z.object({
   ids: z.array(z.number().int().positive()).max(500),
 });
+const copySchema = z.object({
+  categoryId: z.number().int().positive().nullable(),
+});
 const bookmarksRoutes = new Hono<AppEnv>();
 
 bookmarksRoutes.get('/search', async (c) => {
@@ -65,7 +68,6 @@ bookmarksRoutes.get('/search', async (c) => {
         categoryOnly: parseBooleanQuery(c.req.query('categoryOnly')),
         tag: slugQuerySchema.parse(c.req.query('tag')),
         untagged: parseBooleanQuery(c.req.query('untagged')),
-        pinned: parseBooleanQuery(c.req.query('pinned')),
         cursor: cursorSchema.parse(c.req.query('cursor')),
         limit: limitSchema.parse(c.req.query('limit')),
         offset: offsetSchema.parse(c.req.query('offset')),
@@ -105,7 +107,6 @@ bookmarksRoutes.get('/', async (c) => {
           categoryOnly: parseBooleanQuery(c.req.query('categoryOnly')),
           tag: slugQuerySchema.parse(c.req.query('tag')),
           untagged: parseBooleanQuery(c.req.query('untagged')),
-          pinned: parseBooleanQuery(c.req.query('pinned')),
           cursor: cursorSchema.parse(c.req.query('cursor')),
           limit: limitSchema.parse(c.req.query('limit')),
           offset: offsetSchema.parse(c.req.query('offset')),
@@ -164,6 +165,20 @@ bookmarksRoutes.put('/:id', async (c) => {
         idParamSchema.parse(c.req.param('id')),
         bookmarkUpdateSchema.parse(body.body),
       ),
+    );
+  } catch (error) {
+    return handleServiceError(c, error);
+  }
+});
+
+bookmarksRoutes.post('/:id/copy', async (c) => {
+  const body = await parseJson(c);
+  if (!body.ok) return body.response;
+  try {
+    const input = copySchema.parse(body.body);
+    return c.json(
+      await copyBookmark(c.get('db'), idParamSchema.parse(c.req.param('id')), input.categoryId),
+      201,
     );
   } catch (error) {
     return handleServiceError(c, error);

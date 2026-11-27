@@ -165,13 +165,87 @@ describe('categories api', () => {
     expect(cycleMove.status).toBe(400);
   });
 
-  it('reparents children and unassigns bookmarks when deleting a category', async () => {
-    const parent = await createCategory({ name: '父' });
+  it('protects the built-in common category from deletion and demotion while allowing edits and children', async () => {
+    const list = await listCategories();
+    const common = list.find((item) => item.systemKey === 'common');
+    expect(common).toMatchObject({
+      name: '常用',
+      slug: 'common',
+      icon: 'Star',
+      parentId: null,
+      visibility: 'public',
+      systemKey: 'common',
+    });
+
+    const otherRoot = await createCategory({ name: '其他一级' });
+
+    // 不允许删除或移动为二级分类（Service 校验）
+    const deleteResp = await exports.default.fetch(`${API}/categories/${common!.id}`, {
+      method: 'DELETE',
+      headers: adminHeaders,
+    });
+    expect(deleteResp.status).toBe(400);
+
+    const demoteResp = await exports.default.fetch(`${API}/categories/${common!.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ parentId: otherRoot.id }),
+    });
+    expect(demoteResp.status).toBe(400);
+
+    // 直接通过 SQL 删除或降级同样会被数据库触发器拒绝
+    await expect(
+      env.DB.prepare('DELETE FROM categories WHERE id = ?').bind(common!.id).run(),
+    ).rejects.toThrow(/system_category_protected/);
+    await expect(
+      env.DB.prepare('UPDATE categories SET parent_id = ? WHERE id = ?')
+        .bind(otherRoot.id, common!.id)
+        .run(),
+    ).rejects.toThrow(/system_category_protected/);
+
+    // 允许改名、换图标、改权限以及挂二级子分类
+    const child = await createCategory({ name: '高频开发', parentId: common!.id });
+    expect(child.parentId).toBe(common!.id);
+
+    const renamed = await exports.default.fetch(`${API}/categories/${common!.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: '我的常用', icon: 'Heart', visibility: 'private' }),
+    });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json<Category>()).toMatchObject({
+      name: '我的常用',
+      icon: 'Heart',
+      visibility: 'private',
+      systemKey: 'common',
+    });
+
+    // 还原测试用名称和公开权限以免影响后续用例
+    await exports.default.fetch(`${API}/categories/${common!.id}`, {
+      method: 'PUT',
+      headers: adminHeaders,
+      body: JSON.stringify({ name: '常用', icon: 'Star', visibility: 'public' }),
+    });
+  });
+
+  it('reparents children and unassigns bookmarks when deleting a category, trashing uncategorized URL collisions while preserving privacy', async () => {
+    const parent = await createCategory({ name: '父私有', visibility: 'private' });
     const borrowed = await createCategory({ name: '子', parentId: parent.id });
-    const bookmark = await createBookmark({
-      title: 'In category',
+    await createBookmark({
+      title: 'Existing Uncategorized',
+      url: 'https://collision-cat-delete.example.com',
+    });
+    const colliding = await createBookmark({
+      title: 'Colliding In Private Cat',
+      url: 'https://collision-cat-delete.example.com',
+      categoryId: parent.id,
+      visibility: 'public',
+    });
+    const clean = await createBookmark({
+      title: 'Clean In Private Cat',
       url: 'https://in-cat-delete.example.com',
       categoryId: parent.id,
+      visibility: 'public',
     });
 
     const deleted = await exports.default.fetch(`${API}/categories/${parent.id}`, {
@@ -184,10 +258,21 @@ describe('categories api', () => {
     expect(categories.find((item) => item.id === parent.id)).toBeUndefined();
     expect(categories.find((item) => item.id === borrowed.id)?.parentId).toBeNull();
 
-    const detail = await exports.default.fetch(`${API}/bookmarks/${bookmark.id}`, {
-      headers: adminHeaders,
+    const cleanDetail = await (
+      await exports.default.fetch(`${API}/bookmarks/${clean.id}`, { headers: adminHeaders })
+    ).json<Bookmark>();
+    expect(cleanDetail).toMatchObject({
+      categoryId: null,
+      visibility: 'private',
+      deletedAt: null,
     });
-    expect((await detail.json<Bookmark>()).categoryId).toBeNull();
+
+    const collidingDetail = await (
+      await exports.default.fetch(`${API}/bookmarks/${colliding.id}`, { headers: adminHeaders })
+    ).json<Bookmark>();
+    expect(collidingDetail.categoryId).toBeNull();
+    expect(collidingDetail.visibility).toBe('private');
+    expect(collidingDetail.deletedAt).not.toBeNull();
   });
 
   it('reorders siblings and rejects mixed-parent lists', async () => {

@@ -24,12 +24,10 @@ export function useBookmarkFeed({
   categoryOnly,
   tag,
   untagged,
-  pinned,
   query = '',
   enabled = true,
   cacheVisited = false,
   version = 0,
-  pinnedVersion = 0,
   onUnauthorized,
   coordinator,
 }: {
@@ -37,26 +35,14 @@ export function useBookmarkFeed({
   categoryOnly?: boolean;
   tag?: string;
   untagged?: boolean;
-  pinned?: boolean;
   query?: string;
   enabled?: boolean;
   cacheVisited?: boolean;
   version?: number;
-  pinnedVersion?: number;
   onUnauthorized: () => void;
   coordinator?: BookmarkFeedCache;
 }) {
-  const activePinnedVersion = pinned ? pinnedVersion : 0;
-  const key = JSON.stringify([
-    category,
-    tag,
-    untagged,
-    pinned,
-    query,
-    version,
-    pinned ? pinnedVersion : 0,
-    categoryOnly,
-  ]);
+  const key = JSON.stringify([category, tag, untagged, query, version, categoryOnly]);
   const [ownCoordinator] = useState(createBookmarkFeedCache);
   const changes = coordinator ?? ownCoordinator;
   const cache = changes.snapshots;
@@ -106,7 +92,6 @@ export function useBookmarkFeed({
         categoryOnly,
         tag,
         untagged,
-        pinned,
         limit: cursor ? 24 : 12,
         cursor,
       };
@@ -114,12 +99,12 @@ export function useBookmarkFeed({
         ? api.searchBookmarks(query, options, signal)
         : api.getBookmarks(options, signal);
     },
-    [category, categoryOnly, tag, untagged, pinned, query],
+    [category, categoryOnly, tag, untagged, query],
   );
 
   useEffect(() => {
-    changes.invalidate(version, pinnedVersion);
-  }, [changes, version, pinnedVersion]);
+    changes.invalidate(version);
+  }, [changes, version]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -160,18 +145,7 @@ export function useBookmarkFeed({
       current.abort();
       read.finish();
     };
-  }, [
-    key,
-    request,
-    enabled,
-    retry,
-    version,
-    activePinnedVersion,
-    cacheVisited,
-    publish,
-    changes,
-    cache,
-  ]);
+  }, [key, request, enabled, retry, version, cacheVisited, publish, changes, cache]);
 
   async function loadMore() {
     const current = controller.current;

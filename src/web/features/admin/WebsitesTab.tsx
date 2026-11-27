@@ -11,7 +11,6 @@ import {
   Pencil,
   Plus,
   Search,
-  Star,
   Trash2,
   Undo2,
   X,
@@ -53,6 +52,7 @@ import {
 } from '@nav/features/bookmarks/ConfirmStateDialog';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { PAGE_SIZES, usePagedBookmarks } from '@nav/features/bookmarks/usePagedBookmarks';
+import { BookmarkCopyPicker } from '@nav/features/categories/BookmarkCopyPicker';
 import { CategoryFilter } from '@nav/features/categories/CategoryFilter';
 import { retainSelectedOption, tagOptions } from '@nav/features/selection/options';
 import { VisibilityBadge } from '@nav/features/visibility/VisibilityField';
@@ -107,7 +107,6 @@ export function WebsitesTab() {
   const [categorySlug, setCategorySlug] = useState<string | undefined>(undefined);
   const [categoryOnly, setCategoryOnly] = useState(false);
   const [tagSlug, setTagSlug] = useState<string | undefined>(undefined);
-  const [pinnedOnly, setPinnedOnly] = useState(false);
   const [pageSize, setPageSize] = useState<number>(20);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmRequest | null>(null);
@@ -163,7 +162,6 @@ export function WebsitesTab() {
     category: categorySlug,
     categoryOnly: effectiveCategoryOnly,
     tag: tagSlug,
-    pinned: pinnedOnly,
     query,
     pageSize,
     onUnauthorized: handleUnauthorized,
@@ -176,7 +174,6 @@ export function WebsitesTab() {
     (categorySlug === UNCATEGORIZED_SLUG || effectiveCategoryOnly) &&
     !query &&
     !tagSlug &&
-    !pinnedOnly &&
     page.items.length > 1 &&
     !page.loading;
 
@@ -232,10 +229,8 @@ export function WebsitesTab() {
     onSuccess(change) {
       if (change.kind === 'created' || change.kind === 'updated') setEditor(null);
       const message =
-        change.kind === 'pinned'
-          ? change.bookmark.isPinned
-            ? '已加入常用'
-            : '已取消常用'
+        change.kind === 'copied'
+          ? `已复制到「${change.bookmark.categoryName ?? '未分类'}」`
           : {
               created: '书签已创建',
               updated: '书签已更新',
@@ -259,7 +254,6 @@ export function WebsitesTab() {
 
   function selectView(next: BookmarkView) {
     setView(next);
-    if (next !== 'active') setPinnedOnly(false);
   }
 
   return (
@@ -366,16 +360,6 @@ export function WebsitesTab() {
           className="max-w-full sm:max-w-52"
         />
 
-        {view === 'active' ? (
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
-            <Checkbox
-              checked={pinnedOnly}
-              onCheckedChange={(checked) => setPinnedOnly(checked === true)}
-            />
-            仅常用
-          </label>
-        ) : null}
-
         <Button size="sm" onClick={() => setEditor('new')} className="ml-auto">
           <Plus className="size-4" />
           添加书签
@@ -393,7 +377,6 @@ export function WebsitesTab() {
           !categoryOnly &&
           !query &&
           !tagSlug &&
-          !pinnedOnly &&
           !page.loading ? (
           <span>勾选「仅直属」可调整该分类直属书签顺序</span>
         ) : null}
@@ -510,11 +493,6 @@ export function WebsitesTab() {
                               {bookmark.title}
                             </span>
                             <VisibilityBadge item={bookmark} />
-                            {bookmark.isPinned ? (
-                              <span title="常用书签" className="shrink-0 text-primary">
-                                <Star className="size-3 fill-current" />
-                              </span>
-                            ) : null}
                           </div>
                           {bookmark.description ? (
                             <p
@@ -598,23 +576,14 @@ export function WebsitesTab() {
                         ) : null}
                         {active ? (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => void mutations.togglePin(bookmark)}
+                            <BookmarkCopyPicker
+                              bookmark={bookmark}
+                              categories={categories ?? []}
                               disabled={mutations.pendingIds.has(bookmark.id)}
-                              aria-label={`${bookmark.isPinned ? '取消常用' : '加入常用'}：${bookmark.title}`}
-                              aria-pressed={bookmark.isPinned}
-                              title={bookmark.isPinned ? '取消常用' : '加入常用'}
-                            >
-                              <Star
-                                aria-hidden="true"
-                                className={cn(
-                                  'size-3.5',
-                                  bookmark.isPinned && 'fill-current text-primary',
-                                )}
-                              />
-                            </Button>
+                              onCopy={(categoryId) =>
+                                void mutations.copyToCategory(bookmark, categoryId)
+                              }
+                            />
                             <Button
                               variant="ghost"
                               size="icon-sm"

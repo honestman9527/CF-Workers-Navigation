@@ -1,5 +1,8 @@
+import type { CategorySystemKey } from '../../shared/api/types';
+
 import type { TransferBookmark, TransferCategory, TransferData } from './types';
 
+import { COMMON_CATEGORY_SYSTEM_KEY } from '../../shared/category-rules';
 import { isHttpUrl } from '../validation';
 
 const MAX_TITLE_LENGTH = 200;
@@ -83,10 +86,13 @@ function normalizeCategory(raw: unknown, index: number, errors: string[]): Trans
   }
   const slug =
     typeof record.slug === 'string' && record.slug.trim() ? record.slug.trim().slice(0, 64) : '';
+  const systemKey: CategorySystemKey | undefined =
+    record.systemKey === COMMON_CATEGORY_SYSTEM_KEY ? COMMON_CATEGORY_SYSTEM_KEY : undefined;
   return {
     name,
     slug,
     visibility: visibility(record.visibility),
+    ...(systemKey ? { systemKey } : {}),
     icon:
       typeof record.icon === 'string' && record.icon.trim()
         ? record.icon.trim().slice(0, 40)

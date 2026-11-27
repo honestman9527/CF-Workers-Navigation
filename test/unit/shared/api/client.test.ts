@@ -93,6 +93,28 @@ describe('nav shared api client', () => {
     expect(init?.body).toBe(JSON.stringify({ ids: [3, 1, 2] }));
   });
 
+  it('builds a copyBookmark request', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ id: 9, categoryId: 3 }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const client = createApiClient({
+      baseUrl: 'https://nav.example.com',
+      getToken: () => 'secret',
+      fetch,
+    });
+
+    await client.copyBookmark(5, 3);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('https://nav.example.com/api/v1/bookmarks/5/copy');
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(JSON.stringify({ categoryId: 3 }));
+  });
+
   it('normalizes error responses at the shared seam', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ error: { code: 'forbidden', message: 'No access' } }), {

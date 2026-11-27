@@ -14,6 +14,7 @@ const root: Category = {
   name: '开发',
   slug: 'dev',
   parentId: null,
+  systemKey: null,
   icon: null,
   sortOrder: 0,
   bookmarkCount: 2,

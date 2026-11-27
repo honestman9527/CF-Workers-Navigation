@@ -3,7 +3,7 @@ import type { CategoryNode } from '@nav/features/categories/tree';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { categoryPath, categorySectionId } from './categoryBrowse';
+import { categoryPath, categorySectionId, findDefaultRoot } from './categoryBrowse';
 import {
   parseNavigationSearch,
   readSearchMode,
@@ -22,6 +22,8 @@ export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
   const mode = search.mode ?? preferredMode;
   const searching = mode === 'site' && Boolean(search.q || search.tag || search.untagged);
   const path = categoryPath(roots, search.category);
+  const defaultRoot = findDefaultRoot(roots);
+  const resolvedRoot = search.category ? path[0] : searching ? undefined : defaultRoot;
   const [snapshots] = useState(() => new Map<string, number>());
   const lastEntry = useRef<string | undefined>(undefined);
   const browseTops = useRef(new Map<string, number>());
@@ -101,8 +103,9 @@ export function useCategoryBrowse(roots: CategoryNode[], ready: boolean) {
     searching,
     update,
     selectCategory,
-    root: path[0],
-    activeRoot: path[0]?.slug,
+    defaultRoot,
+    root: resolvedRoot,
+    activeRoot: resolvedRoot?.slug,
     missingCategory,
     invalidCategory,
   };

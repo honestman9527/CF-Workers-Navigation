@@ -161,7 +161,6 @@ export function useBookmarkEditor({
         iconUrl: iconUrl || null,
         categoryId: form.categoryId,
         tags: appendTag(selectedTags, tagDraft),
-        isPinned: bookmark?.isPinned ?? false,
       });
     } catch (caught) {
       if (currentRevision === revision.current)

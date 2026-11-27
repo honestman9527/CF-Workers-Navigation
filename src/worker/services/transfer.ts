@@ -9,8 +9,12 @@ import type { Db } from '../types';
 
 import { eq, sql, inArray } from 'drizzle-orm';
 
-import { UNCATEGORIZED_SLUG, type Visibility } from '../../shared/api/types';
-import { MAX_CATEGORY_DEPTH } from '../../shared/category-rules';
+import {
+  UNCATEGORIZED_SLUG,
+  type CategorySystemKey,
+  type Visibility,
+} from '../../shared/api/types';
+import { COMMON_CATEGORY_SYSTEM_KEY, MAX_CATEGORY_DEPTH } from '../../shared/category-rules';
 import { bookmarks, categories } from '../schema';
 import { slugify } from '../slug';
 import { bookmarkEffectiveVisibility, categoryEffectiveVisibility } from '../visibility';
@@ -19,8 +23,8 @@ import { normalizeUrl } from './bookmarks';
 import { ServiceError } from './errors';
 
 // D1 limits the number of bound parameters per statement. Each bookmark insert
-// currently binds twelve values (including category_id, sort_order, and visibility), so eight rows stay below
-// the limit with headroom (8 * 12 = 96). Category inserts bind six values per row, so fifteen rows = 90 params.
+// binds eleven values (including category_id, sort_order, and visibility), so eight rows stay well
+// below the limit (8 * 11 = 88). Category inserts bind six values per row, so fifteen rows = 90 params.
 const INSERT_CHUNK_SIZE = 8;
 const CATEGORY_INSERT_CHUNK_SIZE = 15;
 const UPDATE_CHUNK_SIZE = 25;
@@ -28,6 +32,7 @@ const MATCH_CHUNK_SIZE = 90;
 
 type ImportMatch = {
   id: number;
+  categoryId: number | null;
   urlNormalized: string;
   url: string;
   addedAt: string;
@@ -48,7 +53,7 @@ async function readImportMatches(db: Db, data: TransferData): Promise<ImportMatc
       .map((bookmark) => normalizeUrl(bookmark.url)),
   );
   if (!activeUrls.size && !deletedUrls.size) return [];
-  const projection = sql`SELECT b.id, b.url_normalized AS urlNormalized, b.url,
+  const projection = sql`SELECT b.id, b.category_id AS categoryId, b.url_normalized AS urlNormalized, b.url,
     b.created_at AS addedAt, b.deleted_at AS deletedAt, b.visibility,
     ${bookmarkEffectiveVisibility} AS effectiveVisibility FROM bookmarks b`;
   const matches: ImportMatch[] = [];
@@ -82,12 +87,17 @@ function chunks<T>(items: T[], size: number): T[][] {
   return result;
 }
 
-/** 按 slug 建立分类映射并补齐缺失分类，返回 slug → id 映射。 */
+/** 按 slug 建立分类映射并补齐缺失分类；内置「常用」自动映射到目标库已有内置分类。 */
 async function upsertCategoriesForImport(
   db: Db,
   data: TransferData,
   log?: TransferLog,
-): Promise<{ slugToId: Map<string, number>; categoriesFlattened: number }> {
+): Promise<{
+  slugToId: Map<string, number>;
+  categoriesFlattened: number;
+  commonCategoryId: number | null;
+  backupHasSystemCommon: boolean;
+}> {
   const slugToId = new Map<string, number>();
 
   const bySlug = new Map<
@@ -98,6 +108,7 @@ async function upsertCategoriesForImport(
       icon: string | null;
       parentSlug: string | null;
       visibility: Visibility;
+      systemKey?: CategorySystemKey | null;
     }
   >();
   for (const raw of data.categories ?? []) {
@@ -108,6 +119,7 @@ async function upsertCategoriesForImport(
       name,
       slug,
       visibility: raw.visibility ?? 'private',
+      systemKey: raw.systemKey,
       icon: raw.icon ?? null,
       parentSlug: raw.parentSlug?.trim() || null,
     });
@@ -120,8 +132,22 @@ async function upsertCategoriesForImport(
       parentId: categories.parentId,
       visibility: categories.visibility,
       sortOrder: categories.sortOrder,
+      systemKey: categories.systemKey,
     })
     .from(categories);
+  const existingCommon = existing.find((row) => row.systemKey === COMMON_CATEGORY_SYSTEM_KEY);
+  const backupHasSystemCommon = [...bySlug.values()].some(
+    (entry) => entry.systemKey === COMMON_CATEGORY_SYSTEM_KEY,
+  );
+  const mappedCommonEntry = existingCommon
+    ? backupHasSystemCommon
+      ? [...bySlug.values()].find((entry) => entry.systemKey === COMMON_CATEGORY_SYSTEM_KEY)
+      : [...bySlug.values()].find(
+          (entry) =>
+            entry.parentSlug === null && (entry.slug === 'common' || entry.slug === '常用'),
+        )
+    : undefined;
+
   // Existing categories retain their hierarchy and privacy when reused.
   const existingSlugs = new Set(existing.map((row) => row.slug));
   const idToSlug = new Map(existing.map((row) => [row.id, row.slug]));
@@ -131,6 +157,11 @@ async function upsertCategoriesForImport(
       row.parentId === null ? null : (idToSlug.get(row.parentId) ?? null),
     ]),
   );
+  if (existingCommon && mappedCommonEntry) {
+    existingSlugs.add(mappedCommonEntry.slug);
+    parents.set(mappedCommonEntry.slug, null);
+    slugToId.set(mappedCommonEntry.slug, existingCommon.id);
+  }
   for (const entry of bySlug.values())
     if (!existingSlugs.has(entry.slug)) parents.set(entry.slug, entry.parentSlug);
   if (data.version === 2) {
@@ -162,6 +193,9 @@ async function upsertCategoriesForImport(
   assertNoCycles(parents);
   // Compute from the original merged tree before changing any parent or visibility.
   const visibility = new Map(existing.map((row) => [row.slug, row.visibility]));
+  if (existingCommon && mappedCommonEntry) {
+    visibility.set(mappedCommonEntry.slug, existingCommon.visibility);
+  }
   for (const entry of bySlug.values())
     if (!existingSlugs.has(entry.slug)) visibility.set(entry.slug, entry.visibility);
   const resolved = new Map<string, { root: string; depth: number; private: boolean }>();
@@ -235,8 +269,16 @@ async function upsertCategoriesForImport(
     remaining = ready.length > 0 ? deferred : [];
   }
 
-  return { slugToId, categoriesFlattened };
+  return {
+    slugToId,
+    categoriesFlattened,
+    commonCategoryId: existingCommon?.id ?? null,
+    backupHasSystemCommon,
+  };
 }
+
+const liveKey = (categoryId: number | null, urlNormalized: string): string =>
+  `${categoryId === null ? 'null' : categoryId}:${urlNormalized}`;
 
 export async function importTransferData(
   db: Db,
@@ -255,7 +297,6 @@ export async function importTransferData(
   const existingRows = await readImportMatches(db, data);
   log?.count('matchedRecords', existingRows.length);
   const existingById = new Map(existingRows.map((row) => [row.id, row]));
-  const existing = new Map<string, number>();
   const deletedByIdentity = new Map<string, number[]>();
   const deletedByUrlAndTime = new Map<string, number[]>();
   const deletedKey = (url: string, deletedAt: string, addedAt?: string | null) =>
@@ -266,11 +307,8 @@ export async function importTransferData(
     else index.set(key, [id]);
   };
   for (const row of existingRows) {
+    if (row.deletedAt === null) continue;
     const normalized = row.urlNormalized || normalizeUrl(row.url);
-    if (row.deletedAt === null) {
-      existing.set(normalized, row.id);
-      continue;
-    }
     const identity = deletedKey(normalized, row.deletedAt, row.addedAt);
     const urlAndTime = deletedKey(normalized, row.deletedAt);
     addDeleted(deletedByIdentity, identity, row.id);
@@ -312,38 +350,93 @@ export async function importTransferData(
     const id = bookmark.categorySlug ? categorySlugToId.get(bookmark.categorySlug) : undefined;
     return id ?? null;
   };
-  const inserts: TransferBookmark[] = [];
-  const updates: Array<{ id: number; bookmark: TransferBookmark }> = [];
 
-  for (const [index, originalBookmark] of data.bookmarks.entries()) {
-    let bookmark = originalBookmark;
+  // 非删除书签按「目标分类 + 规范化 URL」去重，支持同一 URL 存在于多个分类。
+  const existing = new Map<string, number>();
+  for (const row of existingRows) {
+    if (row.deletedAt !== null) continue;
+    const normalized = row.urlNormalized || normalizeUrl(row.url);
+    existing.set(liveKey(row.categoryId ?? null, normalized), row.id);
+  }
+
+  type ImportEntry = {
+    index: number;
+    bookmark: TransferBookmark;
+    categoryId: number | null;
+    synthetic?: boolean;
+  };
+  const entriesToProcess: ImportEntry[] = data.bookmarks.map((bookmark, index) => ({
+    index,
+    bookmark,
+    categoryId: resolveCategoryId(bookmark),
+  }));
+  if (!categoryImport.backupHasSystemCommon && categoryImport.commonCategoryId !== null) {
+    const commonId = categoryImport.commonCategoryId;
+    const commonPrivate = categoryPrivacy.get(commonId) === 'private';
+    for (const [index, originalBookmark] of data.bookmarks.entries()) {
+      if (
+        originalBookmark.isPinned !== true ||
+        originalBookmark.deletedAt != null ||
+        originalBookmark.archivedAt != null
+      ) {
+        continue;
+      }
+      const sourceCategoryId = resolveCategoryId(originalBookmark);
+      if (sourceCategoryId === commonId) continue;
+      const sourceEffectivePrivate =
+        originalBookmark.visibility === 'private' ||
+        (sourceCategoryId !== null && categoryPrivacy.get(sourceCategoryId) === 'private');
+      const syntheticVisibility: Visibility =
+        sourceEffectivePrivate && !commonPrivate
+          ? 'private'
+          : (originalBookmark.visibility ?? 'private');
+      entriesToProcess.push({
+        index,
+        bookmark: {
+          ...originalBookmark,
+          sortOrder: undefined,
+          visibility: syntheticVisibility,
+        },
+        categoryId: commonId,
+        synthetic: true,
+      });
+    }
+  }
+
+  const inserts: Array<{ bookmark: TransferBookmark; categoryId: number | null }> = [];
+  const updates: Array<{ id: number; bookmark: TransferBookmark; categoryId: number | null }> = [];
+
+  for (const entry of entriesToProcess) {
+    let bookmark = entry.bookmark;
+    const targetId = entry.categoryId;
     const normalized = normalizeUrl(bookmark.url);
     const isDeleted = bookmark.deletedAt !== undefined && bookmark.deletedAt !== null;
-    const id = isDeleted ? deletedMatches.get(index) : existing.get(normalized);
+    const key = liveKey(targetId, normalized);
+    const id = isDeleted ? deletedMatches.get(entry.index) : existing.get(key);
     if (id === -1) {
-      summary.bookmarksSkipped += 1;
+      if (!entry.synthetic) summary.bookmarksSkipped += 1;
       continue;
     }
     if (id !== undefined) {
-      if (!isDeleted) existing.set(normalized, -1);
+      if (!isDeleted) existing.set(key, -1);
+      if (entry.synthetic) continue;
       if (strategy === 'update') {
         if (bookmark.visibility === undefined) {
           const current = existingById.get(id)!;
-          const targetId = resolveCategoryId(bookmark);
           const losesProtection =
             current.effectiveVisibility === 'private' &&
             (targetId === null || categoryPrivacy.get(targetId) !== 'private');
           bookmark = { ...bookmark, visibility: losesProtection ? 'private' : current.visibility };
         }
-        updates.push({ id, bookmark });
+        updates.push({ id, bookmark, categoryId: targetId });
         summary.bookmarksUpdated += 1;
       } else {
         summary.bookmarksSkipped += 1;
       }
       continue;
     }
-    inserts.push(bookmark);
-    if (!isDeleted) existing.set(normalized, -1);
+    inserts.push({ bookmark, categoryId: targetId });
+    if (!isDeleted) existing.set(key, -1);
     summary.bookmarksCreated += 1;
   }
 
@@ -379,23 +472,19 @@ export async function importTransferData(
         const created = await db
           .insert(bookmarks)
           .values(
-            chunk.map((bookmark) => {
-              const categoryId = resolveCategoryId(bookmark);
-              return {
-                title: bookmark.title,
-                url: bookmark.url,
-                description: bookmark.description ?? null,
-                iconUrl: bookmark.iconUrl ?? null,
-                isPinned: bookmark.isPinned ?? false,
-                sortOrder: allocateSortOrder(categoryId, bookmark.sortOrder),
-                categoryId,
-                visibility: bookmark.visibility ?? 'private',
-                archivedAt: bookmark.archivedAt ?? null,
-                deletedAt: bookmark.deletedAt ?? null,
-                createdAt: bookmark.addedAt ?? undefined,
-                urlNormalized: normalizeUrl(bookmark.url),
-              };
-            }),
+            chunk.map(({ bookmark, categoryId }) => ({
+              title: bookmark.title,
+              url: bookmark.url,
+              description: bookmark.description ?? null,
+              iconUrl: bookmark.iconUrl ?? null,
+              sortOrder: allocateSortOrder(categoryId, bookmark.sortOrder),
+              categoryId,
+              visibility: bookmark.visibility ?? 'private',
+              archivedAt: bookmark.archivedAt ?? null,
+              deletedAt: bookmark.deletedAt ?? null,
+              createdAt: bookmark.addedAt ?? undefined,
+              urlNormalized: normalizeUrl(bookmark.url),
+            })),
           )
           .returning({ id: bookmarks.id })
           .catch((error) => {
@@ -404,7 +493,7 @@ export async function importTransferData(
           });
         log?.count('bookmarksCreated', created.length);
         await replaceTags(
-          created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].tags })),
+          created.map((row, index) => ({ bookmarkId: row.id, names: chunk[index].bookmark.tags })),
         );
       }
     },
@@ -416,16 +505,15 @@ export async function importTransferData(
     async (replaceTags) => {
       for (const chunk of chunks(updates, UPDATE_CHUNK_SIZE)) {
         log?.phase('update-bookmarks');
-        const statements = chunk.map(({ id, bookmark }) =>
+        const statements = chunk.map(({ id, bookmark, categoryId }) =>
           db
             .update(bookmarks)
             .set({
               title: bookmark.title,
               description: bookmark.description ?? null,
               iconUrl: bookmark.iconUrl ?? null,
-              isPinned: bookmark.isPinned ?? false,
               ...(bookmark.sortOrder !== undefined ? { sortOrder: bookmark.sortOrder } : {}),
-              categoryId: resolveCategoryId(bookmark),
+              categoryId,
               ...(bookmark.visibility !== undefined ? { visibility: bookmark.visibility } : {}),
               archivedAt: bookmark.archivedAt ?? null,
               deletedAt: bookmark.deletedAt ?? null,

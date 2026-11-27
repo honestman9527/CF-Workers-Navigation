@@ -43,6 +43,13 @@
       "when": 1795706800000,
       "tag": "0005_bookmark_sort_order",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795752000000,
+      "tag": "0006_common_category_and_scoped_url",
+      "breakpoints": true
     }
   ]
 }

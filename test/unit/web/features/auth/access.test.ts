@@ -51,7 +51,6 @@ function privateBookmark(title: string): Bookmark {
     effectiveVisibility: 'private',
     description: null,
     iconUrl: null,
-    isPinned: false,
     sortOrder: 0,
     categoryId: null,
     categoryName: null,

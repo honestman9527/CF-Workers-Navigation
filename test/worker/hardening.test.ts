@@ -43,7 +43,7 @@ beforeEach(async () => {
     env.DB.prepare('DELETE FROM bookmark_tags'),
     env.DB.prepare('DELETE FROM bookmarks'),
     env.DB.prepare('DELETE FROM tags'),
-    env.DB.prepare('DELETE FROM categories'),
+    env.DB.prepare('DELETE FROM categories WHERE system_key IS NULL'),
     env.DB.prepare('DELETE FROM settings'),
   ]);
 });
@@ -409,7 +409,7 @@ describe('D1 query budgets', () => {
     expect(updateQueries.length).toBeLessThanOrEqual(4);
 
     const ordered = await env.DB.prepare(
-      'SELECT id, sort_order FROM categories ORDER BY sort_order ASC',
+      'SELECT id, sort_order FROM categories WHERE system_key IS NULL ORDER BY sort_order ASC',
     ).all<{ id: number; sort_order: number }>();
     expect(ordered.results.map((row) => row.id)).toEqual(reversed);
   });
@@ -454,7 +454,9 @@ describe('D1 query budgets', () => {
     );
     expect(categoryWrites.length).toBeLessThanOrEqual(6);
 
-    const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM categories').first('count');
+    const count = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM categories WHERE system_key IS NULL',
+    ).first('count');
     expect(count).toBe(60);
     const linked = await env.DB.prepare(
       `SELECT p.slug AS parent_slug FROM categories c

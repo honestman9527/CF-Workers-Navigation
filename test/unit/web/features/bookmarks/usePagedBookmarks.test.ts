@@ -29,7 +29,6 @@ beforeEach(() => {
   root = createRoot(container);
   props = {
     view: 'active',
-    pinned: false,
     query: '',
     pageSize: 24,
     page: 1,

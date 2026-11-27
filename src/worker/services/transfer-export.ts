@@ -1,4 +1,4 @@
-import type { Visibility } from '../../shared/api/types';
+import type { CategorySystemKey, Visibility } from '../../shared/api/types';
 import type { TransferLog } from '../observability';
 import type { ExportFormat, TransferBookmark, TransferCategory } from '../transfer/types';
 import type { Db } from '../types';
@@ -23,6 +23,7 @@ const EXPORT_PAGE_SIZE = 300;
 type ExportCategory = {
   id: number;
   parentId: number | null;
+  systemKey: CategorySystemKey | null;
   name: string;
   slug: string;
   icon: string | null;
@@ -37,7 +38,6 @@ type ExportBookmarkRow = {
   url: string;
   description: string | null;
   icon_url: string | null;
-  is_pinned: number;
   sort_order: number;
   category_slug: string | null;
   archived_at: string | null;
@@ -47,7 +47,7 @@ type ExportBookmarkRow = {
 
 function readExportCategories(db: Db): Promise<ExportCategory[]> {
   return db.all<ExportCategory>(sql`
-    SELECT id, parent_id AS parentId, name, slug, icon, visibility FROM categories
+    SELECT id, parent_id AS parentId, system_key AS systemKey, name, slug, icon, visibility FROM categories
     ORDER BY sort_order, name COLLATE NOCASE, id
   `);
 }
@@ -75,7 +75,6 @@ function toTransferBookmark(row: ExportBookmarkRow): TransferBookmark {
     url: row.url,
     description: row.description,
     iconUrl: row.icon_url,
-    isPinned: Boolean(row.is_pinned),
     sortOrder: row.sort_order,
     categorySlug: row.category_slug,
     tags: Array.isArray(names)
@@ -124,7 +123,7 @@ async function readExportPage(
       LIMIT ${EXPORT_PAGE_SIZE + 1}
     )
     SELECT b.id, b.created_at, b.title, b.visibility, b.url, b.description,
-      b.icon_url, b.is_pinned, b.sort_order, c.slug AS category_slug, b.archived_at, b.deleted_at,
+      b.icon_url, b.sort_order, c.slug AS category_slug, b.archived_at, b.deleted_at,
       COALESCE(json_group_array(CASE WHEN t.id IS NULL THEN NULL ELSE t.name END), '[]') AS tag_names
     FROM bookmarks b
     INNER JOIN bookmark_page page ON page.id = b.id
@@ -183,6 +182,7 @@ async function* jsonExport(
   const exportedCategories: TransferCategory[] = categoriesList.map((category) => ({
     name: category.name,
     visibility: category.visibility,
+    ...(category.systemKey ? { systemKey: category.systemKey } : {}),
     slug: category.slug,
     icon: category.icon,
     parentSlug: category.parentId !== null ? (idToSlug.get(category.parentId) ?? null) : null,

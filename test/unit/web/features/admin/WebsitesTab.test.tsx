@@ -27,6 +27,7 @@ vi.mock('@nav/api/client', () => ({
     getCategories: vi.fn(),
     updateBookmark: vi.fn(),
     createBookmark: vi.fn(),
+    copyBookmark: vi.fn(),
     reorderBookmarks: vi.fn(),
   },
   ApiError: class extends Error {},
@@ -92,17 +93,15 @@ it.each([
   }
 });
 
-it('状态始终保持单选，重复点击不会清空，离开使用中会清除仅常用', async () => {
+it('状态始终保持单选，重复点击不会清空', async () => {
   const app = await mount(<WebsitesTab />);
   try {
     await click(buttonWithText(app.container, '全部'));
     expect(buttonWithText(app.container, '全部').getAttribute('aria-pressed')).toBe('true');
     await click(buttonWithText(app.container, '使用中'));
-    await click(app.container.querySelector<HTMLElement>('[role="checkbox"]')!);
-    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'active', pinned: true });
+    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'active' });
     await click(buttonWithText(app.container, '已归档'));
-    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'archive', pinned: false });
-    expect(app.container.querySelector('[role="checkbox"]')).toBeNull();
+    expect(mocks.query.mock.calls.at(-1)?.[0]).toMatchObject({ view: 'archive' });
     expect(
       app.container.querySelectorAll('[data-slot="toggle-group-item"][aria-pressed="true"]'),
     ).toHaveLength(1);
@@ -161,8 +160,22 @@ it('方向键可聚焦下一个状态', async () => {
   }
 });
 
-it('后台常用操作刷新页码列表，保留分类和标签索引', async () => {
+it('后台复制到分类刷新页码列表与分类和标签索引', async () => {
   mocks.error = null;
+  vi.mocked(api.getCategories).mockResolvedValue([
+    {
+      id: 10,
+      name: '常用',
+      slug: 'common',
+      parentId: null,
+      systemKey: 'common',
+      icon: 'Star',
+      sortOrder: 0,
+      bookmarkCount: 0,
+      visibility: 'public',
+      effectiveVisibility: 'public',
+    },
+  ]);
   const bookmark: Bookmark = {
     id: 1,
     title: '网站',
@@ -171,7 +184,6 @@ it('后台常用操作刷新页码列表，保留分类和标签索引', async (
     categoryId: null,
     archivedAt: null,
     deletedAt: null,
-    isPinned: false,
     sortOrder: 0,
     visibility: 'public',
     effectiveVisibility: 'public',
@@ -183,15 +195,26 @@ it('后台常用操作刷新页码列表，保留分类和标签索引', async (
     updatedAt: '2026-10-01 00:00:00',
   };
   mocks.items = [bookmark];
-  vi.mocked(api.updateBookmark).mockResolvedValue({ ...bookmark, isPinned: true });
+  vi.mocked(api.copyBookmark).mockResolvedValue({
+    ...bookmark,
+    id: 2,
+    categoryId: 10,
+    categorySlug: 'common',
+    categoryName: '常用',
+  });
   const app = await mount(<WebsitesTab />);
   try {
-    await click(app.container.querySelector('[aria-label="加入常用：网站"]')!);
-    expect(api.updateBookmark).toHaveBeenCalledWith(1, { isPinned: true });
+    await click(app.container.querySelector('[aria-label="复制到分类：网站"]')!);
+    await click(
+      [...document.querySelectorAll<HTMLButtonElement>('button')].find((btn) =>
+        btn.textContent?.includes('复制到「常用」'),
+      )!,
+    );
+    expect(api.copyBookmark).toHaveBeenCalledWith(1, 10);
     expect(mocks.refresh).toHaveBeenCalledOnce();
-    expect(api.getTags).toHaveBeenCalledOnce();
-    expect(api.getCategories).toHaveBeenCalledOnce();
-    expect(pushToast).toHaveBeenCalledWith('已加入常用', 'success');
+    expect(api.getTags).toHaveBeenCalledTimes(2);
+    expect(api.getCategories).toHaveBeenCalledTimes(2);
+    expect(pushToast).toHaveBeenCalledWith('已复制到「常用」', 'success');
   } finally {
     await app.cleanup();
   }
@@ -226,6 +249,7 @@ it('选中分类直属筛选后可上移排序并持久化，失败时自动回�
       name: '工具',
       slug: 'tools',
       parentId: null,
+      systemKey: null,
       icon: null,
       sortOrder: 0,
       bookmarkCount: 1,
@@ -237,6 +261,7 @@ it('选中分类直属筛选后可上移排序并持久化，失败时自动回�
       name: '开发',
       slug: 'dev',
       parentId: 1,
+      systemKey: null,
       icon: null,
       sortOrder: 0,
       bookmarkCount: 2,
@@ -252,7 +277,6 @@ it('选中分类直属筛选后可上移排序并持久化，失败时自动回�
     categoryId: 2,
     archivedAt: null,
     deletedAt: null,
-    isPinned: false,
     sortOrder,
     visibility: 'public',
     effectiveVisibility: 'public',

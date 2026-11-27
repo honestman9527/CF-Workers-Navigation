@@ -9,7 +9,7 @@ import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutatio
 
 import { mount } from '../../render';
 
-vi.mock('@nav/api/client', () => ({ api: { updateBookmark: vi.fn() } }));
+vi.mock('@nav/api/client', () => ({ api: { copyBookmark: vi.fn() } }));
 
 it('同一书签提交期间禁止重复调用，失败后释放并允许重试', async () => {
   const onError = vi.fn();
@@ -27,19 +27,21 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
   const app = await mount(<Harness />);
   try {
     let reject!: (error: Error) => void;
-    vi.mocked(api.updateBookmark).mockImplementation(
+    vi.mocked(api.copyBookmark).mockImplementation(
       () =>
         new Promise((_, fail) => {
           reject = fail;
         }),
     );
-    let pending!: Promise<void>;
+    let pending!: Promise<boolean>;
     await act(() => {
-      pending = result.togglePin({ id: 1, isPinned: false } as Bookmark);
+      pending = result.copyToCategory({ id: 1 } as Bookmark, 10);
     });
     expect(result.pendingIds.has(1)).toBe(true);
-    await act(async () => result.togglePin({ id: 1, isPinned: false } as Bookmark));
-    expect(api.updateBookmark).toHaveBeenCalledOnce();
+    await act(async () => {
+      expect(await result.copyToCategory({ id: 1 } as Bookmark, 10)).toBe(false);
+    });
+    expect(api.copyBookmark).toHaveBeenCalledOnce();
     expect(onError).toHaveBeenLastCalledWith('该书签正在处理中，请稍后重试');
     await act(async () => {
       reject(new Error('失败'));
@@ -47,9 +49,11 @@ it('同一书签提交期间禁止重复调用，失败后释放并允许重试'
     });
     expect(result.pendingIds.has(1)).toBe(false);
     expect(onError).toHaveBeenCalledWith('失败');
-    vi.mocked(api.updateBookmark).mockResolvedValue({ id: 1, isPinned: true } as Bookmark);
-    await act(async () => result.togglePin({ id: 1, isPinned: false } as Bookmark));
-    expect(api.updateBookmark).toHaveBeenCalledTimes(2);
+    vi.mocked(api.copyBookmark).mockResolvedValue({ id: 2, categoryId: 10 } as Bookmark);
+    await act(async () => {
+      expect(await result.copyToCategory({ id: 1 } as Bookmark, 10)).toBe(true);
+    });
+    expect(api.copyBookmark).toHaveBeenCalledTimes(2);
     expect(result.pendingIds.has(1)).toBe(false);
   } finally {
     await app.cleanup();

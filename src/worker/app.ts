@@ -4,7 +4,12 @@ import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
 import { API_V1_PREFIX } from '../shared/api/endpoints';
-import { CATEGORY_DEPTH_CONSTRAINT, CATEGORY_DEPTH_MESSAGE } from '../shared/category-rules';
+import {
+  CATEGORY_DEPTH_CONSTRAINT,
+  CATEGORY_DEPTH_MESSAGE,
+  SYSTEM_CATEGORY_CONSTRAINT,
+  SYSTEM_CATEGORY_MESSAGE,
+} from '../shared/category-rules';
 import { authContext, requireAuth } from './auth';
 import { getDb } from './db';
 import { jsonError, zodErrorMessage } from './errors';
@@ -97,6 +102,10 @@ app.onError((error, c) => {
 
   if (matchErrorChain(error, CATEGORY_DEPTH_CONSTRAINT)) {
     return jsonError(c, 400, 'validation_error', CATEGORY_DEPTH_MESSAGE);
+  }
+
+  if (matchErrorChain(error, SYSTEM_CATEGORY_CONSTRAINT)) {
+    return jsonError(c, 400, 'validation_error', SYSTEM_CATEGORY_MESSAGE);
   }
 
   if (matchErrorChain(error, 'UNIQUE constraint failed')) {

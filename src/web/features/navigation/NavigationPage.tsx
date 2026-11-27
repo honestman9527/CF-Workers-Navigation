@@ -101,7 +101,6 @@ function NavigationSurface() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [version, setVersion] = useState(0);
-  const [pinnedVersion, setPinnedVersion] = useState(0);
   const [feedCache] = useState(createBookmarkFeedCache);
   const [editor, setEditor] = useState<Bookmark | 'new' | null>(null);
   const [pendingTrash, setPendingTrash] = useState<Bookmark | null>(null);
@@ -165,17 +164,17 @@ function NavigationSurface() {
   const engineId = search.engine ?? settings?.defaultEngineId ?? engines[0]?.id;
   const bang = parseBangQuery(draft, engines);
   const engine = engines.find((item) => item.id === (bang.engineId ?? engineId));
+  const fallbackUncategorized =
+    Boolean(categories.data) && !searching && !search.category && !browse.root;
   const results = useBookmarkFeed({
     coordinator: feedCache,
     query: searching ? search.q : undefined,
     tag: searching ? search.tag : undefined,
     untagged: searching ? search.untagged : undefined,
-    category: search.category,
-    pinned: !searching && !search.category ? true : undefined,
+    category: search.category ?? (fallbackUncategorized ? 'uncategorized' : undefined),
     cacheVisited: true,
-    pinnedVersion,
     enabled:
-      (!browse.root || searching) &&
+      (searching || search.category === 'uncategorized' || fallbackUncategorized) &&
       (!search.category || search.category === 'uncategorized' || Boolean(categories.data)) &&
       !browse.invalidCategory,
     version,
@@ -197,15 +196,18 @@ function NavigationSurface() {
   const effectiveResolvedTheme = resolvedTheme ?? (theme === 'dark' ? 'dark' : 'light');
 
   const currentScopeLabel =
-    browse.root?.name ?? (search.category === 'uncategorized' ? '未分类' : '常用');
+    browse.root?.name ??
+    (search.category === 'uncategorized' || fallbackUncategorized ? '未分类' : '书签柜');
 
   useEffect(() => {
     document.title = searching
       ? '站内搜索 · 书签柜'
-      : currentScopeLabel !== '常用'
-        ? `${currentScopeLabel} · 书签柜`
-        : '书签柜';
-  }, [searching, currentScopeLabel]);
+      : !search.category && browse.root
+        ? '书签柜'
+        : currentScopeLabel !== '书签柜'
+          ? `${currentScopeLabel} · 书签柜`
+          : '书签柜';
+  }, [searching, search.category, browse.root, currentScopeLabel]);
   useEffect(() => {
     setDraft(search.q ?? '');
     setHighlighted(-1);
@@ -273,12 +275,14 @@ function NavigationSurface() {
 
   const mutations = useBookmarkMutations({
     onContentChange(change) {
-      if (change.kind === 'pinned' || change.kind === 'created' || change.kind === 'updated') {
-        const saved = change.bookmark;
-        feedCache.apply(saved);
-        if (change.kind === 'pinned') setPinnedVersion((value) => value + 1);
-        else setVersion((value) => value + 1);
-      } else if (change.kind === 'trashed' || change.kind === 'deleted') {
+      if (change.kind === 'created' || change.kind === 'updated') {
+        feedCache.apply(change.bookmark);
+        setVersion((value) => value + 1);
+      } else if (
+        change.kind === 'copied' ||
+        change.kind === 'trashed' ||
+        change.kind === 'deleted'
+      ) {
         setVersion((value) => value + 1);
       }
     },
@@ -286,8 +290,8 @@ function NavigationSurface() {
     invalidateCategories: categories.refresh,
     onSuccess(change) {
       if (!alive.current) return;
-      if (change.kind === 'pinned') {
-        setNotice(change.bookmark.isPinned ? '已加入常用' : '已取消常用');
+      if (change.kind === 'copied') {
+        setNotice(`已复制到「${change.bookmark.categoryName ?? '未分类'}」`);
       } else if (change.kind === 'created' || change.kind === 'updated') {
         setEditor(null);
         setNotice('书签已保存');
@@ -311,11 +315,10 @@ function NavigationSurface() {
     authed: auth.authed,
     density,
     pendingIds: mutations.pendingIds,
+    categories: categories.data ?? [],
     cache: feedCache,
     onEdit: setEditor,
-    onPin: (bookmark) => {
-      void mutations.togglePin(bookmark);
-    },
+    onCopy: (bookmark, categoryId) => mutations.copyToCategory(bookmark, categoryId),
     onDelete: (bookmark) => setPendingTrash(bookmark),
     onSelectTag: selectTagByName,
     onSelectCategory: (slug) => selectCategory(slug),
@@ -547,6 +550,7 @@ function NavigationSurface() {
               roots={roots}
               totals={totals}
               activeRoot={browse.activeRoot}
+              defaultRootSlug={browse.defaultRoot?.slug}
               selectedCategory={search.category}
               searching={searching}
               collapsed={!sidebarOpen}
@@ -1012,7 +1016,9 @@ function NavigationSurface() {
           {categories.loading && !categories.data ? (
             <p className="py-6 text-center text-sm text-muted-foreground">正在加载分类…</p>
           ) : null}
-          {(!search.category || search.category === 'uncategorized' || categories.data) &&
+          {(searching
+            ? !search.category || search.category === 'uncategorized' || Boolean(categories.data)
+            : search.category === 'uncategorized' || Boolean(categories.data)) &&
           !browse.invalidCategory ? (
             browse.root && !searching ? (
               <CategoryGroups
@@ -1020,16 +1026,16 @@ function NavigationSurface() {
                 selectedSlug={search.category}
                 actions={actions}
                 version={version}
-                pinnedVersion={pinnedVersion}
                 onUnauthorized={unauthorized}
               />
             ) : (
               <BookmarkSection
                 root={browse.root}
-                selectedSlug={search.category}
-                pinned={!searching && !search.category}
+                selectedSlug={fallbackUncategorized ? 'uncategorized' : search.category}
                 searching={searching}
-                reorderable={search.category === 'uncategorized' && !searching}
+                reorderable={
+                  (search.category === 'uncategorized' || fallbackUncategorized) && !searching
+                }
                 actions={actions}
                 feed={results}
                 highlighted={highlighted}
@@ -1051,6 +1057,7 @@ function NavigationSurface() {
         roots={roots}
         totals={totals}
         activeRoot={browse.activeRoot}
+        defaultRootSlug={browse.defaultRoot?.slug}
         selectedCategory={search.category}
         searching={searching}
         onSelectCategory={selectCategory}
@@ -1069,6 +1076,7 @@ function NavigationSurface() {
         onOpenChange={setCommandOpen}
         roots={roots}
         totals={totals}
+        defaultRootSlug={browse.defaultRoot?.slug}
         recentBookmarks={recentBookmarks}
         theme={theme}
         resolvedTheme={effectiveResolvedTheme}
