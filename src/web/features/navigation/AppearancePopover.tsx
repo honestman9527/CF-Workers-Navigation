@@ -9,8 +9,10 @@ import {
   type Theme,
 } from '@shared';
 import { Check, Monitor, Moon, Palette as PaletteIcon, Sun } from 'lucide-react';
+import { useRef } from 'react';
 
 import { cn } from '@/lib/utils';
+import { runViewTransition } from '@/lib/viewTransition';
 
 import { FrontButton } from './controls';
 
@@ -43,10 +45,12 @@ export function AppearancePopover({
   tooltipOffset?: number;
   triggerClassName?: string;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const isDark = resolvedTheme === 'dark';
   const currentPaletteLabel = PALETTE_OPTIONS.find((item) => item.id === palette)?.label;
   const triggerButton = (
     <FrontButton
+      ref={triggerRef}
       tone="quiet"
       aria-label="外观与主题设置"
       className={cn('size-10 rounded-xl p-0', triggerClassName)}
@@ -97,7 +101,12 @@ export function AppearancePopover({
                 aria-label="主题"
                 value={theme}
                 onValueChange={(value) => {
-                  if (isTheme(value)) setTheme(value);
+                  if (isTheme(value)) {
+                    runViewTransition(() => setTheme(value), {
+                      kind: 'ripple',
+                      origin: triggerRef.current,
+                    });
+                  }
                 }}
               >
                 {(

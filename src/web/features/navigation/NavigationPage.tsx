@@ -11,12 +11,10 @@ import {
   LogIn,
   LogOut,
   Menu as MenuIcon,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   Search,
-  Sun,
   X,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -579,30 +577,6 @@ function NavigationSurface() {
               )}
 
               <div className="flex items-center gap-0.5">
-                <FrontTooltip
-                  side="top"
-                  sideOffset={8}
-                  content={effectiveResolvedTheme === 'dark' ? '切换亮色' : '切换暗色'}
-                >
-                  <FrontButton
-                    tone="quiet"
-                    aria-label={effectiveResolvedTheme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
-                    onClick={(event) =>
-                      runViewTransition(
-                        () => setTheme(effectiveResolvedTheme === 'dark' ? 'light' : 'dark'),
-                        { kind: 'ripple', origin: event.currentTarget },
-                      )
-                    }
-                    className="size-9 min-h-9 rounded-xl p-0 pointer-coarse:size-11"
-                  >
-                    {effectiveResolvedTheme === 'dark' ? (
-                      <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
-                    ) : (
-                      <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
-                    )}
-                  </FrontButton>
-                </FrontTooltip>
-
                 <AppearancePopover
                   theme={theme}
                   resolvedTheme={effectiveResolvedTheme}

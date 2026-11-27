@@ -3,9 +3,8 @@ import type { Palette, ResolvedTheme, Theme } from '@shared';
 import type { CategoryNode } from '@nav/features/categories/tree';
 
 import { Dialog } from '@base-ui/react/dialog';
-import { LayoutDashboard, LogIn, LogOut, Moon, Sun, X } from 'lucide-react';
+import { LayoutDashboard, LogIn, LogOut, X } from 'lucide-react';
 
-import { runViewTransition } from '@/lib/viewTransition';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
 
 import { AppearancePopover } from './AppearancePopover';
@@ -54,8 +53,6 @@ export function FrontCategoryDrawer({
   onLogin: () => void;
   onLogout: () => void;
 }) {
-  const isDark = resolvedTheme === 'dark';
-
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -130,24 +127,6 @@ export function FrontCategoryDrawer({
               )}
 
               <div className="flex items-center gap-0.5">
-                <FrontButton
-                  tone="quiet"
-                  aria-label={isDark ? '切换亮色模式' : '切换暗色模式'}
-                  onClick={(event) =>
-                    runViewTransition(() => setTheme(isDark ? 'light' : 'dark'), {
-                      kind: 'ripple',
-                      origin: event.currentTarget,
-                    })
-                  }
-                  className="size-9 min-h-9 rounded-xl p-0 pointer-coarse:size-11"
-                >
-                  {isDark ? (
-                    <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
-                  ) : (
-                    <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
-                  )}
-                </FrontButton>
-
                 <AppearancePopover
                   theme={theme}
                   resolvedTheme={resolvedTheme}

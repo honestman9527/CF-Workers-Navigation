@@ -3,6 +3,7 @@ import {
   DEFAULT_ADMIN_SIDEBAR_OPEN,
   PALETTE_OPTIONS,
   parseSidebarOpen,
+  type Theme,
 } from '@shared';
 import { Link, Outlet, useLocation } from '@tanstack/react-router';
 import {
@@ -12,12 +13,10 @@ import {
   Globe,
   LayoutDashboard,
   LogOut,
-  Moon,
   Palette as PaletteIcon,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  Sun,
   Tags,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -126,8 +125,14 @@ function AdminSidebarContent({
   const { open, isMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const { theme, resolvedTheme, setTheme } = themeSettings;
   const { palette, setPalette } = appearance;
+  const appearanceTriggerRef = useRef<HTMLButtonElement>(null);
+  const handleThemeChange = (next: Theme) => {
+    runViewTransition(() => setTheme(next), {
+      kind: 'ripple',
+      origin: appearanceTriggerRef.current,
+    });
+  };
   const collapsed = !isMobile && !open;
-  const isDark = resolvedTheme === 'dark';
   const currentPaletteLabel = PALETTE_OPTIONS.find((item) => item.id === palette)?.label;
   const appearanceTooltip = currentPaletteLabel
     ? `外观与主题 · ${currentPaletteLabel}`
@@ -243,6 +248,7 @@ function AdminSidebarContent({
                     <DropdownMenuTrigger
                       render={
                         <Button
+                          ref={appearanceTriggerRef}
                           type="button"
                           variant="ghost"
                           size="icon"
@@ -262,7 +268,7 @@ function AdminSidebarContent({
               <DropdownMenuContent side="right" align="end" sideOffset={10} className="w-48">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>主题</DropdownMenuLabel>
-                  <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
+                  <ThemeMenuOptions theme={theme} onThemeChange={handleThemeChange} />
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
@@ -328,35 +334,6 @@ function AdminSidebarContent({
             </Link>
 
             <div className="flex items-center gap-0.5">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={isDark ? '切换亮色模式' : '切换暗色模式'}
-                      onClick={(event) =>
-                        runViewTransition(() => setTheme(isDark ? 'light' : 'dark'), {
-                          kind: 'ripple',
-                          origin: event.currentTarget,
-                        })
-                      }
-                      className="size-9 min-h-9 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground pointer-coarse:size-11"
-                    />
-                  }
-                >
-                  {isDark ? (
-                    <Sun key="dark" aria-hidden="true" className="theme-icon-pop size-4" />
-                  ) : (
-                    <Moon key="light" aria-hidden="true" className="theme-icon-pop size-4" />
-                  )}
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={8}>
-                  {isDark ? '切换亮色' : '切换暗色'}
-                </TooltipContent>
-              </Tooltip>
-
               <DropdownMenu>
                 <Tooltip>
                   <TooltipTrigger
@@ -364,6 +341,7 @@ function AdminSidebarContent({
                       <DropdownMenuTrigger
                         render={
                           <Button
+                            ref={appearanceTriggerRef}
                             type="button"
                             variant="ghost"
                             size="icon"
@@ -383,7 +361,7 @@ function AdminSidebarContent({
                 <DropdownMenuContent side="top" align="end" sideOffset={8} className="w-48">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>主题</DropdownMenuLabel>
-                    <ThemeMenuOptions theme={theme} onThemeChange={setTheme} />
+                    <ThemeMenuOptions theme={theme} onThemeChange={handleThemeChange} />
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>

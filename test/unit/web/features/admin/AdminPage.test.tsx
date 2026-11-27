@@ -119,18 +119,13 @@ it('底部返回前台并与前台风格一致，桌面收起为图标栏后保�
   expect(button('收起管理导航').getAttribute('aria-expanded')).toBe('true');
 });
 
-it('底部支持一键明暗切换与三种主题菜单，同步 color-scheme meta 并在收起时响应系统主题', async () => {
+it('底部仅保留统一主题菜单（无重复亮暗切换按钮），支持三种主题并同步 color-scheme meta', async () => {
   const store = await setup();
   const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')!;
   expect(meta.content).toBe('light');
 
-  // 一键快捷切换暗色/亮色
-  await click(button('切换暗色模式'));
-  expect(store.get(themeAtom)).toBe('dark');
-  expect(meta.content).toBe('dark');
-  await click(button('切换亮色模式'));
-  expect(store.get(themeAtom)).toBe('light');
-  expect(meta.content).toBe('light');
+  expect(button('切换暗色模式')).toBeNull();
+  expect(button('切换亮色模式')).toBeNull();
 
   const appearanceBtn = button('外观与主题设置');
   appearanceBtn.focus();
@@ -175,6 +170,8 @@ it('移动抽屉中切换主题保留抽屉，返回前台后关闭且不改变�
   localStorage.setItem('nav-admin-sidebar-open', 'false');
   await setup(375);
   await click(button('展开管理导航'));
+  expect(button('切换暗色模式')).toBeNull();
+  expect(button('切换亮色模式')).toBeNull();
   await openAppearanceMenu();
   await click(menuItem('暗色'));
   expect(button('收起管理导航').getAttribute('aria-expanded')).toBe('true');

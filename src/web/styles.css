@@ -716,10 +716,6 @@
       animation: star-pop 0.36s ease-out;
       animation-timing-function: linear(0, 0.45 15%, 1.08 35%, 0.97 55%, 1.01 75%, 1);
     }
-    .theme-icon-pop {
-      animation: theme-icon-pop 0.3s ease-out;
-      animation-timing-function: linear(0, 0.45 15%, 1.06 38%, 0.98 64%, 1);
-    }
   }
   .skip-link {
     @apply sr-only rounded-xl border border-border bg-popover px-4 py-2.5 text-sm font-semibold text-popover-foreground shadow-lg focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-60;
@@ -995,14 +991,6 @@
   100% {
     scale: 1;
     rotate: 0deg;
-  }
-}
-
-@keyframes theme-icon-pop {
-  from {
-    opacity: 0.55;
-    rotate: -36deg;
-    scale: 0.75;
   }
 }
 

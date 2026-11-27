@@ -356,6 +356,8 @@ it('移动端抽屉完整保留两级分类树折叠/展开、计数与选择跳
   expect(drawer).not.toBeNull();
   expect(drawer.querySelector('[aria-label="管理员登录"]')?.textContent?.trim()).toBe('登录');
   expect(drawer.querySelector('[aria-label="外观与主题设置"]')).not.toBeNull();
+  expect(drawer.querySelector('[aria-label="切换暗色模式"]')).toBeNull();
+  expect(drawer.querySelector('[aria-label="切换亮色模式"]')).toBeNull();
   expect(drawer.querySelector('[aria-label="抽屉主题切换"]')).toBeNull();
 
   const toggle = drawer.querySelector<HTMLButtonElement>('[aria-label="展开 工程工具"]')!;
@@ -429,8 +431,18 @@ it('统一主题与主题色菜单精简去除重复项并应用到根节点，�
   expect(menu.querySelector('#front-bg-overlay-opacity')).toBeNull();
   expect(menu.querySelector('[aria-label="视图密度"]')).toBeNull();
 
-  const amberRadio = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((el) =>
-    el.textContent?.includes('暖珀微光'),
+  const darkRadio = [...menu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((el) =>
+    el.textContent?.includes('暗色'),
+  )!;
+  await click(darkRadio);
+  expect(themeState.setTheme).toHaveBeenCalledWith('dark');
+
+  if (trigger.getAttribute('aria-expanded') !== 'true') await click(trigger);
+  const activeMenu = document.querySelector<HTMLElement>(
+    '[role="menu"][aria-label="外观与主题设置"]',
+  )!;
+  const amberRadio = [...activeMenu.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
+    (el) => el.textContent?.includes('暖珀微光'),
   )!;
   await click(amberRadio);
   expect(document.documentElement.dataset.palette).toBe('amber');
@@ -446,10 +458,11 @@ it('桌面侧边栏折叠时将 Logo 与展开按钮合二为一，保留焦点�
   expect(sidebar.dataset.state).toBe('expanded');
   expect(document.documentElement.dataset.frontSidebar).toBe('expanded');
 
-  // 展开态底部使用克制的单行工具栏，支持一键切换明暗模式与精简入口
+  // 展开态底部使用克制的单行工具栏，仅保留统一外观与主题菜单，不重复渲染独立明暗切换按钮
   expect(sidebar.querySelector('[aria-label="管理员登录"]')?.textContent?.trim()).toBe('登录');
-  await click(sidebar.querySelector<HTMLButtonElement>('[aria-label="切换暗色模式"]')!);
-  expect(themeState.setTheme).toHaveBeenCalledWith('dark');
+  expect(sidebar.querySelector('[aria-label="外观与主题设置"]')).not.toBeNull();
+  expect(sidebar.querySelector('[aria-label="切换暗色模式"]')).toBeNull();
+  expect(sidebar.querySelector('[aria-label="切换亮色模式"]')).toBeNull();
 
   const toggle = app.container.querySelector<HTMLButtonElement>('[aria-label="收起侧边栏"]')!;
   toggle.focus();
