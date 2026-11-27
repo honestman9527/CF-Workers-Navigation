@@ -1,5 +1,5 @@
 import type { CategoryNode } from '@nav/features/categories/tree';
-import type { Bookmark } from '@shared/api/types';
+import type { Bookmark, Tag } from '@shared/api/types';
 
 import { Dialog } from '@base-ui/react/dialog';
 import {
@@ -14,6 +14,7 @@ import {
   CornerDownLeft,
   ExternalLink,
   Folder,
+  Hash,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
@@ -37,12 +38,13 @@ import { cn } from '@/lib/utils';
 import { api, ApiError } from '@nav/api/client';
 import { ImageWithFallback } from '@nav/components/ImageWithFallback';
 import { flattenCategoryTree } from '@nav/features/categories/tree';
+import { sortTagsByPopularity } from '@nav/features/selection/options';
 import { COMMON_CATEGORY_SYSTEM_KEY } from '@shared/category-rules';
 import { domainOf } from '@shared/search';
 
 type PaletteEntry = {
   id: string;
-  group: 'bookmarks' | 'categories' | 'actions' | 'appearance';
+  group: 'bookmarks' | 'categories' | 'tags' | 'actions' | 'appearance';
   title: string;
   subtitle?: string;
   badge?: string;
@@ -54,6 +56,7 @@ type PaletteEntry = {
     | 'star'
     | 'inbox'
     | 'folder'
+    | 'tag'
     | 'plus'
     | 'admin'
     | 'login'
@@ -70,6 +73,7 @@ type PaletteEntry = {
 const GROUP_LABELS: Record<PaletteEntry['group'], string> = {
   bookmarks: '书签直达',
   categories: '切换分类',
+  tags: '按标签筛选',
   actions: '快捷操作',
   appearance: '主题与视图',
 };
@@ -77,6 +81,7 @@ const GROUP_LABELS: Record<PaletteEntry['group'], string> = {
 const GROUP_ORDER: readonly PaletteEntry['group'][] = [
   'bookmarks',
   'categories',
+  'tags',
   'actions',
   'appearance',
 ];
@@ -115,6 +120,8 @@ function EntryIcon({ entry }: { entry: PaletteEntry }) {
       return <Inbox className={iconClass} />;
     case 'folder':
       return <Folder className={iconClass} />;
+    case 'tag':
+      return <Hash className={iconClass} />;
     case 'plus':
       return <Plus className="size-4 shrink-0 text-primary" />;
     case 'admin':
@@ -150,6 +157,9 @@ export function CommandPalette({
   roots,
   totals,
   defaultRootSlug,
+  tags = [],
+  activeTag,
+  activeUntagged = false,
   recentBookmarks,
   theme,
   resolvedTheme,
@@ -162,6 +172,7 @@ export function CommandPalette({
   sidebarOpen,
   onToggleSidebar,
   onSelectCategory,
+  onSelectTag,
   onOpenBookmark,
   onCreateBookmark,
   onAdmin,
@@ -173,6 +184,9 @@ export function CommandPalette({
   roots: CategoryNode[];
   totals: Map<number, number>;
   defaultRootSlug?: string;
+  tags?: Tag[];
+  activeTag?: string;
+  activeUntagged?: boolean;
   recentBookmarks: Bookmark[];
   theme: Theme;
   resolvedTheme?: ResolvedTheme;
@@ -185,6 +199,7 @@ export function CommandPalette({
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onSelectCategory: (slug?: string) => void;
+  onSelectTag?: (next: { tag?: string; untagged?: boolean }) => void;
   onOpenBookmark: (url: string) => void;
   onCreateBookmark: () => void;
   onAdmin: () => void;
@@ -265,6 +280,8 @@ export function CommandPalette({
     }));
   }, [roots, totals]);
 
+  const sortedTags = useMemo(() => sortTagsByPopularity(tags), [tags]);
+
   const entries = useMemo<PaletteEntry[]>(() => {
     const keyword = query.trim().toLocaleLowerCase();
     const matches = (...fields: (string | null | undefined)[]) =>
@@ -333,6 +350,59 @@ export function CommandPalette({
           onOpenChange(false);
         },
       });
+    }
+
+    const tagEntries: PaletteEntry[] = [];
+    if (onSelectTag) {
+      const tagKeyword = keyword.replace(/^#/, '').trim();
+      const matchTag = (...fields: (string | null | undefined)[]) =>
+        !tagKeyword || fields.some((field) => field?.toLocaleLowerCase().includes(tagKeyword));
+      const matchedTags = (
+        keyword
+          ? sortedTags.filter((tag) => matchTag(tag.name, tag.slug, `#${tag.name}`, `#${tag.slug}`))
+          : sortedTags.filter((tag) => tag.bookmarkCount > 0).slice(0, 4)
+      ).slice(0, 8);
+      for (const tag of matchedTags) {
+        const isCurrent =
+          activeTag !== undefined &&
+          (activeTag.toLocaleLowerCase() === tag.slug.toLocaleLowerCase() ||
+            activeTag.toLocaleLowerCase() === tag.name.toLocaleLowerCase());
+        tagEntries.push({
+          id: `tag-${tag.id}`,
+          group: 'tags',
+          title: tag.name,
+          subtitle: isCurrent ? '当前筛选标签（回车取消）' : `按标签 #${tag.name} 筛选`,
+          badge: `${tag.bookmarkCount} 项`,
+          active: isCurrent,
+          iconKind: 'tag',
+          onSelect: () => {
+            onSelectTag(
+              isCurrent
+                ? { tag: undefined, untagged: undefined }
+                : { tag: tag.slug, untagged: undefined },
+            );
+            onOpenChange(false);
+          },
+        });
+      }
+      if (keyword && matchTag('无标签', 'untagged', '标签')) {
+        tagEntries.push({
+          id: 'tag-untagged',
+          group: 'tags',
+          title: '无标签',
+          subtitle: activeUntagged ? '当前筛选无标签（回车取消）' : '仅显示没有标签的书签',
+          active: activeUntagged,
+          iconKind: 'tag',
+          onSelect: () => {
+            onSelectTag(
+              activeUntagged
+                ? { tag: undefined, untagged: undefined }
+                : { tag: undefined, untagged: true },
+            );
+            onOpenChange(false);
+          },
+        });
+      }
     }
 
     const actionEntries: PaletteEntry[] = [];
@@ -464,12 +534,21 @@ export function CommandPalette({
       });
     }
 
-    return [...bookmarkEntries, ...categoryEntries, ...actionEntries, ...appearanceEntries];
+    return [
+      ...bookmarkEntries,
+      ...categoryEntries,
+      ...tagEntries,
+      ...actionEntries,
+      ...appearanceEntries,
+    ];
   }, [
     query,
     remoteItems,
     recentBookmarks,
     flatCategories,
+    sortedTags,
+    activeTag,
+    activeUntagged,
     defaultRootSlug,
     authed,
     sidebarOpen,
@@ -481,6 +560,7 @@ export function CommandPalette({
     onOpenBookmark,
     onOpenChange,
     onSelectCategory,
+    onSelectTag,
     onCreateBookmark,
     onAdmin,
     onLogin,

@@ -2,11 +2,12 @@ import type { ViewDensity } from '@shared';
 import type { CSSProperties } from 'react';
 
 import type { CategoryNode } from '@nav/features/categories/tree';
-import type { Bookmark, Category } from '@shared/api/types';
+import type { Bookmark, Category, Tag } from '@shared/api/types';
 
 import type { BookmarkFeedCache } from './bookmarkFeedCache';
 import type { BookmarkFeed } from './useBookmarkFeed';
 
+import { Popover } from '@base-ui/react/popover';
 import {
   ArrowUpDown,
   ChevronLeft,
@@ -18,6 +19,7 @@ import {
   LockKeyhole,
   Pencil,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -37,6 +39,8 @@ export type BookmarkActions = {
   density?: ViewDensity;
   pendingIds: ReadonlySet<number>;
   categories: Category[];
+  tags?: Tag[];
+  activeTag?: string;
   cache: BookmarkFeedCache;
   onEdit: (bookmark: Bookmark) => void;
   onCopy: (bookmark: Bookmark, categoryId: number | null) => Promise<boolean> | void;
@@ -46,6 +50,72 @@ export type BookmarkActions = {
   onNotice?: (message: string) => void;
   onUnauthorized?: () => void;
 };
+
+function isTagSelected(tagName: string, activeTag?: string, allTags?: Tag[]): boolean {
+  if (!activeTag) return false;
+  const normalizedActive = activeTag.toLocaleLowerCase();
+  const normalizedTag = tagName.toLocaleLowerCase();
+  if (normalizedTag === normalizedActive) return true;
+  const matched = allTags?.find((item) => item.slug.toLocaleLowerCase() === normalizedActive);
+  return matched ? matched.name.toLocaleLowerCase() === normalizedTag : false;
+}
+
+function ExtraTagsPopover({
+  bookmarkTitle,
+  extraTags,
+  activeTag,
+  allTags,
+  onSelectTag,
+}: {
+  bookmarkTitle: string;
+  extraTags: string[];
+  activeTag?: string;
+  allTags?: Tag[];
+  onSelectTag?: (tag: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger
+        aria-label={`查看其余 ${extraTags.length} 个标签：${bookmarkTitle}`}
+        title={`查看其余 ${extraTags.length} 个标签`}
+        render={<button type="button" />}
+        className="inline-flex min-h-6 cursor-pointer items-center rounded-md bg-secondary/75 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 hover-capable:hover:bg-secondary hover-capable:hover:text-foreground"
+      >
+        +{extraTags.length}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Positioner align="start" sideOffset={6} className="z-50 max-w-[calc(100vw-2rem)]">
+          <Popover.Popup
+            aria-label={`更多标签：${bookmarkTitle}`}
+            className="front-surface glass-surface overlay-popup flex max-h-(--available-height) max-w-[min(18rem,calc(100vw-2rem))] origin-(--transform-origin) flex-wrap gap-1.5 overflow-y-auto rounded-2xl border border-border bg-popover p-2.5 text-popover-foreground shadow-xl outline-none"
+          >
+            {extraTags.map((tag) => {
+              const active = isTagSelected(tag, activeTag, allTags);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setOpen(false);
+                    onSelectTag?.(tag);
+                  }}
+                  title={active ? `点击取消标签筛选：${tag}` : `按标签筛选：${tag}`}
+                  className="inline-flex max-w-40 cursor-pointer items-center gap-0.5 rounded-md border border-border/80 bg-background/80 px-2 py-1 text-xs text-muted-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-pressed:border-primary/45 aria-pressed:bg-accent aria-pressed:font-medium aria-pressed:text-primary hover-capable:hover:border-primary/40 hover-capable:hover:bg-accent hover-capable:hover:text-primary"
+                >
+                  <Hash aria-hidden="true" className="size-3 shrink-0 opacity-70" />
+                  <span className="truncate">{tag}</span>
+                </button>
+              );
+            })}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
 
 export function SortModeToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
   return (
@@ -235,7 +305,7 @@ export function FeedContent({
           {feed.items.map((bookmark, index) => {
             const tags = bookmark.tags ?? [];
             const visibleTags = tags.slice(0, 3);
-            const extraTagCount = Math.max(0, tags.length - 3);
+            const extraTags = tags.slice(3);
             const isPrivate = bookmark.effectiveVisibility === 'private';
             const privateLabel = bookmark.visibility === 'private' ? '私有' : '继承私有';
             const hasMetaRow =
@@ -358,22 +428,30 @@ export function FeedContent({
                         </span>
                       )
                     ) : null}
-                    {visibleTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => actions.onSelectTag?.(tag)}
-                        title={`按标签筛选：${tag}`}
-                        className="inline-flex max-w-28 cursor-pointer items-center gap-0.5 rounded-md border border-border/80 bg-background/70 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-primary"
-                      >
-                        <Hash aria-hidden="true" className="size-2.5 shrink-0 opacity-70" />
-                        <span className="truncate">{tag}</span>
-                      </button>
-                    ))}
-                    {extraTagCount > 0 ? (
-                      <span className="rounded-md bg-secondary/75 px-1.5 py-0.5 text-[11px] text-muted-foreground tabular-nums">
-                        +{extraTagCount}
-                      </span>
+                    {visibleTags.map((tag) => {
+                      const active = isTagSelected(tag, actions.activeTag, actions.tags);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => actions.onSelectTag?.(tag)}
+                          title={active ? `点击取消标签筛选：${tag}` : `按标签筛选：${tag}`}
+                          className="inline-flex max-w-28 cursor-pointer items-center gap-0.5 rounded-md border border-border/80 bg-background/70 px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors outline-none hover:border-primary/40 hover:bg-accent hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/45 aria-pressed:border-primary/45 aria-pressed:bg-accent aria-pressed:font-medium aria-pressed:text-primary"
+                        >
+                          <Hash aria-hidden="true" className="size-2.5 shrink-0 opacity-70" />
+                          <span className="truncate">{tag}</span>
+                        </button>
+                      );
+                    })}
+                    {extraTags.length > 0 ? (
+                      <ExtraTagsPopover
+                        bookmarkTitle={bookmark.title}
+                        extraTags={extraTags}
+                        activeTag={actions.activeTag}
+                        allTags={actions.tags}
+                        onSelectTag={actions.onSelectTag}
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -504,6 +582,12 @@ export function BookmarkSection({
   searching = false,
   reorderable = false,
   highlighted,
+  activeQuery,
+  activeTagLabel,
+  activeUntagged = false,
+  onRemoveQuery,
+  onRemoveTag,
+  onRemoveCategory,
   onClear,
 }: {
   root?: CategoryNode;
@@ -513,12 +597,27 @@ export function BookmarkSection({
   searching?: boolean;
   reorderable?: boolean;
   highlighted?: number;
+  activeQuery?: string;
+  activeTagLabel?: string;
+  activeUntagged?: boolean;
+  onRemoveQuery?: () => void;
+  onRemoveTag?: () => void;
+  onRemoveCategory?: () => void;
   onClear: () => void;
 }) {
   const [sortMode, setSortMode] = useState(false);
   const canReorder = reorderable && actions.authed && feed.items.length > 1;
   const title = root?.name ?? (selectedSlug === 'uncategorized' ? '未分类' : '全部书签');
   const Icon = root ? categoryIcon(root.icon) : Inbox;
+  const hasCategoryFilter = Boolean(root || selectedSlug === 'uncategorized');
+  const showActiveChips =
+    searching &&
+    Boolean(
+      (hasCategoryFilter && onRemoveCategory) ||
+      (activeQuery && onRemoveQuery) ||
+      (activeTagLabel && onRemoveTag) ||
+      (activeUntagged && onRemoveTag),
+    );
   return (
     <section
       id={categorySectionId(
@@ -560,6 +659,60 @@ export function BookmarkSection({
           ) : null}
         </div>
       </div>
+      {showActiveChips ? (
+        <div
+          role="group"
+          aria-label="当前筛选条件"
+          className="mb-4 flex flex-wrap items-center gap-2"
+        >
+          {hasCategoryFilter && onRemoveCategory ? (
+            <button
+              type="button"
+              onClick={onRemoveCategory}
+              aria-label="在全部书签中搜索"
+              className="inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/80 px-2.5 text-xs text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 pointer-coarse:min-h-9 hover-capable:hover:border-primary/40 hover-capable:hover:bg-accent"
+            >
+              <Folder aria-hidden="true" className="size-3 text-muted-foreground" />
+              <span className="max-w-40 truncate">范围：{title}</span>
+              <X aria-hidden="true" className="size-3 text-muted-foreground" />
+            </button>
+          ) : null}
+          {activeQuery && onRemoveQuery ? (
+            <button
+              type="button"
+              onClick={onRemoveQuery}
+              aria-label="移除关键词筛选"
+              className="inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-full border border-border bg-secondary/80 px-2.5 text-xs text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 pointer-coarse:min-h-9 hover-capable:hover:border-primary/40 hover-capable:hover:bg-accent"
+            >
+              <span className="max-w-48 truncate">关键词：{activeQuery}</span>
+              <X aria-hidden="true" className="size-3 text-muted-foreground" />
+            </button>
+          ) : null}
+          {activeTagLabel && onRemoveTag ? (
+            <button
+              type="button"
+              onClick={onRemoveTag}
+              aria-label={`移除标签筛选：${activeTagLabel}`}
+              className="inline-flex min-h-7 cursor-pointer items-center gap-1 rounded-full border border-primary/35 bg-accent px-2.5 text-xs font-medium text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 pointer-coarse:min-h-9 hover-capable:hover:border-primary/60"
+            >
+              <Hash aria-hidden="true" className="size-3 shrink-0" />
+              <span className="max-w-40 truncate">{activeTagLabel}</span>
+              <X aria-hidden="true" className="size-3 shrink-0" />
+            </button>
+          ) : null}
+          {activeUntagged && onRemoveTag ? (
+            <button
+              type="button"
+              onClick={onRemoveTag}
+              aria-label="移除无标签筛选"
+              className="inline-flex min-h-7 cursor-pointer items-center gap-1.5 rounded-full border border-primary/35 bg-accent px-2.5 text-xs font-medium text-primary transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/45 pointer-coarse:min-h-9 hover-capable:hover:border-primary/60"
+            >
+              <span>无标签</span>
+              <X aria-hidden="true" className="size-3 shrink-0" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <FeedContent
         feed={feed}
         actions={actions}

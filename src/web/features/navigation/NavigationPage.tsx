@@ -3,7 +3,6 @@ import type { Bookmark, BookmarkInput } from '@shared/api/types';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowRight,
-  ChevronDown,
   Command,
   Globe,
   LayoutDashboard,
@@ -17,7 +16,6 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
-  SlidersHorizontal,
   Sun,
   X,
 } from 'lucide-react';
@@ -36,7 +34,6 @@ import { useAuthContext } from '@nav/features/auth/useAuthContext';
 import { useBookmarkMutations } from '@nav/features/bookmarks/useBookmarkMutations';
 import { buildCategoryTree, descendantTotals } from '@nav/features/categories/tree';
 import { BrandIcon } from '@nav/features/layout/BrandIcon';
-import { retainSelectedOption, tagOptions } from '@nav/features/selection/options';
 import { useApiData } from '@nav/hooks/useApiData';
 import { useAppearance } from '@nav/hooks/useAppearance';
 import { useBackground } from '@nav/hooks/useBackground';
@@ -59,6 +56,7 @@ import { CommandPalette } from './CommandPalette';
 import { FrontButton } from './controls';
 import { FrontCategoryDrawer } from './FrontCategoryDrawer';
 import { FrontDialog } from './FrontDialog';
+import { FrontTagFilterBar } from './FrontTagFilterBar';
 import { FrontTooltip, FrontTooltipProvider } from './FrontTooltip';
 import { NavigationMenu } from './NavigationMenu';
 import { type SearchMode } from './search';
@@ -67,9 +65,6 @@ import { useCategoryBrowse } from './useCategoryBrowse';
 
 const FrontBookmarkEditor = lazy(() =>
   import('./FrontBookmarkEditor').then((module) => ({ default: module.FrontBookmarkEditor })),
-);
-const FrontSearchSelect = lazy(() =>
-  import('./FrontSearchSelect').then((module) => ({ default: module.FrontSearchSelect })),
 );
 const openLink = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
 
@@ -97,7 +92,6 @@ function NavigationSurface() {
   }, [setSidebarOpen]);
   const navigate = useNavigate();
   const [composing, setComposing] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [version, setVersion] = useState(0);
@@ -147,14 +141,6 @@ function NavigationSurface() {
   const loadTags = useCallback((signal: AbortSignal) => api.getTags(signal), []);
   const categories = useApiData(loadCategories, { onUnauthorized: unauthorized });
   const tags = useApiData(loadTags, { onUnauthorized: unauthorized });
-  const tagsForSelect = useMemo(
-    () => [
-      { value: '', label: '全部标签' },
-      { value: '__untagged__', label: '无标签' },
-      ...tagOptions(tags.data ?? []),
-    ],
-    [tags.data],
-  );
   const roots = useMemo(() => buildCategoryTree(categories.data ?? []), [categories.data]);
   const totals = useMemo(() => descendantTotals(categories.data ?? []), [categories.data]);
   const browse = useCategoryBrowse(roots, Boolean(categories.data));
@@ -257,21 +243,37 @@ function NavigationSurface() {
     setDraft('');
     update({ ...search, mode, q: undefined, tag: undefined, untagged: undefined }, true);
   }
-  function selectTagByName(tagName: string) {
-    const matched = tags.data?.find(
-      (item) =>
-        item.slug.toLocaleLowerCase() === tagName.toLocaleLowerCase() ||
-        item.name.toLocaleLowerCase() === tagName.toLocaleLowerCase(),
-    );
-    const nextTag = matched?.slug ?? tagName;
+  function selectTagFilter(next: { tag?: string; untagged?: boolean }) {
     void update({
       ...search,
       mode: 'site',
       q: draft.trim() || undefined,
-      tag: nextTag,
-      untagged: undefined,
+      tag: next.tag,
+      untagged: next.untagged,
     });
   }
+  function selectTagByName(tagName: string) {
+    const lower = tagName.toLocaleLowerCase();
+    const matched = tags.data?.find(
+      (item) => item.slug.toLocaleLowerCase() === lower || item.name.toLocaleLowerCase() === lower,
+    );
+    const nextTag = matched?.slug ?? tagName;
+    const activeMatched =
+      search.tag !== undefined &&
+      (search.tag.toLocaleLowerCase() === nextTag.toLocaleLowerCase() ||
+        search.tag.toLocaleLowerCase() === lower);
+    selectTagFilter({ tag: activeMatched ? undefined : nextTag, untagged: undefined });
+  }
+  const activeTagLabel = useMemo(() => {
+    if (!search.tag) return undefined;
+    const lower = search.tag.toLocaleLowerCase();
+    return (
+      tags.data?.find(
+        (item) =>
+          item.slug.toLocaleLowerCase() === lower || item.name.toLocaleLowerCase() === lower,
+      )?.name ?? search.tag
+    );
+  }, [tags.data, search.tag]);
 
   const mutations = useBookmarkMutations({
     onContentChange(change) {
@@ -316,6 +318,8 @@ function NavigationSurface() {
     density,
     pendingIds: mutations.pendingIds,
     categories: categories.data ?? [],
+    tags: tags.data ?? [],
+    activeTag: search.tag,
     cache: feedCache,
     onEdit: setEditor,
     onCopy: (bookmark, categoryId) => mutations.copyToCategory(bookmark, categoryId),
@@ -944,55 +948,15 @@ function NavigationSurface() {
                   ) : null}
                 </div>
               ) : (
-                <details
-                  className="w-full"
-                  onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
-                >
-                  <summary className="inline-flex min-h-9 w-fit cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary hover:text-foreground sm:text-sm [&::-webkit-details-marker]:hidden">
-                    <SlidersHorizontal aria-hidden="true" className="size-3.5" />
-                    <span>筛选{search.tag || search.untagged ? ' · 已启用' : ''}</span>
-                    <ChevronDown
-                      aria-hidden="true"
-                      className={cn(
-                        'size-3.5 transition-transform duration-150',
-                        filtersOpen && 'rotate-180',
-                      )}
-                    />
-                  </summary>
-                  <div className="mt-2.5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/55 p-3">
-                    <label htmlFor="search-tag" className="text-xs font-medium">
-                      标签
-                    </label>
-                    {filtersOpen ? (
-                      <Suspense fallback={<FrontButton disabled>加载标签筛选…</FrontButton>}>
-                        <FrontSearchSelect
-                          id="search-tag"
-                          label="标签筛选"
-                          placeholder="搜索标签"
-                          options={retainSelectedOption(tagsForSelect, search.tag ?? '')}
-                          disabled={tags.loading && !tags.data}
-                          value={search.untagged ? '__untagged__' : (search.tag ?? '')}
-                          onChange={(value) =>
-                            update({
-                              ...search,
-                              mode,
-                              q: draft.trim() || undefined,
-                              tag: value && value !== '__untagged__' ? value : undefined,
-                              untagged: value === '__untagged__' ? true : undefined,
-                            })
-                          }
-                          className="max-w-full sm:max-w-64"
-                        />
-                      </Suspense>
-                    ) : null}
-                    {tags.error ? (
-                      <span role="alert" className="text-xs text-destructive">
-                        {tags.error}
-                        <FrontButton onClick={tags.refresh}>重试标签</FrontButton>
-                      </span>
-                    ) : null}
-                  </div>
-                </details>
+                <FrontTagFilterBar
+                  tags={tags.data ?? []}
+                  loading={tags.loading}
+                  error={tags.error}
+                  onRetry={tags.refresh}
+                  selectedTag={search.tag}
+                  untagged={search.untagged}
+                  onChange={selectTagFilter}
+                />
               )}
             </div>
           </search>
@@ -1039,6 +1003,15 @@ function NavigationSurface() {
                 actions={actions}
                 feed={results}
                 highlighted={highlighted}
+                activeQuery={search.q}
+                activeTagLabel={activeTagLabel}
+                activeUntagged={search.untagged}
+                onRemoveQuery={() => {
+                  setDraft('');
+                  void update({ ...search, mode, q: undefined }, true);
+                }}
+                onRemoveTag={() => selectTagFilter({ tag: undefined, untagged: undefined })}
+                onRemoveCategory={() => void update({ ...search, mode, category: undefined })}
                 onClear={clearSearch}
               />
             )
@@ -1077,6 +1050,9 @@ function NavigationSurface() {
         roots={roots}
         totals={totals}
         defaultRootSlug={browse.defaultRoot?.slug}
+        tags={tags.data ?? []}
+        activeTag={search.tag}
+        activeUntagged={search.untagged}
         recentBookmarks={recentBookmarks}
         theme={theme}
         resolvedTheme={effectiveResolvedTheme}
@@ -1089,6 +1065,7 @@ function NavigationSurface() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={toggleSidebar}
         onSelectCategory={selectCategory}
+        onSelectTag={selectTagFilter}
         onOpenBookmark={openLink}
         onCreateBookmark={() => setEditor('new')}
         onAdmin={goAdmin}

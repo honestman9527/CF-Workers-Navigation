@@ -227,8 +227,9 @@ it('支持舒适/紧凑视图密度切换并持久化到 localStorage', async ()
   expect(app.container.querySelector('li[data-density="compact"]')).not.toBeNull();
 });
 
-it('卡片展示最多 3 个可点击标签微章、所属分类与私有标识，点击标签触发站内筛选', async () => {
-  vi.mocked(api.searchBookmarks).mockResolvedValueOnce({
+it('卡片展示最多 3 个可点击标签微章、所属分类与私有标识，支持 +N 展开、激活高亮及命令面板按标签筛选', async () => {
+  vi.useRealTimers();
+  vi.mocked(api.searchBookmarks).mockResolvedValue({
     items: [
       makeBookmark(),
       makeBookmark({
@@ -243,18 +244,51 @@ it('卡片展示最多 3 个可点击标签微章、所属分类与私有标识�
     nextCursor: null,
   });
   app = await mount(<Host initial={{ mode: 'site', q: 'Cloudflare' }} />);
-  const firstCard = app.container.querySelectorAll('li')[0]!;
-  expect(firstCard.textContent).toContain('开发文档');
-  expect(firstCard.textContent).toContain('Workers');
-  expect(firstCard.textContent).toContain('Edge');
-  expect(firstCard.textContent).toContain('TypeScript');
-  expect(firstCard.textContent).not.toContain('ExtraTag');
-  expect(firstCard.textContent).toContain('+1');
+  const currentFirstCard = () => app.container.querySelectorAll('li')[0]!;
+  expect(currentFirstCard().textContent).toContain('开发文档');
+  expect(currentFirstCard().textContent).toContain('Workers');
+  expect(currentFirstCard().textContent).toContain('Edge');
+  expect(currentFirstCard().textContent).toContain('TypeScript');
+  expect(currentFirstCard().textContent).not.toContain('ExtraTag');
+  expect(currentFirstCard().textContent).toContain('+1');
 
   const secondCard = app.container.querySelectorAll('li')[1]!;
   expect(secondCard.textContent).toContain('私有');
 
-  await click(buttonWithText(firstCard, 'Workers'));
+  // 点击卡片标签激活并高亮，再次点击取消筛选
+  await click(buttonWithText(currentFirstCard(), 'Workers'));
+  expect(route.search).toMatchObject({ mode: 'site', tag: 'workers' });
+  expect(buttonWithText(currentFirstCard(), 'Workers').getAttribute('aria-pressed')).toBe('true');
+
+  await click(buttonWithText(currentFirstCard(), 'Workers'));
+  expect(route.search.tag).toBeUndefined();
+
+  // 点击 +1 展开其余标签浮层并点选 ExtraTag
+  await click(
+    currentFirstCard().querySelector<HTMLElement>(
+      '[aria-label="查看其余 1 个标签：Cloudflare Docs"]',
+    )!,
+  );
+  const extraPopup = document.querySelector<HTMLElement>(
+    '[aria-label="更多标签：Cloudflare Docs"]',
+  )!;
+  expect(extraPopup).not.toBeNull();
+  await click(buttonWithText(extraPopup, 'ExtraTag'));
+  expect(route.search).toMatchObject({ mode: 'site', tag: 'ExtraTag' });
+
+  // 命令面板支持 #标签 检索并切换筛选
+  await act(() => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }),
+    );
+  });
+  const cmdDialog = document.querySelector<HTMLElement>('[aria-label="全局命令面板"]')!;
+  const cmdInput = cmdDialog.querySelector<HTMLInputElement>('input')!;
+  await fill(cmdInput, '#workers');
+  const tagOption = [...cmdDialog.querySelectorAll<HTMLElement>('[role="option"]')].find((el) =>
+    el.textContent?.includes('Workers'),
+  )!;
+  await click(tagOption);
   expect(route.search).toMatchObject({ mode: 'site', tag: 'workers' });
 });
 

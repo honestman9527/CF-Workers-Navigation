@@ -353,6 +353,18 @@
   initial-value: 0px;
 }
 
+@property --scroll-fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* 72px 窄图标栏：支持滚动驱动边缘渐变时隐藏滚动条避免挤偏图标，旧浏览器回退至悬停显现细滚动条。 */
 @utility scrollbar-rail {
   scrollbar-width: thin;
@@ -390,6 +402,57 @@
     animation-range:
       0 var(--scroll-fade-size),
       calc(100% - var(--scroll-fade-size)) 100%;
+  }
+}
+
+/* 横向标签筛选条：隐藏溢出滚动条并按滚屏位置渐隐两端边缘，保留无障碍高对比与聚焦安全留白。 */
+@utility scroll-edge-fade-x {
+  --scroll-fade-x-size: 2rem;
+  --fade-dir: right;
+  --fade-start-pos: 0;
+  --fade-end-pos: 100%;
+  scroll-padding-inline: var(--scroll-fade-x-size);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  @media (prefers-contrast: more) {
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      display: initial;
+    }
+  }
+  mask:
+    linear-gradient(black, black) no-clip subtract,
+    linear-gradient(to var(--fade-dir), black, transparent) var(--fade-start-pos) 0 /
+      var(--scroll-fade-start) 100% no-repeat no-clip,
+    linear-gradient(to var(--fade-dir), transparent, black) var(--fade-end-pos) 0 /
+      var(--scroll-fade-end) 100% no-repeat no-clip;
+  &:dir(rtl) {
+    --fade-dir: left;
+    --fade-start-pos: 100%;
+    --fade-end-pos: 0;
+  }
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-start linear both,
+      scroll-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range:
+      0 var(--scroll-fade-x-size),
+      calc(100% - var(--scroll-fade-x-size)) 100%;
+  }
+  @supports not (animation-timeline: scroll()) {
+    transition:
+      --scroll-fade-start 0.2s ease-out,
+      --scroll-fade-end 0.2s ease-out;
+    &.has-more-start {
+      --scroll-fade-start: var(--scroll-fade-x-size);
+    }
+    &.has-more-end {
+      --scroll-fade-end: var(--scroll-fade-x-size);
+    }
   }
 }
 
@@ -953,6 +1016,16 @@
     --scroll-fade-bottom: var(--scroll-fade-size);
   }
 }
+@keyframes scroll-fade-start {
+  to {
+    --scroll-fade-start: var(--scroll-fade-x-size);
+  }
+}
+@keyframes scroll-fade-end {
+  from {
+    --scroll-fade-end: var(--scroll-fade-x-size);
+  }
+}
 @keyframes scroll-shadow-reveal {
   to {
     opacity: 1;
@@ -993,11 +1066,20 @@ html.has-background .app-inset {
   background-color: transparent;
 }
 
-/* Windows 强制高对比度模式：确保依赖 box-shadow focus ring 的控件仍保留清晰系统焦点轮廓。 */
+/* Windows 强制高对比度模式：确保依赖 box-shadow focus ring 的控件与标签筛选芯片保留清晰系统颜色。 */
 @media (forced-colors: active) {
   :focus-visible {
     outline: 2px solid Highlight !important;
     outline-offset: 2px;
+  }
+  .tag-chip[aria-pressed='true'] {
+    background-color: Highlight;
+    color: HighlightText;
+    border-color: Highlight;
+  }
+  .tag-chip:focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: -2px !important;
   }
 }
 

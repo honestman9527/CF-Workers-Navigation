@@ -246,7 +246,7 @@ export function WebsitesTab() {
   const tagsForSelect = useMemo(
     () =>
       retainSelectedOption(
-        [{ value: '', label: '全部标签' }, ...tagOptions(tags ?? [])],
+        [{ value: '', label: '全部标签' }, ...tagOptions(tags ?? [], true)],
         tagSlug ?? '',
       ),
     [tags, tagSlug],

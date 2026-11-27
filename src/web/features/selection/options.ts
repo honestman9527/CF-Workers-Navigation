@@ -6,6 +6,7 @@ import { buildCategoryTree, type CategoryNode } from '../categories/tree';
 export type SelectOption = {
   value: string;
   label: string;
+  keywords?: string;
   path?: string;
   depth?: number;
   parentValue?: string;
@@ -46,8 +47,23 @@ export function categoryOptions(categories: Category[], includeCounts = false): 
   return options;
 }
 
-export function tagOptions(tags: Tag[]): SelectOption[] {
-  return tags.map((tag) => ({ value: tag.slug, label: tag.name }));
+/** 按关联书签数降序排列标签，计数相同时按名称和 id 稳定排序。 */
+export function sortTagsByPopularity(tags: Tag[]): Tag[] {
+  return [...tags].sort(
+    (a, b) =>
+      b.bookmarkCount - a.bookmarkCount ||
+      a.name.localeCompare(b.name, 'zh-Hans-CN') ||
+      a.id - b.id,
+  );
+}
+
+export function tagOptions(tags: Tag[], includeCounts = false): SelectOption[] {
+  return tags.map((tag) => ({
+    value: tag.slug,
+    label: tag.name,
+    keywords: tag.slug !== tag.name ? tag.slug : undefined,
+    hint: includeCounts ? String(tag.bookmarkCount) : undefined,
+  }));
 }
 
 export function optionLabel(option: SelectOption): string {
@@ -55,12 +71,15 @@ export function optionLabel(option: SelectOption): string {
 }
 
 export function matchOption(option: SelectOption, query: string): boolean {
-  const label = optionLabel(option).toLocaleLowerCase();
+  const haystack = [optionLabel(option), option.keywords]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase();
   return query
     .trim()
     .toLocaleLowerCase()
     .split(/\s+/)
-    .every((word) => label.includes(word));
+    .every((word) => haystack.includes(word));
 }
 
 /** URL 或刷新期间暂时缺失的选项保留原值，不能静默切换筛选。 */

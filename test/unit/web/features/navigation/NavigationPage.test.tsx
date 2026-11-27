@@ -292,35 +292,57 @@ it('显式站内模式优先于浏览器记忆，标签与关键词组合查询'
   expect(buttonWithText(app.container, '站内').getAttribute('aria-pressed')).toBe('true');
 });
 
-it('展开筛选后可搜索标签，在标签、无标签和全部之间切换并保留关键词', async () => {
+it('直出快捷标签栏与可搜索下拉可切换标签、无标签和全部，并保留关键词', async () => {
   vi.useRealTimers();
   app = await mount(<Host initial={{ mode: 'site', q: 'React' }} />);
-  expect(app.container.querySelector('[aria-label="标签筛选"]')).toBeNull();
-  const details = app.container.querySelector('details')!;
-  await act(async () => {
-    details.open = true;
-    details.dispatchEvent(new Event('toggle', { bubbles: true }));
-    await import('@nav/features/navigation/FrontSearchSelect');
-  });
-  const trigger = app.container.querySelector<HTMLElement>('[aria-label="标签筛选"]')!;
-  await click(trigger);
-  await click(
-    [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
-      (option) => option.textContent === '无标签',
-    )!,
-  );
+  const toolbar = app.container.querySelector('[role="toolbar"][aria-label="快捷标签筛选"]')!;
+  expect(toolbar).not.toBeNull();
+
+  // 直接点击快捷栏「无标签」胶囊
+  await click(buttonWithText(toolbar as HTMLElement, '无标签'));
   expect(route.search).toMatchObject({ q: 'React', untagged: true });
   expect(route.search.tag).toBeUndefined();
+
+  // 使用可搜索 Combobox 按关键词/slug 搜索并选中标签
+  const trigger = app.container.querySelector<HTMLElement>('[aria-label="标签筛选"]')!;
   await click(trigger);
   await fill(document.querySelector<HTMLInputElement>('input[role="combobox"]')!, 'rea');
   await click(document.querySelector<HTMLElement>('[role="option"]')!);
   expect(route.search).toMatchObject({ q: 'React', tag: 'react' });
   expect(route.search.untagged).toBeUndefined();
-  await click(trigger);
-  await click(document.querySelector<HTMLElement>('[role="option"]')!);
+
+  // 点击快捷栏「全部」恢复全部标签并保留关键词
+  await click(buttonWithText(toolbar as HTMLElement, '全部'));
   expect(route.search.q).toBe('React');
   expect(route.search.tag).toBeUndefined();
   expect(route.search.untagged).toBeUndefined();
+});
+
+it('结果区展示独立筛选条件芯片，可分别移除分类范围、关键词或标签', async () => {
+  app = await mount(
+    <Host initial={{ mode: 'site', category: '工具', q: 'React', tag: 'react' }} />,
+  );
+  const group = app.container.querySelector('[role="group"][aria-label="当前筛选条件"]')!;
+  expect(group).not.toBeNull();
+  expect(group.textContent).toContain('范围：工具');
+  expect(group.textContent).toContain('关键词：React');
+  expect(group.textContent).toContain('React');
+
+  // 仅移除分类范围 -> 保留关键词与标签搜全库
+  await click(group.querySelector<HTMLElement>('[aria-label="在全部书签中搜索"]')!);
+  expect(route.search).toMatchObject({ q: 'React', tag: 'react' });
+  expect(route.search.category).toBeUndefined();
+
+  // 仅移除标签筛选 -> 保留关键词
+  await click(group.querySelector<HTMLElement>('[aria-label="移除标签筛选：React"]')!);
+  expect(route.search).toMatchObject({ q: 'React' });
+  expect(route.search.tag).toBeUndefined();
+
+  // 重新带上标签后仅移除关键词 -> 保留标签继续筛选
+  await act(() => route.setSearch({ mode: 'site', q: 'React', tag: 'react' }));
+  await click(app.container.querySelector<HTMLElement>('[aria-label="移除关键词筛选"]')!);
+  expect(route.search).toMatchObject({ tag: 'react' });
+  expect(route.search.q).toBeUndefined();
 });
 
 it('网页 bang 正常打开引擎，只有前缀时禁用提交；输入法确认不触发搜索', async () => {

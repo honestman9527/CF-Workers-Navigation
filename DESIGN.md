@@ -57,7 +57,7 @@ description: 温润中性 Slate 基底 + 低饱和现代主色（4 套可选主�
   - **减少动态偏好**：在 `prefers-reduced-motion: reduce` 下禁用 `::view-transition-*` 动画、卡片位移/微光与进度丝带，抑制浮层位移缩放仅保留短促透明度淡入淡出，所有 `animate-spin`/`animate-pulse` 使用 `motion-safe:` 守卫，并放慢不定态 `<progress>` 进度动画。
 - **前后台统一侧边栏折叠与底部工具栏**：前后台桌面左侧边栏统一采用 `264px` 展开态 ↔ `72px` 紧凑图标栏（Icon Rail，配合 Tooltip、头部折叠按钮与 `Cmd/Ctrl + B`），共享轻磨砂 `glass-surface` 材质；展开态底部统一收束为单行无边框轻量工具栏（左侧极简切换入口「后台 / 登录 / 前台」，右侧一键明暗切换 + 外观配色浮层 + 退出图标），折叠态统一为竖排居中 `44px` 图标按钮。前台书签网格采用 CSS 容器查询（`@container`）而非视口宽度决定列数，折叠侧边栏释放宽度后自动增加列数。
 - **桌面悬停操作胶囊与触控热区**：桌面端书签管理操作（置顶/编辑/移入回收站）仅在真实悬停指针设备（`@media (hover: hover)`）下启用 `absolute top-2.5 right-2.5` 磨砂悬浮胶囊；触控屏与平板设备常显操作条，并在粗指针环境（`pointer: coarse`）下统一保证交互热区不小于 `44px`（`min-h-11`）。
-- **无障碍、高对比度与滚动条**：同步 `<meta name="color-scheme">` 与 `:root { color-scheme: light dark; }`（CSS `:has()` 跟随覆盖），文本选区使用 `color-mix(in oklab, ...)`；页面主滚屏保留系统标准 `scrollbar-width`，侧边栏与弹窗/下拉列表采用柔和半透明 Slate 滑块（对比度 ≥ 3:1，桌面静息隐身、悬停/聚焦显现，72px 图标栏隐藏滑块并配合滚动驱动边缘渐变），弹窗滚动区内置于 `rounded-2xl` 裁切框内并配滚动阴影提示，在 `prefers-contrast: more` 下常显高对比度滑块与轨道；在 `forced-colors: active`（Windows 高对比度）下保留明确 `:focus-visible` 轮廓与主题色色卡真实颜色（`forced-color-adjust: none`）。
+- **无障碍、高对比度与滚动条**：同步 `<meta name="color-scheme">` 与 `:root { color-scheme: light dark; }`（CSS `:has()` 跟随覆盖），文本选区使用 `color-mix(in oklab, ...)`；页面主滚屏保留系统标准 `scrollbar-width`，侧边栏与弹窗/下拉列表采用柔和半透明 Slate 滑块（对比度 ≥ 3:1，桌面静息隐身、悬停/聚焦显现，72px 图标栏隐藏滑块并配合滚动驱动边缘渐变），直出式横向标签筛选条采用无滚动条设计配合滚动驱动/IntersectionObserver 边缘渐隐提示（`.scroll-edge-fade-x`）与内嵌键盘焦点环（`-outline-offset: -2px`），弹窗滚动区内置于 `rounded-2xl` 裁切框内并配滚动阴影提示，在 `prefers-contrast: more` 下常显高对比度滑块与轨道（含横向标签条滚动条恢复）；在 `forced-colors: active`（Windows 高对比度）下保留明确 `:focus-visible` 轮廓、标签筛选芯片 `Highlight`/`HighlightText` 选中态与主题色色卡真实颜色（`forced-color-adjust: none`）。
 
 ## 本项目组件与状态规则
 

@@ -7,6 +7,8 @@ import {
   categoryOptions,
   matchOption,
   retainSelectedOption,
+  sortTagsByPopularity,
+  tagOptions,
 } from '@nav/features/selection/options';
 
 const root: Category = {
@@ -56,4 +58,27 @@ it('索引暂时缺失时保留筛选原值，不产生重复选项', () => {
   const retained = retainSelectedOption(options, 'missing');
   expect(retained.at(-1)).toEqual({ value: 'missing', label: '当前选择：missing' });
   expect(options).toHaveLength(1);
+});
+
+it('按关联书签数降序排列标签，并在带计数选项中支持按英文 slug 检索', () => {
+  const input = [
+    { id: 1, name: '冷门', slug: 'cold-slug', bookmarkCount: 1 },
+    { id: 2, name: '文档', slug: 'docs', bookmarkCount: 8 },
+    { id: 3, name: '工具', slug: 'tools', bookmarkCount: 8 },
+    { id: 4, name: '零使用', slug: 'unused', bookmarkCount: 0 },
+  ];
+  const sorted = sortTagsByPopularity(input);
+  expect(sorted.map((item) => item.id)).toEqual([3, 2, 1, 4]);
+  expect(input.map((item) => item.id)).toEqual([1, 2, 3, 4]);
+
+  const opts = tagOptions(sorted, true);
+  expect(opts[0]).toEqual({
+    value: 'tools',
+    label: '工具',
+    keywords: 'tools',
+    hint: '8',
+  });
+  expect(matchOption(opts[1]!, 'DOCS')).toBe(true);
+  expect(matchOption(opts[1]!, '文档')).toBe(true);
+  expect(matchOption(opts[1]!, 'unknown')).toBe(false);
 });
